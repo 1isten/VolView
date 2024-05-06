@@ -59,6 +59,7 @@ const createVolViewApp = () => {
   app.use(VueToast);
   app.use(vuetify);
   app.config.globalProperties.emitter = mitt();
+  app.provide('bus', app.config.globalProperties.emitter);
 
   return {
     app,
