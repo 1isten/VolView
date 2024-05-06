@@ -37,6 +37,8 @@ describe('VTK Image Thumbnailer', () => {
     ThumbnailSlice.Last,
   ];
 
+  type Axis = 0 | 1 | 2 | undefined;
+
   for (let axis: 0 | 1 | 2 = 0; axis < 3; axis++) {
     for (let slice = 0; slice < 3; slice++) {
       const sliceWord = SLICE_POSITION_WORDS[slice];
@@ -50,7 +52,7 @@ describe('VTK Image Thumbnailer', () => {
         point[axis] = slice;
         scalars[i2o(...point)] = 255;
 
-        const im = thumbnailer.generate(imageData, axis, thumbSlice);
+        const im = thumbnailer.generate(imageData, axis as Axis, thumbSlice);
         // each pixel is rgba
         expect(im.data[4 * 4]).to.equal(255);
       });

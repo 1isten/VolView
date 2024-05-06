@@ -80,7 +80,7 @@ const selectionStore = useToolSelectionStore();
 const { selectAll, deselectAll, selected, selectionState } =
   useMultipleToolSelection(tools);
 
-const toggleSelectAll = (shouldSelectAll: boolean) => {
+const toggleSelectAll = (shouldSelectAll: boolean | null) => {
   if (shouldSelectAll) {
     selectAll();
   } else {

@@ -38,5 +38,5 @@ export function pipe<F extends AnyFunc[]>(
   arg: Parameters<F[0]>[0],
   ...fns: PipeArgs<F> extends F ? F : PipeArgs<F>
 ): LastFnReturnType<F, ReturnType<F[0]>> {
-  return (fns.slice(1) as AnyFunc[]).reduce((acc, fn) => fn(acc), fns[0](arg));
+  return (fns.slice(1) as AnyFunc[]).reduce((acc, fn) => fn(acc), fns[0] && fns[0](arg));
 }
