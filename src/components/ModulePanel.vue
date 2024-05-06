@@ -2,10 +2,11 @@
   <div class="fill-height d-flex flex-column">
     <div id="module-switcher">
       <v-tabs
-        id="module-switcher-tabs"
+        class="module-switcher-tabs"
         v-model="selectedModuleIndex"
-        icons-and-text
+        stacked
         show-arrows
+        align-tabs="center"
       >
         <v-tab
           v-for="item in Modules"
@@ -139,17 +140,15 @@ export default defineComponent({
   align-items: center;
 }
 
-#module-switcher-tabs :deep(.v-slide-group__content) {
+.module-switcher-tabs :deep(.v-slide-group__content) {
   justify-content: center;
 }
 
-#module-switcher-tabs
-  :deep(.v-slide-group__prev.v-slide-group__prev--disabled) {
+.module-switcher-tabs :deep(.v-slide-group__prev.v-slide-group__prev--disabled) {
   visibility: hidden;
 }
 
-#module-switcher-tabs
-  :deep(.v-slide-group__next.v-slide-group__next--disabled) {
+.module-switcher-tabs :deep(.v-slide-group__next.v-slide-group__next--disabled) {
   visibility: hidden;
 }
 </style>
