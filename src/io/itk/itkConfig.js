@@ -3,6 +3,7 @@ import { join } from '@/src/utils/path';
 const base = import.meta.env.BASE_URL;
 
 const fullUrl = (relative) =>
+  window.__webpack_public_path__ ? window.__webpack_public_path__ + (window.__webpack_public_path__.endsWith('/') || `${relative}`.startsWith('/') ? '' : '/') + relative :
   new URL(join(base, relative), document.location.origin).href;
 
 const itkConfig = {
