@@ -1,1 +1,3 @@
-// import './main.js';
+import volview from '../src/main';
+
+export default volview;

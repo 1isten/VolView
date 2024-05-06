@@ -1,0 +1,14 @@
+{
+  "name": "volview",
+  "version": "4.2.0",
+  "type": "module",
+  "module": "./index.js",
+  "exports": {
+    ".": {
+      "import": "./index.js"
+    },
+    "./style.css": {
+      "import": "./style.css"
+    }
+  }
+}

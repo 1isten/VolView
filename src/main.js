@@ -7,8 +7,9 @@ import '@kitware/vtk.js/Rendering/OpenGL/Profiles/Volume';
 import '@kitware/vtk.js/Rendering/OpenGL/Profiles/Glyph';
 
 import { createApp } from 'vue';
-import VueToast from 'vue-toastification';
 import { createPinia } from 'pinia';
+import mitt from 'mitt';
+import VueToast from 'vue-toastification';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import { setPipelinesBaseUrl, setPipelineWorkerUrl } from '@itk-wasm/image-io';
 
@@ -41,19 +42,46 @@ dicomIO.initialize();
 setPipelineWorkerUrl(itkConfig.pipelineWorkerUrl);
 setPipelinesBaseUrl(itkConfig.imageIOUrl);
 
-const pinia = createPinia();
-pinia.use(
-  CorePiniaProviderPlugin({
-    dicomIO,
-  })
-);
-pinia.use(StoreRegistry);
+const createVolViewApp = () => {
+  const pinia = createPinia();
+  pinia.use(
+    CorePiniaProviderPlugin({
+      dicomIO,
+    })
+  );
+  pinia.use(StoreRegistry);
 
-const app = createApp(App);
+  const app = createApp(App);
 
-initErrorReporting(app);
+  initErrorReporting(app);
 
-app.use(pinia);
-app.use(VueToast);
-app.use(vuetify);
-app.mount('#app');
+  app.use(pinia);
+  app.use(VueToast);
+  app.use(vuetify);
+  app.config.globalProperties.emitter = mitt();
+
+  return {
+    app,
+    pinia,
+  };
+};
+
+const deleteVolViewApp = (app) => {
+  app.unmount();
+  // const pinia = getActivePinia();
+  // if (pinia) {
+  //   disposePinia(pinia);
+  // }
+};
+
+if (!import.meta.env.VITE_BUILD_LIB) {
+  const { app } = createVolViewApp();
+  app.mount('#app');
+}
+export default {
+  createVolViewApp,
+  deleteVolViewApp,
+  // VolView: App,
+  VueToast,
+  vuetify,
+};

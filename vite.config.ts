@@ -37,6 +37,7 @@ const rootDir = resolvePath(__dirname);
 const distDir = resolvePath(rootDir, 'dist');
 const itkConfig = resolvePath(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
 
+const BUILD_LIB = process.env.VITE_BUILD_LIB;
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
 
@@ -53,9 +54,26 @@ function configureSentryPlugin() {
 
 export default defineConfig({
   build: {
-    outDir: distDir,
+    outDir: BUILD_LIB ? resolvePath(distDir, 'volview') : distDir,
+    copyPublicDir: !BUILD_LIB,
+    minify: !BUILD_LIB,
+    target: BUILD_LIB ? 'esnext' : 'modules',
+    lib: BUILD_LIB
+      ? {
+          entry: resolvePath(rootDir, 'lib', 'main.ts'),
+          formats: ['es'],
+          name: 'VolView',
+          fileName: 'index',
+        }
+      : false,
     rollupOptions: {
-      output: {
+      external: BUILD_LIB
+        ? [
+            // 'vue',
+            // 'pinia',
+          ]
+        : [],
+      output: BUILD_LIB ? undefined : {
         manualChunks(id) {
           if (id.includes('vuetify')) {
             return 'vuetify';
@@ -177,6 +195,13 @@ export default defineConfig({
           ),
           dest: 'itk/pipelines',
         },
+        ...(BUILD_LIB ? [{
+          src: resolvePath(
+            rootDir,
+            'lib/package.json'
+          ),
+          dest: '',
+        }] : []),
       ],
     }),
     ANALYZE_BUNDLE
@@ -200,6 +225,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['itk-wasm'],
   },
+  /*
   test: {
     environment: 'jsdom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
@@ -209,4 +235,5 @@ export default defineConfig({
       inline: ['vuetify'],
     },
   },
+  */
 });

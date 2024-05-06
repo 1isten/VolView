@@ -8,6 +8,7 @@
     "serve": "npm run dev",
     "build": "vue-tsc --noEmit && vite build",
     "build:analyze": "cross-env ANALYZE_BUNDLE=1 npm run build",
+    "build:lib": "cross-env VITE_BUILD_LIB=1 npm run build -- --base=./",
     "test": "vitest",
     "test:e2e:chrome": "npm run build && wdio run ./wdio.chrome.conf.ts",
     "test:e2e:dev": "concurrently -P \"npm run dev\"  \"wdio run ./wdio.dev.conf.ts --watch {@}\"",
