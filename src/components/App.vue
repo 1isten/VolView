@@ -1,11 +1,12 @@
 <template>
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
-      <v-app>
+      <v-layout class="position-relative w-100 h-100 overflow-hidden">
         <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
           app
+          absolute
           clipped
           touchless
           width="450"
@@ -29,7 +30,7 @@
           </div>
         </v-main>
         <keyboard-shortcuts />
-      </v-app>
+      </v-layout>
       <persistent-overlay
         :disabled="!dragHover"
         color="#000"
@@ -77,7 +78,7 @@ import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
 
 export default defineComponent({
-  name: 'App',
+  name: 'VolViewApp',
 
   components: {
     ControlsStrip,
@@ -170,7 +171,7 @@ export default defineComponent({
   transition: initial;
   width: 100%;
   height: 100%;
-  position: fixed;
+  position: absolute;
 }
 
 #left-nav {
