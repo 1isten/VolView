@@ -4,7 +4,7 @@
       <v-tabs
         class="module-switcher-tabs"
         v-model="selectedModuleIndex"
-        stacked
+        :stacked="false"
         show-arrows
         align-tabs="center"
       >
@@ -111,7 +111,7 @@ export default defineComponent({
   flex: 0 2;
   /* roughly match vuetify's dark/light transition */
   transition: border-bottom 0.3s;
-  border-bottom: 2px solid rgb(var(--v-theme-on-surface-variant));
+  border-bottom: 2px solid rgba(var(--v-theme-on-surface-variant), var(--v-border-opacity, 1));
 }
 
 #close-btn {

@@ -20,7 +20,12 @@ body {
 }
 
 .v-card--variant-outlined {
-  border: thin solid rgb(var(--v-theme-on-surface-variant)) !important;
+  border: thin solid rgba(var(--v-theme-on-surface-variant), var(--v-border-opacity, 1)) !important;
+}
+
+.v-expansion-panel-title--active > .v-expansion-panel-title__overlay,
+.v-expansion-panel-title[aria-haspopup=menu][aria-expanded=true] > .v-expansion-panel-title__overlay {
+  opacity: calc(var(--v-activated-opacity) * var(--v-theme-overlay-multiplier));
 }
 
 ul:not([class]),

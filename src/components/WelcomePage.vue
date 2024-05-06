@@ -20,7 +20,7 @@ const dataSecurityDialog = ref(false);
 </script>
 
 <template>
-  <v-container class="page-container bg-grey-darken-3" v-bind="$attrs">
+  <v-container class="page-container" v-bind="$attrs">
     <v-col>
       <v-row justify="center">
         <v-card
@@ -72,6 +72,7 @@ const dataSecurityDialog = ref(false);
 
 <style scoped>
 .page-container {
+  background-color: rgb(var(--v-theme-surface-light));
   flex: 1 1 auto;
   display: flex;
   flex-flow: row;

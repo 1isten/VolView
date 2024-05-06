@@ -122,7 +122,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <template>
   <div
     id="tools-strip"
-    class="bg-grey-darken-4 d-flex flex-column align-center"
+    class="d-flex flex-column align-center"
   >
     <control-button
       size="40"
@@ -212,6 +212,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <style src="@/src/components/styles/utils.css"></style>
 <style scoped>
 #tools-strip {
+  background-color: rgb(var(--v-theme-background));
   border-left: 1px solid #212121;
   flex: 0 0 40px;
 }

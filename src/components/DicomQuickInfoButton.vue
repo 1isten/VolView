@@ -59,7 +59,7 @@ const dicomInfo = computed(() => {
         mdi-information
       </v-icon>
     </template>
-    <v-list class="bg-grey-darken-3">
+    <v-list style="background-color: rgb(var(--v-theme-surface))">
       <v-list-item>
         <v-list-item-title class="font-weight-bold">
           PATIENT / CASE
