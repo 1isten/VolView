@@ -1,7 +1,7 @@
 <template>
   <v-container>
     <v-row no-gutters align="center" class="mb-4 ml-1">
-      <v-item-group v-model="mode" mandatory selected-class="selected">
+      <v-item-group v-model="mode" mandatory class="mx-auto" selected-class="selected">
         <v-item
           :value="PaintMode.CirclePaint"
           v-slot="{ selectedClass, toggle }"
