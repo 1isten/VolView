@@ -76,8 +76,16 @@ const deleteVolViewApp = (app) => {
 };
 
 if (!import.meta.env.VITE_BUILD_LIB) {
-  const { app } = createVolViewApp();
+  const { app, pinia } = createVolViewApp();
   app.mount('#app');
+  if (import.meta.env.DEV) {
+    Reflect.set(window, '$store', {
+      state: pinia.state.value,
+      get activePinia() {
+        return pinia;
+      },
+    });
+  }
 }
 export default {
   createVolViewApp,
