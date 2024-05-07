@@ -356,6 +356,7 @@ export default defineComponent({
 
 .series-selector {
   max-width: 36px;
+  flex-grow: 1;
 }
 
 .thumbnail-container {
