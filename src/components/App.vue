@@ -76,6 +76,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import { useEventBus } from '@/src/composables/useEventBus';
 
 export default defineComponent({
   name: 'VolViewApp',
@@ -112,6 +113,18 @@ export default defineComponent({
     const showLoading = computed(
       () => loadDataStore.isLoading || hasData.value
     );
+
+    // --- events handling --- //
+
+    useEventBus({
+      load(payload) {
+        if (!payload.urlParams || !payload.urlParams.urls) {
+          return;
+        }
+
+        loadUrls(payload.urlParams);
+      }
+    });
 
     // --- parse URL -- //
 
