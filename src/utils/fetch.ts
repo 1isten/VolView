@@ -25,6 +25,14 @@ interface URLHandler {
  */
 const HTTPHandler: URLHandler = {
   testURL: (url) => {
+    if (url) {
+      if (
+        // url.startsWith('file:') ||
+        url.startsWith('file-system:')
+      ) {
+        return true;
+      }
+    }
     const { protocol } = parseUrl(url, window.location.href);
     return protocol === 'http:' || protocol === 'https:';
   },
