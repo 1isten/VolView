@@ -152,6 +152,18 @@ const constructImage = async (dicomIO: DICOMIO, volumeKey: string) => {
   return image;
 };
 
+export const volumeKeySuffixSep = '#';
+
+export const volumeKeyGetSuffix = (volumeKey: string) => {
+  if (volumeKey) {
+    const i = volumeKey.indexOf(volumeKeySuffixSep);
+    if (i !== -1) {
+      return volumeKey.substring(i + 1);
+    }
+  }
+  return '';
+};
+
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
@@ -168,6 +180,8 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
+    volumeKeyGetSuffix,
+
     async importFiles(datasets: DataSourceWithFile[], volumeKeySuffix?: string) {
       if (!datasets.length) return [];
 
@@ -183,7 +197,7 @@ export const useDICOMStore = defineStore('dicom', {
         throw new Error('No volumes categorized from DICOM file(s)');
       } else if (volumeKeySuffix) {
         Object.entries(volumeToFiles).forEach(([volumeKey, files]) => {
-          volumeToFiles[`${volumeKey}#${volumeKeySuffix}`] = files;
+          volumeToFiles[`${volumeKey}${volumeKeySuffixSep}${volumeKeySuffix}`] = files;
           delete volumeToFiles[volumeKey];
         });
       }
