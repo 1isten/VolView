@@ -5,6 +5,7 @@ import {
   DataSource,
   getDataSourceName,
 } from '@/src/io/import/dataSource';
+import { LoadEventOptions } from '@/src/composables/useEventBus';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
@@ -320,7 +321,7 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-export async function loadUrls(params: UrlParams, options?: Record<string, any>) {
+export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
   const sources = urls.map((url, idx) =>
@@ -331,7 +332,10 @@ export async function loadUrls(params: UrlParams, options?: Record<string, any>)
         url
     )
   );
+  // intercept load event from bus emitter
   if (options) {
+    const loadDataStore = useLoadDataStore();
+    const { volumeKeySuffix, ...loadOptions } = options;
     const dicomWebURL = params.dicomWebURL?.toString();
     if (dicomWebURL) {
       const dicomWebFiles: File[] = [];
@@ -364,9 +368,9 @@ export async function loadUrls(params: UrlParams, options?: Record<string, any>)
           }
         }
       }
-      return loadFiles(dicomWebFiles, options.volumeKeySuffix);
+      return loadDataStore.setLoadedByBus(volumeKeySuffix, loadOptions) && loadFiles(dicomWebFiles, volumeKeySuffix);
     }
-    return loadDataSources(sources, options.volumeKeySuffix);
+    return loadDataStore.setLoadedByBus(volumeKeySuffix, loadOptions) && loadDataSources(sources, volumeKeySuffix);
   }
 
   return loadDataSources(sources);

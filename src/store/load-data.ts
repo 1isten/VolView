@@ -3,6 +3,7 @@ import { Maybe } from '@/src/types';
 import { logError } from '@/src/utils/loggers';
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
+import { LoadEventOptions } from '@/src/composables/useEventBus';
 import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
@@ -101,8 +102,21 @@ const useLoadDataStore = defineStore('loadData', () => {
 
   const segmentGroupExtension = ref('');
 
+  const loadedByBus = ref<Record<string, LoadEventOptions>>(Object.create(null));
+  const getLoadedByBus = (volumeKeyUID: string) => loadedByBus.value[volumeKeyUID];
+  const setLoadedByBus = (volumeKeyUID: string | undefined, value: LoadEventOptions) => {
+    if (!volumeKeyUID) {
+      return value;
+    }
+    loadedByBus.value[volumeKeyUID] = value;
+    return value;
+  };
+
   return {
     segmentGroupExtension,
+    loadedByBus,
+    getLoadedByBus,
+    setLoadedByBus,
     isLoading,
     startLoading,
     stopLoading,
