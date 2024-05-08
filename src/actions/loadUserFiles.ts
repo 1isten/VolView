@@ -241,7 +241,7 @@ function loadDataSources(sources: DataSource[]) {
 
     const [succeeded, errored] = partitionResults(results);
 
-    if (!dataStore.primarySelection && succeeded.length) {
+    if ((true || !dataStore.primarySelection) && succeeded.length) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
         loadDataStore.segmentGroupExtension
