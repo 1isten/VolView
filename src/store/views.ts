@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { DefaultViewSpec, InitViewSpecs } from '../config';
+import { Layouts, DefaultViewSpec, InitViewSpecs } from '../config';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewConfigStore } from './view-configs';
 import { ViewSpec } from '../types/views';
@@ -53,6 +53,10 @@ export const useViewStore = defineStore('view', {
           }
         });
       }
+    },
+    setLayoutByName(layoutName: string) {
+      const layout = Layouts[layoutName];
+      if (layout) this.setLayout(layout);
     },
     serialize(stateFile: StateFile) {
       const viewConfigStore = useViewConfigStore();
