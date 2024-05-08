@@ -65,10 +65,16 @@ function toFile(instance: ArrayBuffer) {
   return new File([new Blob([instance])], `dicom-web.${fileCounter}.dcm`);
 }
 
+// Singleton pattern?
+let dicomWebClient: api.DICOMwebClient | null = null;
 function makeClient(dicomWebRoot: string) {
-  return new api.DICOMwebClient({
+  if (dicomWebClient !== null) {
+    return dicomWebClient;
+  }
+  dicomWebClient = new api.DICOMwebClient({
     url: dicomWebRoot,
   });
+  return dicomWebClient;
 }
 
 export async function searchForStudies(dicomWebRoot: string) {
@@ -95,6 +101,15 @@ export async function retrieveSeriesMetadata(
   return instances.map(parseInstance);
 }
 
+export async function retrieveInstanceMetadata(
+  dicomWebRoot: string,
+  options: FetchInstanceOptions
+) {
+  const client = makeClient(dicomWebRoot);
+  const instance = await client.retrieveInstanceMetadata(options);
+  return parseInstance(instance);
+}
+
 export async function fetchSeries(
   dicomWebRoot: string,
   options: FetchSeriesOptions,
@@ -106,6 +121,17 @@ export async function fetchSeries(
     progressCallback,
   })) as ArrayBuffer[];
   return series.map(toFile);
+}
+
+export async function fetchInstance(
+  dicomWebRoot: string,
+  instance: FetchInstanceOptions
+) {
+  const client = makeClient(dicomWebRoot);
+  const dicom = await client.retrieveInstance({
+    ...instance,
+  }) as ArrayBuffer;
+  return toFile(dicom);
 }
 
 export async function fetchInstanceThumbnail(
