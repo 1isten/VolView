@@ -12,7 +12,6 @@ const updateFileMimeType: ImportHandler = async (dataSource) => {
   const isNifti = fileSrc && fileSrc.file && fileSrc.file.name && (fileSrc.file.name.toLowerCase().endsWith('.nii') || fileSrc.file.name.toLowerCase().endsWith('.nii.gz'));
   const isNiftiButWrongType = isNifti && fileSrc.fileType !== FILE_EXT_TO_MIME['nii.gz'];
   if (fileSrc && fileSrc.fileType === '' || isNiftiButWrongType) {
-    console.log(fileSrc);
     const mime = await getFileMimeType(fileSrc.file);
     if (mime) {
       src = {
