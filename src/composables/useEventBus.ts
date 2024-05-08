@@ -7,8 +7,9 @@ type Events = {
       urls: [string],
       names?: [string],
     };
-    key?: string;
-    from?: number;
+    // ...options:
+    cacheKey?: string;
+    volumeKeySuffix?: string;
   };
 }
 

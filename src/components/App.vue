@@ -118,11 +118,13 @@ export default defineComponent({
 
     useEventBus({
       load(payload) {
-        if (!payload.urlParams || !payload.urlParams.urls) {
+        const { urlParams, ...options } = payload;
+
+        if (!urlParams || !urlParams.urls) {
           return;
         }
 
-        loadUrls(payload.urlParams);
+        loadUrls(payload.urlParams, options);
       }
     });
 

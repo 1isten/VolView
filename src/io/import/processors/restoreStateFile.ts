@@ -308,7 +308,8 @@ async function restoreDatasets(
 
       if (dicomSources.length) {
         const dicomStore = useDICOMStore();
-        const volumeKeys = await dicomStore.importFiles(dicomSources);
+        const volumeKeySuffix = (dataset.id && dataset.id.indexOf('#') !== -1 ? dataset.id.substring(dataset.id.indexOf('#') + 1) : '') || undefined;
+        const volumeKeys = await dicomStore.importFiles(dicomSources, volumeKeySuffix);
         if (volumeKeys.length !== 1) {
           throw new Error('Obtained more than one volume from DICOM import');
         }

@@ -168,7 +168,7 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importFiles(datasets: DataSourceWithFile[]) {
+    async importFiles(datasets: DataSourceWithFile[], volumeKeySuffix?: string) {
       if (!datasets.length) return [];
 
       const dicomIO = this.$dicomIO;
@@ -179,8 +179,14 @@ export const useDICOMStore = defineStore('dicom', {
       const allFiles = [...fileToDataSource.keys()];
 
       const volumeToFiles = await dicomIO.categorizeFiles(allFiles);
-      if (Object.keys(volumeToFiles).length === 0)
+      if (Object.keys(volumeToFiles).length === 0) {
         throw new Error('No volumes categorized from DICOM file(s)');
+      } else if (volumeKeySuffix) {
+        Object.entries(volumeToFiles).forEach(([volumeKey, files]) => {
+          volumeToFiles[`${volumeKey}#${volumeKeySuffix}`] = files;
+          delete volumeToFiles[volumeKey];
+        });
+      }
 
       const fileStore = useFileStore();
 
@@ -335,8 +341,8 @@ export const useDICOMStore = defineStore('dicom', {
       await serializeData(stateFile, dataIDs, DatasetType.DICOM);
     },
 
-    async deserialize(files: DataSourceWithFile[]) {
-      return this.importFiles(files).then((volumeKeys) => {
+    async deserialize(files: DataSourceWithFile[], volumeKeySuffix?: string) {
+      return this.importFiles(files, volumeKeySuffix).then((volumeKeys) => {
         if (volumeKeys.length !== 1) {
           // Volumes are store individually so we should get one back.
           throw new Error('Invalid state file.');

@@ -226,14 +226,14 @@ function loadSegmentations(
   });
 }
 
-function loadDataSources(sources: DataSource[]) {
+function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
   const load = async () => {
     const loadDataStore = useLoadDataStore();
     const dataStore = useDatasetStore();
 
     let results: ImportDataSourcesResult[];
     try {
-      results = await importDataSources(sources);
+      results = await importDataSources(sources, volumeKeySuffix);
     } catch (error) {
       loadDataStore.setError(error as Error);
       return;
@@ -316,7 +316,7 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-export async function loadUrls(params: UrlParams) {
+export async function loadUrls(params: UrlParams, options: Record<string, any> = {}) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
   const sources = urls.map((url, idx) =>
@@ -327,6 +327,11 @@ export async function loadUrls(params: UrlParams) {
         url
     )
   );
+  if (options) {
+    if (options.volumeKeySuffix) {
+      return loadDataSources(sources, options.volumeKeySuffix);
+    }
+  }
 
   return loadDataSources(sources);
 }
