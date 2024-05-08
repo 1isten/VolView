@@ -6,6 +6,11 @@ type Events = {
     urlParams: {
       urls: [string],
       names?: [string],
+      // DICOMweb options:
+      dicomWebURL?: string,
+      studyInstanceUID?: string,
+      seriesInstanceUID?: string,
+      sopInstanceUID?: string,
     };
     // ...options:
     cacheKey?: string;

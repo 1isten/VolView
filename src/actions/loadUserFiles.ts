@@ -16,6 +16,10 @@ import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
 import { PipelineResultSuccess, partitionResults } from '@/src/core/pipeline';
 import {
+  fetchSeries,
+  fetchInstance,
+} from '@/src/core/dicom-web-api';
+import {
   ImportDataSourcesResult,
   importDataSources,
   toDataSelection,
@@ -306,9 +310,9 @@ export function openFileDialog() {
   });
 }
 
-export async function loadFiles(files: File[]) {
+export async function loadFiles(files: File[], volumeKeySuffix?: string) {
   const dataSources = files.map(fileToDataSource);
-  return loadDataSources(dataSources);
+  return loadDataSources(dataSources, volumeKeySuffix);
 }
 
 export async function loadUserPromptedFiles() {
@@ -316,7 +320,7 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-export async function loadUrls(params: UrlParams, options: Record<string, any> = {}) {
+export async function loadUrls(params: UrlParams, options?: Record<string, any>) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
   const sources = urls.map((url, idx) =>
@@ -328,9 +332,41 @@ export async function loadUrls(params: UrlParams, options: Record<string, any> =
     )
   );
   if (options) {
-    if (options.volumeKeySuffix) {
-      return loadDataSources(sources, options.volumeKeySuffix);
+    const dicomWebURL = params.dicomWebURL?.toString();
+    if (dicomWebURL) {
+      const dicomWebFiles: File[] = [];
+      const studyInstanceUID = params.studyInstanceUID?.toString();
+      const seriesInstanceUID = params.seriesInstanceUID?.toString();
+      const sopInstanceUID = params.sopInstanceUID?.toString();
+      if (studyInstanceUID && seriesInstanceUID) {
+        if (sopInstanceUID) {
+          try {
+            const file = await fetchInstance(dicomWebURL, {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+            });
+            dicomWebFiles.push(file);
+          } catch (error) {
+            console.error(error);
+          }
+        } else {
+          try {
+            const files = await fetchSeries(dicomWebURL, {
+              studyInstanceUID,
+              seriesInstanceUID,
+            }, ({ loaded, total }: ProgressEvent) => {
+              console.info(`fetching series ${loaded} of ${total}`);
+            });
+            dicomWebFiles.push(...files);
+          } catch (error) {
+            console.error(error);
+          }
+        }
+      }
+      return loadFiles(dicomWebFiles, options.volumeKeySuffix);
     }
+    return loadDataSources(sources, options.volumeKeySuffix);
   }
 
   return loadDataSources(sources);
