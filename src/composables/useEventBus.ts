@@ -1,26 +1,35 @@
 import { inject, onMounted, onUnmounted } from 'vue';
 import { Emitter } from 'mitt';
 
-type Events = {
-  load: {
-    urlParams: {
-      urls: [string],
-      names?: [string],
-      // DICOMweb options:
-      dicomWebURL?: string,
-      studyInstanceUID?: string,
-      seriesInstanceUID?: string,
-      sopInstanceUID?: string,
-    };
-    // ...options:
-    cacheKey?: string;
-    volumeKeySuffix?: string;
+export interface LoadEventOptions {
+  volumeKeySuffix?: string; // make use of it as volumeKeyUID
+  layoutName?: string;
+  initialSlices?: {
+    Axial?: number;
+    Sagittal?: number;
+    Coronal?: number;
   };
 }
 
-type Handlers = {
-  load: (payload: Events['load']) => void
+export interface LoadEvent extends LoadEventOptions {
+  urlParams: {
+    urls: [string];
+    names?: [string];
+    // DICOMweb options:
+    dicomWebURL?: string;
+    studyInstanceUID?: string;
+    seriesInstanceUID?: string;
+    sopInstanceUID?: string;
+  };
 }
+
+export type Events = {
+  load: LoadEvent;
+};
+
+export type Handlers = {
+  load: (payload: Events['load']) => void;
+};
 
 export function useEventBus(handlers: Handlers) {
   const emitter: Emitter<Events> = inject('bus')!;
