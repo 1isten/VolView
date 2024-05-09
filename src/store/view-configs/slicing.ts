@@ -8,6 +8,8 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
+import useLoadDataStore from '@/src/store/load-data';
+import { useDatasetStore } from '@/src/store/datasets';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
@@ -40,15 +42,52 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
 
-  const resetSlice = (viewID: string, dataID: string) => {
+  const resetSlice = async (viewID: string, dataID: string) => {
     const config = getConfig(viewID, dataID);
     if (!config) return;
+
+    const loadDataStore = useLoadDataStore();
+    const dataStore = useDatasetStore();
+    const selection = dataStore.primarySelection;
+
+    const tryGetInitialSlice = async (retryCount = 100) => {
+      let slice: number | undefined;
+      while (slice === undefined && retryCount > 0) {
+        // eslint-disable-next-line no-loop-func
+        Object.values(loadDataStore.loadedByBus).forEach(data => {
+          if (data.imageID && data.imageID === dataID) {
+            if (data.initialSlices && viewID in data.initialSlices) {
+              if (
+                viewID === 'Axial' ||
+                viewID === 'Sagittal' ||
+                viewID === 'Coronal'
+              ) {
+                slice = data.initialSlices[viewID];
+              }
+            }
+          }
+        });
+        // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
+        await new Promise(r => setTimeout(r, 10));
+        // eslint-disable-next-line no-param-reassign
+        retryCount--;
+      }
+      if (typeof slice === 'number') {
+        if (slice < config.min) {
+          slice = config.min;
+        } else if (slice > config.max) {
+          slice = config.max;
+        }
+      }
+      return slice;
+    };
+    const initialSlice = selection && selection.type === 'dicom' ? await tryGetInitialSlice() : undefined;
 
     // Setting this to floor() will affect images where the
     // middle slice is fractional.
     // This is consistent with vtkImageMapper and SliceRepresentationProxy.
     updateConfig(viewID, dataID, {
-      slice: Math.ceil((config.min + config.max) / 2),
+      slice: initialSlice !== undefined ? initialSlice : Math.ceil((config.min + config.max) / 2),
     });
   };
 
