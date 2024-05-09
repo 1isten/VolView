@@ -10,6 +10,7 @@ import {
 import { Maybe } from '@/src/types';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
@@ -81,7 +82,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
       }
       return slice;
     };
-    const initialSlice = selection && selection.type === 'dicom' ? await tryGetInitialSlice() : undefined;
+    const initialSlice = selection && selection.type === 'dicom' && useDICOMStore().volumeKeyGetSuffix(selection.volumeKey) ? await tryGetInitialSlice() : undefined;
 
     // Setting this to floor() will affect images where the
     // middle slice is fractional.
