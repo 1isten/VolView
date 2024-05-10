@@ -57,7 +57,9 @@ export default defineComponent({
           panels.value.push(ANONYMOUS_DATA_KEY);
         }
         if (showPatients) {
-          panels.value.push(...patients_.map((patient) => patient.key));
+          panels.value = [...patients_.map((patient) => patient.key)];
+        } else {
+          panels.value = panels.value.filter((value) => [SAMPLE_DATA_KEY, ANONYMOUS_DATA_KEY, DICOM_WEB_KEY].includes(value));
         }
         if (showAnonymous || showPatients) {
           removeFromArray(panels.value, SAMPLE_DATA_KEY);
@@ -97,10 +99,7 @@ export default defineComponent({
         variant="accordion"
         class="no-panels"
       >
-        <v-expansion-panel
-          v-if="hasAnonymousImages"
-          :value="ANONYMOUS_DATA_KEY"
-        >
+        <v-expansion-panel v-if="hasAnonymousImages" :value="ANONYMOUS_DATA_KEY">
           <v-expansion-panel-title>
             <v-icon class="collection-header-icon">mdi-image</v-icon>
             <span>Anonymous</span>
@@ -110,11 +109,7 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel
-          v-for="patient in patients"
-          :key="patient.key"
-          :value="patient.key"
-        >
+        <v-expansion-panel v-for="patient in patients" :key="patient.key" :value="patient.key">
           <v-expansion-panel-title>
             <div class="patient-header">
               <v-icon class="collection-header-icon">mdi-account</v-icon>
