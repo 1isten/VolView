@@ -49,7 +49,7 @@
     "socket.io-parser": "^4.2.4",
     "vue": "3.3.6",
     "vue-toastification": "^2.0.0-rc.5",
-    "vuetify": "3.6.3",
+    "vuetify": "3.6.4",
     "zod": "^3.22.3"
   },
   "devDependencies": {
@@ -127,5 +127,9 @@
     "*.{js,jsx,ts,tsx,vue}": [
       "eslint"
     ]
+  },
+  "engines": {
+    "node": "^18.18.2",
+    "npm": ">= 8.19.4"
   }
 }
