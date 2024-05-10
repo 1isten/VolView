@@ -1,9 +1,23 @@
 <script setup lang="ts">
 import { computed, toRefs } from 'vue';
+import Color from 'colorjs.io';
 
 const emit = defineEmits(['done', 'cancel', 'delete', 'update:color']);
 const props = defineProps<{ color: string; valid: boolean }>();
-const { color, valid } = toRefs(props);
+const { color: color_, valid } = toRefs(props);
+const color = computed({
+  get() {
+    if (color_.value) {
+      if (color_.value.startsWith('#')) {
+        return color_.value;
+      }
+    }
+    return new Color(color_.value).toString({ format: 'hex' });
+  },
+  set(newColor) {
+    color_.value = newColor;
+  },
+});
 const doneDisabled = computed(() => {
   return !valid.value;
 });
