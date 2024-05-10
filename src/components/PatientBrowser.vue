@@ -116,67 +116,71 @@ export default defineComponent({
           </v-btn>
         </v-col>
       </v-row>
-    </v-container>
-    <v-expansion-panels
-      v-model="panels"
-      id="patient-data-studies"
-      accordion
-      multiple
-    >
-      <v-expansion-panel
-        v-for="study in studies"
-        :key="study.StudyInstanceUID"
-        :value="study.StudyInstanceUID"
-        class="patient-data-study-panel"
-      >
-        <v-expansion-panel-title
-          color="#1976fa0a"
-          class="pl-3 no-select"
-          :title="study.StudyDate"
-        >
-          <div class="study-header">
-            <div class="study-header-title">
-              <v-checkbox
-                class="study-selector"
-                density="compact"
-                hide-details
-                :key="study.StudyInstanceUID"
-                :value="study.StudyInstanceUID"
-                v-model="selected"
-                @click.stop
-              />
-              <v-icon>mdi-folder-table</v-icon>
-              <div class="ml-2 overflow-hidden text-no-wrap">
-                <div class="text-subtitle-2 text-truncate" :title="study.title">
-                  {{ study.title }}
-                </div>
-                <div
-                  v-if="study.StudyDescription"
-                  class="text-caption text-truncate"
-                >
-                  {{ study.StudyDate }}
-                </div>
-              </div>
-            </div>
+      <v-row no-gutters>
+        <v-col>
+          <v-expansion-panels
+            v-model="panels"
+            id="patient-data-studies"
+            accordion
+            multiple
+          >
+            <v-expansion-panel
+              v-for="study in studies"
+              :key="study.StudyInstanceUID"
+              :value="study.StudyInstanceUID"
+              class="patient-data-study-panel"
+            >
+              <v-expansion-panel-title
+                color="#1976fa0a"
+                class="pl-3 no-select"
+                :title="study.StudyDate"
+              >
+                <div class="study-header">
+                  <div class="study-header-title">
+                    <v-checkbox
+                      class="study-selector"
+                      density="compact"
+                      hide-details
+                      :key="study.StudyInstanceUID"
+                      :value="study.StudyInstanceUID"
+                      v-model="selected"
+                      @click.stop
+                    />
+                    <v-icon>mdi-folder-table</v-icon>
+                    <div class="ml-2 overflow-hidden text-no-wrap">
+                      <div class="text-subtitle-2 text-truncate" :title="study.title">
+                        {{ study.title }}
+                      </div>
+                      <div
+                        v-if="study.StudyDescription"
+                        class="text-caption text-truncate"
+                      >
+                        {{ study.StudyDate }}
+                      </div>
+                    </div>
+                  </div>
 
-            <div class="d-flex flex-column align-center justify-end mx-2">
-              <div class="d-flex flex-row align-center mr-2">
-                <v-icon small>mdi-folder-open</v-icon>
-                <span class="text-caption text--secondary text-no-wrap">
-                  : {{ study.volumeKeys.length }}
-                </span>
-                <v-tooltip location="bottom" activator="parent">
-                  Total series in study
-                </v-tooltip>
-              </div>
-            </div>
-          </div>
-        </v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <patient-study-volume-browser :volume-keys="study.volumeKeys" />
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
+                  <div class="d-flex flex-column align-center justify-end mx-2">
+                    <div class="d-flex flex-row align-center mr-2">
+                      <v-icon small>mdi-folder-open</v-icon>
+                      <span class="text-caption text--secondary text-no-wrap">
+                        : {{ study.volumeKeys.length }}
+                      </span>
+                      <v-tooltip location="bottom" activator="parent">
+                        Total series in study
+                      </v-tooltip>
+                    </div>
+                  </div>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <patient-study-volume-browser :volume-keys="study.volumeKeys" />
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </v-col>
+      </v-row>
+    </v-container>
   </item-group>
 </template>
 
