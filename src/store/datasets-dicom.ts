@@ -1,7 +1,7 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
-import { Image } from 'itk-wasm';
+import { Image, TypedArray } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
@@ -9,6 +9,22 @@ import { useFileStore } from './datasets-files';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { DICOMIO, volumeKeyGetSuffix } from '../io/dicom';
+
+function arrayRange(arr: number[] | TypedArray) {
+  const offset = 0;
+  const stride = 1;
+  let minValue: number | bigint = Infinity;
+  let maxValue: number | bigint = -Infinity;
+  for (let i = offset, len = arr.length; i < len; i += stride) {
+    if (arr[i] < minValue) {
+      minValue = arr[i];
+    }
+    if (maxValue < arr[i]) {
+      maxValue = arr[i];
+    }
+  }
+  return [minValue, maxValue];
+}
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -39,15 +55,18 @@ export interface StudyInfo {
   StudyDescription: string;
 }
 
-export interface VolumeInfo {
+export interface WindowingInfo {
+  WindowLevel: string;
+  WindowWidth: string;
+}
+
+export interface VolumeInfo extends WindowingInfo {
   NumberOfSlices: number;
   VolumeID: string;
   Modality: string;
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
-  WindowLevel: string;
-  WindowWidth: string;
 }
 
 interface State {
@@ -125,7 +144,7 @@ export const getDisplayName = (info: VolumeInfo) => {
   );
 };
 
-export const getWindowLevels = (info: VolumeInfo) => {
+export const getWindowLevels = (info: VolumeInfo | WindowingInfo) => {
   const { WindowWidth, WindowLevel } = info;
   if (WindowWidth === '') return []; // missing tag
   const widths = WindowWidth.split('\\').map(parseFloat);
@@ -189,7 +208,7 @@ export const useDICOMStore = defineStore('dicom', {
       const volumeToFiles = await dicomIO.categorizeFiles(allFiles, volumeKeySuffix);
       if (Object.keys(volumeToFiles).length === 0) {
         throw new Error('No volumes categorized from DICOM file(s)');
-      } else {
+      } else { // save some data into volumeSlicesInfo
         const volumeKeys = Object.keys(volumeToFiles);
         for (let i = 0; i < volumeKeys.length; i++) {
           const volumeKey = volumeKeys[i];
@@ -201,18 +220,25 @@ export const useDICOMStore = defineStore('dicom', {
                 { name: 'WindowLevel', tag: '0028|1050' },
                 { name: 'WindowWidth', tag: '0028|1051' },
               ]);
+              const windowLevels = getWindowLevels({
+                WindowLevel: tags.WindowLevel,
+                WindowWidth: tags.WindowWidth,
+              });
               return {
                 file,
-                tags,
+                tags: {
+                  InstanceNumber: `${parseInt(tags.InstanceNumber || '0', 10)}`,
+                  WindowLevel: `${windowLevels[0]?.level || tags.WindowLevel}`,
+                  WindowWidth: `${windowLevels[0]?.width || tags.WindowWidth}`,
+                },
               };
             })
           );
-          filesWithTagsInfo.sort((a, b) => {
-            const na = a.tags.InstanceNumber;
-            const nb = b.tags.InstanceNumber;
-            return parseInt(na || '0', 10) - parseInt(nb || '0', 10);
-          });
+          filesWithTagsInfo.sort((a, b) => +a.tags.InstanceNumber - +b.tags.InstanceNumber);
           let isSorted = false;
+          let windowingDiffsALot = false;
+          const windowLevels: number[] = [];
+          const windowWidths: number[] = [];
           const tags: Record<string, string>[] = [];
           volumeToFiles[volumeKey].forEach((file, idx) => {
             const { file: fileSorted, tags: fileTags } = filesWithTagsInfo[idx];
@@ -221,10 +247,21 @@ export const useDICOMStore = defineStore('dicom', {
               isSorted = true;
             }
             tags[idx] = fileTags;
+            windowLevels.push(Number(fileTags.WindowLevel));
+            windowWidths.push(Number(fileTags.WindowWidth));
           });
+          // TODO: more practical way to determin if windowing diffs a lot between slices
+          if (
+            Math.max(...windowLevels) - Math.min(...windowLevels) >= 100 ||
+            Math.max(...windowWidths) - Math.min(...windowWidths) >= 200
+          ) {
+            windowingDiffsALot = true;
+          }
           this.volumeSlicesInfo[volumeKey] = {
             isSorted,
             tags,
+            dataRanges: [],
+            windowingDiffsALot,
           };
         }
       }
@@ -286,6 +323,20 @@ export const useDICOMStore = defineStore('dicom', {
           if (volumeKey in this.volumeToImageID) {
             // buildVolume requestor uses this as a rebuild hint
             this.needsRebuild[volumeKey] = true;
+          }
+
+          // save pixel data min max into volumeSlicesInfo
+          if (this.volumeSlicesInfo[volumeKey]?.windowingDiffsALot) {
+            files.forEach(async (file, idx) => {
+              const image = await this.getVolumeSlice(volumeKey, idx + 1);
+              if (image.data) {
+                const [min, max] = arrayRange(image.data);
+                if (!('dataRanges' in this.volumeSlicesInfo[volumeKey])) {
+                  this.volumeSlicesInfo[volumeKey].dataRanges = [];
+                }
+                this.volumeSlicesInfo[volumeKey].dataRanges[idx] = { min, max };
+              }
+            });
           }
         })
       );

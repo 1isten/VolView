@@ -1,6 +1,7 @@
 import { clampValue } from '@/src/utils';
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -11,6 +12,7 @@ import { Maybe } from '@/src/types';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import useWindowingStore from '@/src/store/view-configs/windowing';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
@@ -24,9 +26,39 @@ export const defaultSliceConfig = (): SliceConfig => ({
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
+  const syncWindowLevelWithTag = ref(true);
 
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
+
+  const handleConfigUpdate = useDebounceFn((viewID, dataID, config) => {
+    const loadDataStore = useLoadDataStore();
+    const { layoutName } = loadDataStore.getLoadedByBus(loadDataStore.imageIDToVolumeKeyUID[dataID]);
+    if (layoutName && layoutName.includes(viewID)) {
+      const dicomStore = useDICOMStore();
+      const volumeSlicesInfo = dicomStore.volumeSlicesInfo[dicomStore.imageIDToVolumeKey[dataID]];
+      if (volumeSlicesInfo && volumeSlicesInfo.windowingDiffsALot) {
+        const tag = volumeSlicesInfo.tags?.[config.slice];
+        const dataRange = volumeSlicesInfo.dataRanges?.[config.slice];
+        if (tag && dataRange) {
+          const { WindowLevel, WindowWidth } = tag;
+          const { min, max } = dataRange;
+          try {
+            // console.warn(`auto reset windowing based on dicom tags for slice ${config.slice + 1}`);
+            const windowingStore = useWindowingStore();
+            windowingStore.updateConfig(viewID, dataID, {
+              width: Number(WindowWidth),
+              level: Number(WindowLevel),
+              min,
+              max,
+            });
+          } catch (error) {
+            console.warn(error);
+          }
+        }
+      }
+    }
+  }, 1);
 
   const updateConfig = (
     viewID: string,
@@ -41,6 +73,10 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
 
     config.slice = clampValue(config.slice, config.min, config.max);
     patchDoubleKeyRecord(configs, viewID, dataID, config);
+
+    if (syncWindowLevelWithTag.value) {
+      handleConfigUpdate(viewID, dataID, config);
+    }
   };
 
   const resetSlice = async (viewID: string, dataID: string) => {
