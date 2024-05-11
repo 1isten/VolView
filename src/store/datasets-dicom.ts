@@ -1,30 +1,15 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
-import { Image, TypedArray } from 'itk-wasm';
+import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
+import { arrayRange } from '../utils/minmax';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { DICOMIO, volumeKeyGetSuffix } from '../io/dicom';
-
-function arrayRange(arr: number[] | TypedArray) {
-  const offset = 0;
-  const stride = 1;
-  let minValue: number | bigint = Infinity;
-  let maxValue: number | bigint = -Infinity;
-  for (let i = offset, len = arr.length; i < len; i += stride) {
-    if (arr[i] < minValue) {
-      minValue = arr[i];
-    }
-    if (maxValue < arr[i]) {
-      maxValue = arr[i];
-    }
-  }
-  return [minValue, maxValue];
-}
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
