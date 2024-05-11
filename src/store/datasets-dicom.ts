@@ -8,7 +8,7 @@ import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
-import { DICOMIO } from '../io/dicom';
+import { DICOMIO, volumeKeyGetSuffix } from '../io/dicom';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -78,6 +78,9 @@ interface State {
   // volumeKey -> volume info
   volumeInfo: Record<string, VolumeInfo>;
 
+  // volumeKey -> volume slices info
+  volumeSlicesInfo: Record<string, any>;
+
   // parent pointers
   // volumeKey -> studyKey
   volumeStudy: Record<string, string>;
@@ -85,25 +88,26 @@ interface State {
   studyPatient: Record<string, string>;
 }
 
-const readDicomTags = (dicomIO: DICOMIO, file: File) =>
-  dicomIO.readTags(file, [
-    { name: 'PatientName', tag: '0010|0010', strconv: true },
-    { name: 'PatientID', tag: '0010|0020', strconv: true },
-    { name: 'PatientBirthDate', tag: '0010|0030' },
-    { name: 'PatientSex', tag: '0010|0040' },
-    { name: 'StudyInstanceUID', tag: '0020|000d' },
-    { name: 'StudyDate', tag: '0008|0020' },
-    { name: 'StudyTime', tag: '0008|0030' },
-    { name: 'StudyID', tag: '0020|0010', strconv: true },
-    { name: 'AccessionNumber', tag: '0008|0050' },
-    { name: 'StudyDescription', tag: '0008|1030', strconv: true },
-    { name: 'Modality', tag: '0008|0060' },
-    { name: 'SeriesInstanceUID', tag: '0020|000e' },
-    { name: 'SeriesNumber', tag: '0020|0011' },
-    { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
-    { name: 'WindowLevel', tag: '0028|1050' },
-    { name: 'WindowWidth', tag: '0028|1051' },
-  ]);
+const mainDicomTags = [
+  { name: 'PatientName', tag: '0010|0010', strconv: true },
+  { name: 'PatientID', tag: '0010|0020', strconv: true },
+  { name: 'PatientBirthDate', tag: '0010|0030' },
+  { name: 'PatientSex', tag: '0010|0040' },
+  { name: 'StudyInstanceUID', tag: '0020|000d' },
+  { name: 'StudyDate', tag: '0008|0020' },
+  { name: 'StudyTime', tag: '0008|0030' },
+  { name: 'StudyID', tag: '0020|0010', strconv: true },
+  { name: 'AccessionNumber', tag: '0008|0050' },
+  { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+  { name: 'Modality', tag: '0008|0060' },
+  { name: 'SeriesInstanceUID', tag: '0020|000e' },
+  { name: 'SeriesNumber', tag: '0020|0011' },
+  { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+  { name: 'WindowLevel', tag: '0028|1050' },
+  { name: 'WindowWidth', tag: '0028|1051' },
+];
+
+export const readDicomTags = (dicomIO: DICOMIO, file: File, tags = mainDicomTags) => dicomIO.readTags(file, tags);
 
 /**
  * Trims and collapses multiple spaces into one.
@@ -142,26 +146,14 @@ export const getWindowLevels = (info: VolumeInfo) => {
   return widths.map((width, i) => ({ width, level: levels[i] }));
 };
 
-const constructImage = async (dicomIO: DICOMIO, volumeKey: string) => {
+export const constructImage = async (dicomIO: DICOMIO, volumeKey: string, singleSortedSeries: boolean = false) => {
   const fileStore = useFileStore();
   const files = fileStore.getFiles(volumeKey);
   if (!files) throw new Error('No files for volume key');
   const image = vtkITKHelper.convertItkToVtkImage(
-    await dicomIO.buildImage(files)
+    await dicomIO.buildImage(files, singleSortedSeries)
   );
   return image;
-};
-
-export const volumeKeySuffixSep = '#';
-
-export const volumeKeyGetSuffix = (volumeKey: string) => {
-  if (volumeKey) {
-    const i = volumeKey.indexOf(volumeKeySuffixSep);
-    if (i !== -1) {
-      return volumeKey.substring(i + 1);
-    }
-  }
-  return '';
 };
 
 export const useDICOMStore = defineStore('dicom', {
@@ -175,12 +167,14 @@ export const useDICOMStore = defineStore('dicom', {
     studyInfo: {},
     studyVolumes: {},
     volumeInfo: {},
+    volumeSlicesInfo: {},
     volumeStudy: {},
     studyPatient: {},
     needsRebuild: {},
   }),
   actions: {
     volumeKeyGetSuffix,
+    readDicomTags,
 
     async importFiles(datasets: DataSourceWithFile[], volumeKeySuffix?: string) {
       if (!datasets.length) return [];
@@ -192,14 +186,47 @@ export const useDICOMStore = defineStore('dicom', {
       );
       const allFiles = [...fileToDataSource.keys()];
 
-      const volumeToFiles = await dicomIO.categorizeFiles(allFiles);
+      const volumeToFiles = await dicomIO.categorizeFiles(allFiles, volumeKeySuffix);
       if (Object.keys(volumeToFiles).length === 0) {
         throw new Error('No volumes categorized from DICOM file(s)');
-      } else if (volumeKeySuffix) {
-        Object.entries(volumeToFiles).forEach(([volumeKey, files]) => {
-          volumeToFiles[`${volumeKey}${volumeKeySuffixSep}${volumeKeySuffix}`] = files;
-          delete volumeToFiles[volumeKey];
-        });
+      } else {
+        const volumeKeys = Object.keys(volumeToFiles);
+        for (let i = 0; i < volumeKeys.length; i++) {
+          const volumeKey = volumeKeys[i];
+          // eslint-disable-next-line no-await-in-loop
+          const filesWithTagsInfo = await Promise.all(
+            volumeToFiles[volumeKey].map(async file => {
+              const tags = await this.readDicomTags(dicomIO, file, [
+                { name: 'InstanceNumber', tag: '0020|0013' },
+                { name: 'WindowLevel', tag: '0028|1050' },
+                { name: 'WindowWidth', tag: '0028|1051' },
+              ]);
+              return {
+                file,
+                tags,
+              };
+            })
+          );
+          filesWithTagsInfo.sort((a, b) => {
+            const na = a.tags.InstanceNumber;
+            const nb = b.tags.InstanceNumber;
+            return parseInt(na || '0', 10) - parseInt(nb || '0', 10);
+          });
+          let isSorted = false;
+          const tags: Record<string, string>[] = [];
+          volumeToFiles[volumeKey].forEach((file, idx) => {
+            const { file: fileSorted, tags: fileTags } = filesWithTagsInfo[idx];
+            if (file !== fileSorted) {
+              volumeToFiles[volumeKey][idx] = fileSorted;
+              isSorted = true;
+            }
+            tags[idx] = fileTags;
+          });
+          this.volumeSlicesInfo[volumeKey] = {
+            isSorted,
+            tags,
+          };
+        }
       }
 
       const fileStore = useFileStore();
@@ -301,6 +328,7 @@ export const useDICOMStore = defineStore('dicom', {
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
         delete this.volumeInfo[volumeKey];
+        delete this.volumeSlicesInfo[volumeKey];
         delete this.sliceData[volumeKey];
         delete this.volumeStudy[volumeKey];
 
@@ -428,7 +456,7 @@ export const useDICOMStore = defineStore('dicom', {
         : [];
       // actually build volume or wait for existing build?
       const newImagePromise = buildNeeded
-        ? constructImage(this.$dicomIO, volumeKey)
+        ? constructImage(this.$dicomIO, volumeKey, !!this.volumeSlicesInfo[volumeKey]?.isSorted)
         : this.volumeImageData[volumeKey];
       // let other calls to buildVolume reuse this constructImage work
       this.volumeImageData[volumeKey] = newImagePromise;

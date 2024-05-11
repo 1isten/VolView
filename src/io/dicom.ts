@@ -25,6 +25,18 @@ export type VolumesToFileNamesMap = Record<string, string[]>;
 // volume ID => files
 export type VolumesToFilesMap = Record<string, File[]>;
 
+export const volumeKeySuffixSep = '#';
+
+export const volumeKeyGetSuffix = (volumeKey: string) => {
+  if (volumeKey) {
+    const i = volumeKey.indexOf(volumeKeySuffixSep);
+    if (i !== -1) {
+      return volumeKey.substring(i + 1);
+    }
+  }
+  return '';
+};
+
 /**
  * Filenames must be sanitized prior to being passed into itk-wasm.
  *
@@ -47,8 +59,6 @@ function sanitizeFile(file: File) {
 export class DICOMIO {
   private webWorker: any;
   private initializeCheck: Promise<void> | null;
-
-  private sortByInstanceNumber: boolean = true;
 
   constructor() {
     this.webWorker = null;
@@ -108,7 +118,7 @@ export class DICOMIO {
    * @param {File[]} files
    * @returns volumeID => file names mapping
    */
-  async categorizeFiles(files: File[]): Promise<VolumesToFilesMap> {
+  async categorizeFiles(files: File[], volumeKeySuffix?: string): Promise<VolumesToFilesMap> {
     await this.initialize();
 
     const inputs = await Promise.all(
@@ -142,6 +152,13 @@ export class DICOMIO {
       (result.outputs[0].data as TextStream).data
     ) as VolumesToFileNamesMap;
 
+    // Append volumeKeySuffix (volumeKeyUID)
+    if (volumeKeySuffix) {
+      Object.entries(volumeToFileIndexes).forEach(([volumeKey, fileIndexes]) => {
+        volumeToFileIndexes[`${volumeKey}${volumeKeySuffixSep}${volumeKeySuffix}`] = fileIndexes;
+        delete volumeToFileIndexes[volumeKey];
+      });
+    }
     const volumeToFiles = Object.fromEntries(
       Object.entries(volumeToFileIndexes).map(([volumeKey, fileIndexes]) => [
         volumeKey,
@@ -149,24 +166,6 @@ export class DICOMIO {
         fileIndexes.map((fileIndex) => files[parseInt(fileIndex, 10)]),
       ])
     );
-
-    // Sort files by instance number
-    if (this.sortByInstanceNumber) {
-      const volumeKeys = Object.keys(volumeToFiles);
-      for (let i = 0; i < volumeKeys.length; i++) {
-        const volumeKey = volumeKeys[i];
-        const instanceNumberToFiles: Record<string, File> = {};
-        for (let j = 0; j < volumeToFiles[volumeKey].length; j++) {
-          const file = volumeToFiles[volumeKey][j];
-          // eslint-disable-next-line no-await-in-loop
-          const { InstanceNumber } = await this.readTags(file, [{ name: 'InstanceNumber', tag: '0020|0013' }]);
-          instanceNumberToFiles[parseInt(InstanceNumber || '0', 10)] = file;
-        }
-        Object.keys(instanceNumberToFiles).sort((a, b) => +a - +b).forEach((num, idx) => {
-          volumeToFiles[volumeKey][idx] = instanceNumberToFiles[num];
-        });
-      }
-    }
 
     return volumeToFiles;
   }
@@ -243,15 +242,16 @@ export class DICOMIO {
    * Builds a volume for a set of files.
    * @async
    * @param {File[]} seriesFiles the set of files to build volume from
+   * @param {Boolean} singleSortedSeries
    * @returns ItkImage
    */
-  async buildImage(seriesFiles: File[]) {
+  async buildImage(seriesFiles: File[], singleSortedSeries: boolean = false) {
     await this.initialize();
 
     const inputImages = seriesFiles.map((file) => sanitizeFile(file));
     const result = await readImageDicomFileSeries(null, {
       inputImages,
-      singleSortedSeries: this.sortByInstanceNumber,
+      singleSortedSeries,
     });
 
     return result.outputImage;
