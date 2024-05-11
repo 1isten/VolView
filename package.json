@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.435.0",
+    "@d4c/numjs": "^0.17.34",
     "@itk-wasm/dicom": "5.0.0",
     "@itk-wasm/image-io": "0.5.0",
     "@kitware/vtk.js": "~29.11.2",

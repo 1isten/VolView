@@ -96,6 +96,7 @@ export default defineConfig({
       'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,
       'itk-wasm': pkgLock.dependencies['itk-wasm'].version,
     },
+    global: {},
   },
   resolve: {
     alias: [
