@@ -48,6 +48,8 @@ export class DICOMIO {
   private webWorker: any;
   private initializeCheck: Promise<void> | null;
 
+  private sortByInstanceNumber: boolean = true;
+
   constructor() {
     this.webWorker = null;
     this.initializeCheck = null;
@@ -148,6 +150,24 @@ export class DICOMIO {
       ])
     );
 
+    // Sort files by instance number
+    if (this.sortByInstanceNumber) {
+      const volumeKeys = Object.keys(volumeToFiles);
+      for (let i = 0; i < volumeKeys.length; i++) {
+        const volumeKey = volumeKeys[i];
+        const instanceNumberToFiles: Record<string, File> = {};
+        for (let j = 0; j < volumeToFiles[volumeKey].length; j++) {
+          const file = volumeToFiles[volumeKey][j];
+          // eslint-disable-next-line no-await-in-loop
+          const { InstanceNumber } = await this.readTags(file, [{ name: 'InstanceNumber', tag: '0020|0013' }]);
+          instanceNumberToFiles[parseInt(InstanceNumber || '0', 10)] = file;
+        }
+        Object.keys(instanceNumberToFiles).sort((a, b) => +a - +b).forEach((num, idx) => {
+          volumeToFiles[volumeKey][idx] = instanceNumberToFiles[num];
+        });
+      }
+    }
+
     return volumeToFiles;
   }
 
@@ -231,7 +251,7 @@ export class DICOMIO {
     const inputImages = seriesFiles.map((file) => sanitizeFile(file));
     const result = await readImageDicomFileSeries(null, {
       inputImages,
-      singleSortedSeries: false,
+      singleSortedSeries: this.sortByInstanceNumber,
     });
 
     return result.outputImage;
