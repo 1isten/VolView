@@ -53,25 +53,21 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
 
     const tryGetInitialSlice = async (retryCount = 100) => {
       let slice: number | undefined;
-      while (slice === undefined && retryCount > 0) {
-        // eslint-disable-next-line no-loop-func
-        Object.values(loadDataStore.loadedByBus).forEach(data => {
-          if (data.imageID && data.imageID === dataID) {
-            if (data.initialSlices && viewID in data.initialSlices) {
-              if (
-                viewID === 'Axial' ||
-                viewID === 'Sagittal' ||
-                viewID === 'Coronal'
-              ) {
-                slice = data.initialSlices[viewID];
-              }
-            }
+      if (
+        viewID === 'Axial' ||
+        viewID === 'Sagittal' ||
+        viewID === 'Coronal'
+      ) {
+        while (slice === undefined && retryCount > 0) {
+          const { initialSlices } = loadDataStore.getLoadedByBus(loadDataStore.imageIDToVolumeKeyUID[dataID]);
+          if (initialSlices) {
+            slice = initialSlices[viewID];
           }
-        });
-        // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-        await new Promise(r => setTimeout(r, 10));
-        // eslint-disable-next-line no-param-reassign
-        retryCount--;
+          // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
+          await new Promise(r => setTimeout(r, 10));
+          // eslint-disable-next-line no-param-reassign
+          retryCount--;
+        }
       }
       if (typeof slice === 'number') {
         if (slice < config.min) {

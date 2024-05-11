@@ -367,7 +367,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         };
         const imageID = await tryGetImageID();
         if (imageID) {
-          loadDataStore.setLoadedByBus(volumeKeySuffix, { ...loadDataStore.getLoadedByBus(volumeKeySuffix), imageID });
+          loadDataStore.imageIDToVolumeKeyUID[imageID] = volumeKeySuffix;
         }
       }
       // loaded by bus done ...

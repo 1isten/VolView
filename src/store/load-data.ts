@@ -2,14 +2,14 @@ import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
 import { logError } from '@/src/utils/loggers';
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import type { LoadEventOptions } from '@/src/composables/useEventBus';
 import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
 
 export interface LoadedByBusDataRecord extends LoadEventOptions {
-  imageID?: string;
+  // ...
 };
 
 const NotificationMessages = {
@@ -106,7 +106,8 @@ const useLoadDataStore = defineStore('loadData', () => {
 
   const segmentGroupExtension = ref('');
 
-  const loadedByBus = ref<Record<string, LoadedByBusDataRecord>>(Object.create(null));
+  const imageIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
+  const loadedByBus = shallowRef<Record<string, LoadedByBusDataRecord>>(Object.create(null));
   const getLoadedByBus = (volumeKeyUID: string | undefined) => volumeKeyUID ? loadedByBus.value[volumeKeyUID] : {};
   const setLoadedByBus = (volumeKeyUID: string | undefined, value: LoadedByBusDataRecord) => {
     if (!volumeKeyUID) {
@@ -118,6 +119,7 @@ const useLoadDataStore = defineStore('loadData', () => {
 
   return {
     segmentGroupExtension,
+    imageIDToVolumeKeyUID,
     loadedByBus,
     getLoadedByBus,
     setLoadedByBus,
