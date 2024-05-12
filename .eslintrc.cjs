@@ -35,6 +35,7 @@ module.exports = {
     'import/prefer-default-export': 'off',
     'no-plusplus': 'off',
     'no-underscore-dangle': 'off',
+    'import/no-cycle': 'off',
     'import/extensions': [
       'error',
       'ignorePackages',
