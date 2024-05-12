@@ -113,8 +113,11 @@ const useLoadDataStore = defineStore('loadData', () => {
     if (!volumeKeyUID) {
       return value;
     }
-    loadedByBus.value[volumeKeyUID] = value;
-    return value;
+    loadedByBus.value[volumeKeyUID] = {
+      ...(loadedByBus.value[volumeKeyUID] || {}),
+      ...value
+    };
+    return loadedByBus.value[volumeKeyUID];
   };
 
   return {
