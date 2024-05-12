@@ -84,6 +84,10 @@ export function useLoadingNotifications() {
   };
 
   watch(loadingCount, (count) => {
+    if (count !== -1) {
+      // console.info('loadingCount:', count);
+      return;
+    }
     if (count) showLoadingToast();
     else showResults();
   });
