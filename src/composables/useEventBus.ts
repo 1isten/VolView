@@ -24,14 +24,23 @@ export interface LoadEvent extends LoadEventOptions {
 }
 
 export type Events = {
+  // handle from outside
   load: LoadEvent;
+  // ...
+
+  // emit to outside
+  'update:slicing': {
+    volumeKeySuffix: string;
+    slice: number;
+  };
+  // ...
 };
 
 export type Handlers = {
   load: (payload: Events['load']) => void;
 };
 
-export function useEventBus(handlers: Handlers) {
+export function useEventBus(handlers?: Handlers) {
   const emitter: Emitter<Events> = inject('bus')!;
   const bus = { emitter };
 
@@ -39,14 +48,18 @@ export function useEventBus(handlers: Handlers) {
     if (import.meta.env.DEV) {
       Reflect.set(window, '$bus', bus);
     }
-    emitter.on('load', handlers.load);
+    if (handlers) {
+      emitter.on('load', handlers.load);
+    }
   });
 
   onUnmounted(() => {
     if (import.meta.env.DEV) {
       Reflect.deleteProperty(window, '$bus');
     }
-    emitter.off('load', handlers.load);
+    if (handlers) {
+      emitter.off('load', handlers.load);
+    }
   });
 
   return bus;
