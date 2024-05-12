@@ -17,7 +17,7 @@
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
             <controls-strip :has-data="hasData"></controls-strip>
-            <div class="d-flex flex-column flex-grow-1">
+            <div class="position-relative d-flex flex-column flex-grow-1 overflow-hidden">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
                 v-if="!hasData"
@@ -26,6 +26,11 @@
                 @click="loadUserPromptedFiles"
               >
               </welcome-page>
+              <div v-if="busLoading" class="position-absolute w-100 h-100 d-flex bg-black">
+                <div class="ma-auto">
+                  <v-progress-circular indeterminate color="blue" />
+                </div>
+              </div>
             </div>
           </div>
         </v-main>
@@ -50,7 +55,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { defineComponent, ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -113,10 +118,11 @@ export default defineComponent({
     const showLoading = computed(
       () => loadDataStore.isLoading || hasData.value
     );
+    const busLoading = computed(() => loadDataStore.isLoadingByBus);
 
     // --- events handling --- //
 
-    useEventBus({
+    const { emitter } = useEventBus({
       load(payload) {
         const { urlParams, ...options } = payload;
 
@@ -125,6 +131,17 @@ export default defineComponent({
         }
 
         loadUrls(payload.urlParams, options);
+      }
+    });
+
+    onMounted(() => {
+      if (import.meta.env.DEV) {
+        Reflect.set(window, '$bus', { emitter });
+      }
+    });
+    onUnmounted(() => {
+      if (import.meta.env.DEV) {
+        Reflect.deleteProperty(window, '$bus');
       }
     });
 
@@ -174,6 +191,7 @@ export default defineComponent({
       loadFiles,
       hasData,
       showLoading,
+      busLoading,
       layout,
     };
   },

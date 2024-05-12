@@ -347,6 +347,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
     const dataStore = useDatasetStore();
     const { volumeKeySuffix, ...loadOptions } = options;
     const onBeforeLoadedByBus = () => {
+      loadDataStore.isLoadingByBus = true;
       loadDataStore.setLoadedByBus(volumeKeySuffix, loadOptions);
       // can do other preparations ...
       return loadDataStore.getLoadedByBus(volumeKeySuffix);
@@ -371,6 +372,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         }
       }
       // loaded by bus done ...
+      loadDataStore.isLoadingByBus = false;
     };
     const dicomWebURL = params.dicomWebURL?.toString();
     if (dicomWebURL) {

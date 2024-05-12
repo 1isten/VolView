@@ -108,6 +108,7 @@ const useLoadDataStore = defineStore('loadData', () => {
 
   const imageIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
   const loadedByBus = shallowRef<Record<string, LoadedByBusDataRecord>>(Object.create(null));
+  const isLoadingByBus = ref(false);
   const getLoadedByBus = (volumeKeyUID: string | undefined) => volumeKeyUID ? loadedByBus.value[volumeKeyUID] : {};
   const setLoadedByBus = (volumeKeyUID: string | undefined, value: LoadedByBusDataRecord) => {
     if (!volumeKeyUID) {
@@ -126,6 +127,7 @@ const useLoadDataStore = defineStore('loadData', () => {
     loadedByBus,
     getLoadedByBus,
     setLoadedByBus,
+    isLoadingByBus,
     isLoading,
     startLoading,
     stopLoading,

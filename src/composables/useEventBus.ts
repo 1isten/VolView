@@ -45,18 +45,12 @@ export function useEventBus(handlers?: Handlers) {
   const bus = { emitter };
 
   onMounted(() => {
-    if (import.meta.env.DEV) {
-      Reflect.set(window, '$bus', bus);
-    }
     if (handlers) {
       emitter.on('load', handlers.load);
     }
   });
 
   onUnmounted(() => {
-    if (import.meta.env.DEV) {
-      Reflect.deleteProperty(window, '$bus');
-    }
     if (handlers) {
       emitter.off('load', handlers.load);
     }
