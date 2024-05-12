@@ -25,19 +25,21 @@ export interface VolumeKeys {
 }
 
 export interface PatientInfo {
-  PatientID: string;
   PatientName: string;
+  PatientID: string;
   PatientBirthDate: string;
   PatientSex: string;
 }
 
 export interface StudyInfo {
-  StudyID: string;
   StudyInstanceUID: string;
+  StudyID: string;
   StudyDate: string;
   StudyTime: string;
-  AccessionNumber: string;
   StudyDescription: string;
+  AccessionNumber: string;
+  InstitutionName?: string;
+  ManufacturerModelName?: string;
 }
 
 export interface WindowingInfo {
@@ -46,12 +48,15 @@ export interface WindowingInfo {
 }
 
 export interface VolumeInfo extends WindowingInfo {
-  NumberOfSlices: number;
-  VolumeID: string;
   Modality: string;
+  BodyPartExamined: string;
+  TransferSyntaxUID?: string;
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
+
+  NumberOfSlices: number;
+  VolumeID: string;
 }
 
 interface State {
@@ -92,23 +97,42 @@ interface State {
   studyPatient: Record<string, string>;
 }
 
+const instanceTags = [
+  { name: 'SOPInstanceUID', tag: '0008|0018' },
+  { name: 'InstanceNumber', tag: '0020|0013' },
+  // { name: 'ImagePositionPatient', tag: '0020|0032' },
+  // { name: 'ImageOrientationPatient', tag: '0020|0037' },
+  // { name: 'Rows', tag: '0028|0010' },
+  // { name: 'Columns', tag: '0028|0011' },
+  // { name: 'PixelSpacing', tag: '0028|0030' },
+  { name: 'WindowLevel', tag: '0028|1050' },
+  { name: 'WindowWidth', tag: '0028|1051' },
+];
+
 const mainDicomTags = [
+  // Patient
   { name: 'PatientName', tag: '0010|0010', strconv: true },
   { name: 'PatientID', tag: '0010|0020', strconv: true },
   { name: 'PatientBirthDate', tag: '0010|0030' },
   { name: 'PatientSex', tag: '0010|0040' },
+  // Study
   { name: 'StudyInstanceUID', tag: '0020|000d' },
+  { name: 'StudyID', tag: '0020|0010', strconv: true },
   { name: 'StudyDate', tag: '0008|0020' },
   { name: 'StudyTime', tag: '0008|0030' },
-  { name: 'StudyID', tag: '0020|0010', strconv: true },
-  { name: 'AccessionNumber', tag: '0008|0050' },
   { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+  { name: 'AccessionNumber', tag: '0008|0050' },
+  { name: 'InstitutionName', tag: '0008|0080' },
+  { name: 'ManufacturerModelName', tag: '0008|1090' },
+  // Series
   { name: 'Modality', tag: '0008|0060' },
+  { name: 'BodyPartExamined', tag: '0018|0015' },
+  // { name: 'TransferSyntaxUID', tag: '0002|0010' },
   { name: 'SeriesInstanceUID', tag: '0020|000e' },
   { name: 'SeriesNumber', tag: '0020|0011' },
   { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
-  { name: 'WindowLevel', tag: '0028|1050' },
-  { name: 'WindowWidth', tag: '0028|1051' },
+  // Instance
+  ...instanceTags,
 ];
 
 export const readDicomTags = (dicomIO: DICOMIO, file: File, tags = mainDicomTags) => dicomIO.readTags(file, tags);
@@ -201,9 +225,7 @@ export const useDICOMStore = defineStore('dicom', {
           const filesWithTagsInfo = await Promise.all(
             volumeToFiles[volumeKey].map(async file => {
               const tags = await this.readDicomTags(dicomIO, file, [
-                { name: 'InstanceNumber', tag: '0020|0013' },
-                { name: 'WindowLevel', tag: '0028|1050' },
-                { name: 'WindowWidth', tag: '0028|1051' },
+                ...instanceTags,
               ]);
               const windowLevels = getWindowLevels({
                 WindowLevel: tags.WindowLevel,
@@ -212,6 +234,7 @@ export const useDICOMStore = defineStore('dicom', {
               return {
                 file,
                 tags: {
+                  ...tags,
                   InstanceNumber: `${parseInt(tags.InstanceNumber || '0', 10)}`,
                   WindowLevel: `${windowLevels[0]?.level || tags.WindowLevel}`,
                   WindowWidth: `${windowLevels[0]?.width || tags.WindowWidth}`,
@@ -271,26 +294,30 @@ export const useDICOMStore = defineStore('dicom', {
             const tags = await readDicomTags(dicomIO, files[0]);
             // TODO parse the raw string values
             const patient = {
-              PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
               PatientName: tags.PatientName || ANONYMOUS_PATIENT,
+              PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
               PatientBirthDate: tags.PatientBirthDate || '',
               PatientSex: tags.PatientSex || '',
             };
 
             const study = pick(
               tags,
-              'StudyID',
               'StudyInstanceUID',
+              'StudyID',
               'StudyDate',
               'StudyTime',
+              'StudyDescription',
               'AccessionNumber',
-              'StudyDescription'
+              'InstitutionName',
+              'ManufacturerModelName'
             );
 
             const volumeInfo = {
               ...pick(
                 tags,
                 'Modality',
+                'BodyPartExamined',
+                // 'TransferSyntaxUID',
                 'SeriesInstanceUID',
                 'SeriesNumber',
                 'SeriesDescription',
