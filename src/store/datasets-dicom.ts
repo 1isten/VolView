@@ -2,6 +2,8 @@ import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
+import useLoadDataStore from '@/src/store/load-data';
+import { useViewStore } from '@/src/store/views';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import { arrayRange } from '../utils/minmax';
 import { pick, removeFromArray } from '../utils';
@@ -540,6 +542,29 @@ export const useDICOMStore = defineStore('dicom', {
         const newImageID = imageStore.addVTKImageData(name, image);
         this.imageIDToVolumeKey[newImageID] = volumeKey;
         this.volumeToImageID[volumeKey] = newImageID;
+        // auto set layout to be the correct axis view
+        const viewStore = useViewStore();
+        const { Axial, Sagittal, Coronal } = imageStore.metadata[newImageID].lpsOrientation;
+        let viewID = 'Axial';
+        if (Axial === 2) {
+          viewID = 'Axial';
+        } else if (Sagittal === 2) {
+          viewID = 'Sagittal';
+        } else if (Coronal === 2) {
+          viewID = 'Coronal';
+        }
+        const layoutName = `${viewID} Only`;
+        const loadDataStore = useLoadDataStore();
+        const volumeKeySuffix = volumeKeyGetSuffix(volumeKey);
+        if (volumeKeySuffix) {
+          loadDataStore.imageIDToVolumeKeyUID[newImageID] = volumeKeySuffix;
+          if (!loadDataStore.getLoadedByBus(volumeKeySuffix).layoutName) {
+            loadDataStore.setLoadedByBus(volumeKeySuffix, { layoutName });
+            viewStore.setLayoutByName(layoutName);
+          }
+        } else {
+          // viewStore.setLayoutByName(layoutName);
+        }
       }
 
       return image;
