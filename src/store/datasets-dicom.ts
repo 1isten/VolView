@@ -34,6 +34,7 @@ export interface PatientInfo {
 export interface StudyInfo {
   StudyInstanceUID: string;
   StudyID: string;
+  StudyName: string;
   StudyDate: string;
   StudyTime: string;
   StudyDescription: string;
@@ -118,6 +119,7 @@ const mainDicomTags = [
   // Study
   { name: 'StudyInstanceUID', tag: '0020|000d' },
   { name: 'StudyID', tag: '0020|0010', strconv: true },
+  { name: 'StudyName', tag: '0010|0010' },
   { name: 'StudyDate', tag: '0008|0020' },
   { name: 'StudyTime', tag: '0008|0030' },
   { name: 'StudyDescription', tag: '0008|1030', strconv: true },
@@ -303,6 +305,7 @@ export const useDICOMStore = defineStore('dicom', {
               tags,
               'StudyInstanceUID',
               'StudyID',
+              'StudyName',
               'StudyDate',
               'StudyTime',
               'StudyDescription',

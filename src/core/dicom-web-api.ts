@@ -14,31 +14,37 @@ export interface FetchInstanceOptions extends FetchSeriesOptions {
 }
 
 const tags = {
-  PatientID: '00100020',
+  // Patient
   PatientName: '00100010',
+  PatientID: '00100020',
   PatientBirthDate: '00100030',
   PatientSex: '00100040',
-
-  StudyID: '00200010',
+  // Study
   StudyInstanceUID: '0020000D',
+  StudyID: '00200010',
   StudyName: '00100010',
   StudyDate: '00080020',
   StudyTime: '00080030',
-  AccessionNumber: '00080050',
   StudyDescription: '00081030',
-
+  AccessionNumber: '00080050',
+  InstitutionName: '00080080',
+  ManufacturerModelName: '00081090',
+  // Series
+  Modality: '00080060',
+  BodyPartExamined: '00180015',
+  // TransferSyntaxUID: '00020010',
   SeriesInstanceUID: '0020000E',
   SeriesNumber: '00200011',
   SeriesDescription: '0008103E',
-  Modality: '00080060',
-  WindowLevel: '00281050',
-  WindowWidth: '00281051',
-
+  // Instance
   SopInstanceUID: '00080018',
   InstanceNumber: '00200013',
 
   Rows: '00280010',
   Columns: '00280011',
+
+  WindowLevel: '00281050',
+  WindowWidth: '00281051',
 };
 
 export type Instance = typeof tags;

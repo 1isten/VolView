@@ -66,26 +66,31 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
   actions: {
     async importMeta(info: Instance) {
       const patient = {
-        PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
         PatientName: info.PatientName || ANONYMOUS_PATIENT,
+        PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
         PatientBirthDate: info.PatientBirthDate || '',
         PatientSex: info.PatientSex || '',
       };
 
       const study = pick(
         info,
-        'StudyID',
         'StudyInstanceUID',
+        'StudyID',
+        'StudyName',
         'StudyDate',
         'StudyTime',
+        'StudyDescription',
         'AccessionNumber',
-        'StudyDescription'
+        'InstitutionName',
+        'ManufacturerModelName'
       );
 
       const volumeInfo = {
         ...pick(
           info,
           'Modality',
+          'BodyPartExamined',
+          // 'TransferSyntaxUID',
           'SeriesInstanceUID',
           'SeriesNumber',
           'SeriesDescription',
