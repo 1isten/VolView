@@ -243,8 +243,8 @@ export const useDICOMStore = defineStore('dicom', {
             })
           );
           filesWithTagsInfo.sort((a, b) => +a.tags.InstanceNumber - +b.tags.InstanceNumber);
-          let isSorted = false;
-          let windowingDiffsALot = false;
+          let reSorted = false;
+          let windowingDiffs= false;
           const windowLevels: number[] = [];
           const windowWidths: number[] = [];
           const tags: Record<string, string>[] = [];
@@ -252,24 +252,23 @@ export const useDICOMStore = defineStore('dicom', {
             const { file: fileSorted, tags: fileTags } = filesWithTagsInfo[idx];
             if (file !== fileSorted) {
               volumeToFiles[volumeKey][idx] = fileSorted;
-              isSorted = true;
+              reSorted = true;
             }
             tags[idx] = fileTags;
             windowLevels.push(Number(fileTags.WindowLevel));
             windowWidths.push(Number(fileTags.WindowWidth));
           });
-          // TODO: more practical way to determin if windowing diffs a lot between slices
           if (
-            Math.max(...windowLevels) - Math.min(...windowLevels) >= 100 ||
-            Math.max(...windowWidths) - Math.min(...windowWidths) >= 200
+            Math.max(...windowLevels) !== Math.min(...windowLevels) ||
+            Math.max(...windowWidths) !== Math.min(...windowWidths)
           ) {
-            windowingDiffsALot = true;
+            windowingDiffs = true;
           }
           this.volumeSlicesInfo[volumeKey] = {
-            isSorted,
+            reSorted,
             tags,
+            windowingDiffs,
             dataRanges: [],
-            windowingDiffsALot,
           };
         }
       }
@@ -338,7 +337,7 @@ export const useDICOMStore = defineStore('dicom', {
           }
 
           // save pixel data min max into volumeSlicesInfo
-          if (this.volumeSlicesInfo[volumeKey]?.windowingDiffsALot) {
+          if (this.volumeSlicesInfo[volumeKey]?.windowingDiffs) {
             files.forEach(async (file, idx) => {
               const image = await this.getVolumeSlice(volumeKey, idx + 1);
               if (image.data) {
@@ -519,7 +518,7 @@ export const useDICOMStore = defineStore('dicom', {
         : [];
       // actually build volume or wait for existing build?
       const newImagePromise = buildNeeded
-        ? constructImage(this.$dicomIO, volumeKey, !!this.volumeSlicesInfo[volumeKey]?.isSorted)
+        ? constructImage(this.$dicomIO, volumeKey, !!this.volumeSlicesInfo[volumeKey]?.reSorted)
         : this.volumeImageData[volumeKey];
       // let other calls to buildVolume reuse this constructImage work
       this.volumeImageData[volumeKey] = newImagePromise;

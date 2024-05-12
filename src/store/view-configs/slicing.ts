@@ -37,7 +37,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     if (layoutName && layoutName.includes(viewID)) {
       const dicomStore = useDICOMStore();
       const volumeSlicesInfo = dicomStore.volumeSlicesInfo[dicomStore.imageIDToVolumeKey[dataID]];
-      if (volumeSlicesInfo && volumeSlicesInfo.windowingDiffsALot) {
+      if (volumeSlicesInfo && volumeSlicesInfo.windowingDiffs) {
         const tag = volumeSlicesInfo.tags?.[config.slice];
         const dataRange = volumeSlicesInfo.dataRanges?.[config.slice];
         if (tag && dataRange) {
