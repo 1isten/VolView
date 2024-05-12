@@ -29,7 +29,7 @@ export type Events = {
   // ...
 
   // emit to outside
-  'update:slicing': {
+  slicing: {
     volumeKeySuffix: string;
     slice: number;
   };
