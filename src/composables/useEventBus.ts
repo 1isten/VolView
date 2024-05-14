@@ -31,7 +31,7 @@ export type Events = {
 
   // emit to outside
   slicing: {
-    volumeKeySuffix: string;
+    volumeKeyUID: string;
     slice: number;
   };
   // ...

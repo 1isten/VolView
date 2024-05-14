@@ -65,7 +65,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         }
       }
       emitter.emit('slicing', {
-        volumeKeySuffix: volumeKeyUID,
+        volumeKeyUID,
         slice: config.slice,
       });
     }
