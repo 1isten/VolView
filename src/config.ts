@@ -15,12 +15,12 @@ import { Action } from './constants';
  * These view IDs get mapped to components in core/viewTypes.ts.
  */
 export const InitViewIDs: Record<string, string> = {
-  Coronal: 'Coronal',
   Sagittal: 'Sagittal',
+  Coronal: 'Coronal',
   Axial: 'Axial',
   Three: '3D',
-  ObliqueCoronal: 'ObliqueCoronal',
   ObliqueSagittal: 'ObliqueSagittal',
+  ObliqueCoronal: 'ObliqueCoronal',
   ObliqueAxial: 'ObliqueAxial',
   ObliqueThree: 'Oblique3D',
 };
@@ -29,38 +29,41 @@ export const InitViewIDs: Record<string, string> = {
  * View spec for the initial view IDs.
  */
 export const InitViewSpecs: Record<string, ViewSpec> = {
-  [InitViewIDs.Coronal]: {
-    viewType: '2D',
-    props: {
-      viewDirection: 'Posterior',
-      viewUp: 'Superior',
-    },
-  },
+  // X
   [InitViewIDs.Sagittal]: {
     viewType: '2D',
     props: {
-      viewDirection: 'Right',
-      viewUp: 'Superior',
+      viewDirection: 'Right', // left to right
+      viewUp: 'Superior', // top is upper
     },
   },
+  // Y
+  [InitViewIDs.Coronal]: {
+    viewType: '2D',
+    props: {
+      viewDirection: 'Posterior', // front to back
+      viewUp: 'Superior', // top is upper
+    },
+  },
+  // Z
   [InitViewIDs.Axial]: {
     viewType: '2D',
     props: {
-      viewDirection: 'Superior',
-      viewUp: 'Anterior',
-    },
-  },
-  [InitViewIDs.ObliqueCoronal]: {
-    viewType: 'Oblique',
-    props: {
-      viewDirection: 'Posterior',
-      viewUp: 'Superior',
+      viewDirection: 'Superior', // bottom to top (patient lies down)
+      viewUp: 'Anterior', // front is upper
     },
   },
   [InitViewIDs.ObliqueSagittal]: {
     viewType: 'Oblique',
     props: {
       viewDirection: 'Right',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueCoronal]: {
+    viewType: 'Oblique',
+    props: {
+      viewDirection: 'Posterior',
       viewUp: 'Superior',
     },
   },
@@ -116,31 +119,19 @@ export const DefaultLayoutName = 'Quad View';
  */
 export const Layouts: Record<string, Layout> = [
   {
-    name: 'Axial Only',
+    name: 'Axial Only', // Z
     direction: LayoutDirection.H,
     items: [InitViewIDs.Axial],
   },
   {
-    name: 'Axial Primary',
-    direction: LayoutDirection.V,
-    items: [
-      InitViewIDs.Axial,
-      {
-        direction: LayoutDirection.H,
-        items: [InitViewIDs.Three, InitViewIDs.Coronal, InitViewIDs.Sagittal],
-      },
-    ],
+    name: 'Sagittal Only', // X
+    direction: LayoutDirection.H,
+    items: [InitViewIDs.Sagittal],
   },
   {
-    name: '3D Primary',
-    direction: LayoutDirection.V,
-    items: [
-      InitViewIDs.Three,
-      {
-        direction: LayoutDirection.H,
-        items: [InitViewIDs.Coronal, InitViewIDs.Sagittal, InitViewIDs.Axial],
-      },
-    ],
+    name: 'Coronal Only', // Y
+    direction: LayoutDirection.H,
+    items: [InitViewIDs.Coronal],
   },
   {
     name: 'Quad View',
@@ -148,25 +139,51 @@ export const Layouts: Record<string, Layout> = [
     items: [
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.Coronal, InitViewIDs.Three],
+        items: [InitViewIDs.Axial, InitViewIDs.Three],
       },
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.Sagittal, InitViewIDs.Axial],
+        items: [InitViewIDs.Sagittal, InitViewIDs.Coronal],
       },
     ],
   },
+  /*
   {
     name: 'Oblique View',
     direction: LayoutDirection.H,
     items: [
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
+        items: [InitViewIDs.ObliqueAxial, InitViewIDs.ObliqueThree],
       },
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueAxial],
+        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueCoronal],
+      },
+    ],
+  },
+  */
+  /*
+  {
+    name: 'Axial Primary',
+    direction: LayoutDirection.V,
+    items: [
+      InitViewIDs.Axial,
+      {
+        direction: LayoutDirection.H,
+        items: [InitViewIDs.Three, InitViewIDs.Sagittal, InitViewIDs.Coronal],
+      },
+    ],
+  },
+  */
+  {
+    name: '3D Primary',
+    direction: LayoutDirection.V,
+    items: [
+      InitViewIDs.Three,
+      {
+        direction: LayoutDirection.H,
+        items: [InitViewIDs.Axial, InitViewIDs.Sagittal, InitViewIDs.Coronal],
       },
     ],
   },

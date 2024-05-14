@@ -58,6 +58,10 @@ export const useViewStore = defineStore('view', {
       const layout = Layouts[layoutName];
       if (layout) this.setLayout(layout);
     },
+    setLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = `${viewID} Only`;
+      this.setLayoutByName(layoutName);
+    },
     serialize(stateFile: StateFile) {
       const viewConfigStore = useViewConfigStore();
       const { manifest } = stateFile;

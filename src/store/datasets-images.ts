@@ -6,6 +6,7 @@ import type { Bounds } from '@kitware/vtk.js/types';
 import { useIdStore } from '@/src/store/id';
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
+import { getDataID, findImageID } from '../utils/dataSelection';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { useFileStore } from './datasets-files';
@@ -45,6 +46,25 @@ export const useImageStore = defineStore('images', {
       this.metadata[id] = { ...defaultImageMetadata(), name };
       this.updateData(id, imageData);
       return id;
+    },
+
+    getPrimaryViewID(volumeKey: string) {
+      const dataID = getDataID(volumeKey);
+      const imageID = findImageID(dataID);
+      const lpsOrientation = this.metadata[imageID]?.lpsOrientation;
+      if (lpsOrientation) {
+        const { Axial, Sagittal, Coronal } = lpsOrientation;
+        let viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D' = 'Axial';
+        if (Axial === 2) {
+          viewID = 'Axial';
+        } else if (Sagittal === 2) {
+          viewID = 'Sagittal';
+        } else if (Coronal === 2) {
+          viewID = 'Coronal';
+        }
+        return viewID;
+      }
+      return null;
     },
 
     updateData(id: string, imageData: vtkImageData) {

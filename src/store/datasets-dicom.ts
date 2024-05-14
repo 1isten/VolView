@@ -542,29 +542,18 @@ export const useDICOMStore = defineStore('dicom', {
         const newImageID = imageStore.addVTKImageData(name, image);
         this.imageIDToVolumeKey[newImageID] = volumeKey;
         this.volumeToImageID[volumeKey] = newImageID;
-        // auto set layout to be the correct axis view
-        const viewStore = useViewStore();
-        const { Axial, Sagittal, Coronal } = imageStore.metadata[newImageID].lpsOrientation;
-        let viewID = 'Axial';
-        if (Axial === 2) {
-          viewID = 'Axial';
-        } else if (Sagittal === 2) {
-          viewID = 'Sagittal';
-        } else if (Coronal === 2) {
-          viewID = 'Coronal';
-        }
-        const layoutName = `${viewID} Only`;
+        // auto set layout to be the correct axis view (when loaded by bus)
         const loadDataStore = useLoadDataStore();
+        const viewStore = useViewStore();
+        const viewID = imageStore.getPrimaryViewID(volumeKey);
         const volumeKeySuffix = volumeKeyGetSuffix(volumeKey);
         if (volumeKeySuffix) {
-          loadDataStore.imageIDToVolumeKeyUID[newImageID] = volumeKeySuffix;
-          if (!loadDataStore.getLoadedByBus(volumeKeySuffix).layoutName) {
-            loadDataStore.setLoadedByBus(volumeKeySuffix, { layoutName });
-            viewStore.setLayoutByName(layoutName);
+          if (viewID && loadDataStore.getLoadedByBus(volumeKeySuffix).layoutName === undefined) {
+            viewStore.setLayoutByViewID(viewID);
           }
-        } else {
-          // viewStore.setLayoutByName(layoutName);
-        }
+        } else if (viewID) {
+            // viewStore.setLayoutByViewID(viewID);
+          }
       }
 
       return image;
