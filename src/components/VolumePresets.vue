@@ -118,16 +118,17 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="overflow-x-visible mx-2">
+  <div class="overflow-x-visible" :class="Object.keys(thumbnails).length ? 'mx-2' : 'mx-n2'">
     <item-group :model-value="preset" @update:model-value="selectPreset">
       <v-row no-gutters justify="center">
         <groupable-item
-          v-for="preset in presetList"
+          v-for="(preset, i) in presetList"
           :key="preset"
           v-slot="{ active, select }"
           :value="preset"
         >
           <v-col
+            v-if="Object.keys(thumbnails).length"
             cols="4"
             :class="{
               'thumbnail-container': true,
@@ -142,6 +143,21 @@ export default defineComponent({
                 </div>
               </persistent-overlay>
             </v-img>
+          </v-col>
+          <v-col
+            v-else
+            cols="12"
+            :class="{
+              'thumbnail-container': true,
+              'bg-blue': active,
+              'mt-2': i > 0,
+            }"
+            :style="active ? '' : 'background-color: rgba(var(--v-theme-info), var(--v-border-opacity))'"
+            @click="select"
+          >
+            <div class="px-1">
+              {{ preset.replace(/-/g, ' ') }}
+            </div>
           </v-col>
         </groupable-item>
       </v-row>
