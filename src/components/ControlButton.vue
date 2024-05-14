@@ -12,6 +12,7 @@
   >
     <v-icon :size="iconSize">{{ icon }}</v-icon>
     <v-tooltip
+      v-if="name"
       :location="tooltipLocation"
       activator="parent"
       transition="slide-x-transition"
@@ -30,7 +31,7 @@ export default {
     name: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
     buttonClass: [String, Array, Object],
-    tooltipLocation: { type: String, default: 'right' },
+    tooltipLocation: { type: String, default: 'right' && 'left' },
   },
 
   computed: {

@@ -1,9 +1,16 @@
 .vtk-container-wrapper {
   flex: 1;
   display: grid;
-  grid-template-columns: 20px auto;
+  /* grid-template-columns: 20px auto; */
+  grid-template-columns: auto 20px;
   grid-template-rows: auto;
   z-index: 0; /* avoids partial obscuring of focus outline */
+}
+.vtk-container-wrapper .vtk-gutter {
+  order: 2;
+}
+.vtk-container-wrapper .vtk-gutter + .vtk-container {
+  order: 1;
 }
 
 .vtk-container {

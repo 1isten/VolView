@@ -19,7 +19,7 @@ export default defineComponent({
   setup(props) {
     const display = useDisplay();
 
-    const showLeft = computed(() => !display.mobile.value);
+    const showLeft = computed(() => false && !display.mobile.value);
 
     const menuOn = ref(false);
 

@@ -2,21 +2,28 @@
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-layout class="position-relative w-100 h-100 overflow-hidden">
-        <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
+        <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
           app
           absolute
           clipped
           touchless
-          width="450"
+          :width="false ? 450 : 350"
           id="left-nav"
+          :class="false ? '' : 'right-nav'"
+          :location="false ? 'start' : 'end'"
+          :mobile-breakpoint="720"
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
         <v-main id="content-main">
-          <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData"></controls-strip>
+          <div class="fill-height d-flex flex-grow-1" :class="false ? 'flex-row' : 'flex-row-reverse'">
+            <div id="tools-strip-container" class="position-relative fill-height d-flex flex-row flex-grow-0">
+              <div id="tools-strip-wrapper" class="position-absolute w-100 h-100 d-flex flex-row flex-grow-1">
+                <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar"></controls-strip>
+              </div>
+            </div>
             <div class="position-relative d-flex flex-column flex-grow-1 overflow-hidden">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
@@ -29,6 +36,11 @@
               <div v-if="busLoading" class="position-absolute w-100 h-100 d-flex bg-black">
                 <div class="ma-auto">
                   <v-progress-circular indeterminate color="blue" />
+                </div>
+              </div>
+              <div v-else-if="!hasData" class="position-absolute w-100 h-100 d-flex bg-black">
+                <div class="ma-auto">
+                  <!-- [NO DATA] -->
                 </div>
               </div>
             </div>
@@ -223,6 +235,10 @@ export default defineComponent({
 
 #left-nav {
   border-right: 1px solid rgb(var(--v-theme-background));
+}
+#left-nav.right-nav {
+  border-right: 0;
+  border-left: 1px solid rgb(var(--v-theme-background));
 }
 
 #content-main > .v-content__wrap {

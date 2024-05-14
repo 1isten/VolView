@@ -17,9 +17,12 @@ import { Layouts, DefaultLayoutName } from '@/src/config';
 
 interface Props {
   hasData: boolean;
+  leftMenu: boolean;
 }
 
 defineProps<Props>();
+
+const emit = defineEmits(['click:left-menu']);
 
 function useViewLayout() {
   const viewStore = useViewStore();
@@ -123,6 +126,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
   <div
     id="tools-strip"
     class="d-flex flex-column align-center"
+    :class="false ? '' : 'right-strip'"
   >
     <control-button
       size="40"
@@ -138,7 +142,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="handleSave"
     />
     <div class="my-1 tool-separator" />
-    <v-menu location="right" :close-on-content-click="true">
+    <v-menu :location="'right' && 'left'" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
           <control-button
@@ -164,34 +168,45 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
     </v-menu>
     <controls-strip-tools v-if="hasData" />
     <v-spacer />
-    <control-button
-      v-if="serverUrl"
-      size="40"
-      :icon="connIcon"
-      name="Open Server Settings"
-      @click="settingsDialog = true"
-    />
-    <v-badge
-      offset-x="10"
-      offset-y="10"
-      :content="msgCount"
-      :color="msgBadgeColor"
-      :model-value="msgCount > 0"
-      id="notifications"
-    >
+    <template v-if="false">
+      <control-button
+        v-if="serverUrl"
+        size="40"
+        :icon="connIcon"
+        name="Open Server Settings"
+        @click="settingsDialog = true"
+      />
+      <v-badge
+        offset-x="10"
+        offset-y="10"
+        :content="msgCount"
+        :color="msgBadgeColor"
+        :model-value="msgCount > 0"
+        id="notifications"
+      >
+        <control-button
+          size="40"
+          icon="mdi-bell-outline"
+          name="Notifications"
+          @click="messageDialog = true"
+        />
+      </v-badge>
       <control-button
         size="40"
-        icon="mdi-bell-outline"
-        name="Notifications"
-        @click="messageDialog = true"
+        icon="mdi-cog"
+        name="Settings"
+        @click="settingsDialog = true"
       />
-    </v-badge>
-    <control-button
-      size="40"
-      icon="mdi-cog"
-      name="Settings"
-      @click="settingsDialog = true"
-    />
+    </template>
+    <template v-else>
+      <control-button
+        size="40"
+        :icon="leftMenu ? (false ? 'mdi-page-first' : 'mdi-page-last') : 'mdi-menu'"
+        :name="false ? (leftMenu ? 'Hide panel' : 'Show panel') : ''"
+        @click="emit('click:left-menu')"
+      />
+      <!-- <q-btn :icon="rightSideBar ? 'sym_s_last_page' : 'sym_s_menu_open'" flat square padding="sm" color="grey-12" :ripple="false" class="col-auto" @click="rightSideBar = !rightSideBar"></q-btn> -->
+    </template>
   </div>
   <closeable-dialog v-model="saveDialog" max-width="30%">
     <template v-slot="{ close }">
@@ -210,11 +225,33 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </template>
 
 <style src="@/src/components/styles/utils.css"></style>
+<style>
+#tools-strip-container {
+  width: 40px;
+  height: 100%;
+  overflow: hidden;
+}
+#tools-strip-wrapper {
+  overflow: auto;
+  background-color: rgb(var(--v-theme-background));
+}
+#tools-strip-wrapper::-webkit-scrollbar {
+  display: none;
+}
+#tools-strip-wrapper {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>
 <style scoped>
 #tools-strip {
   background-color: rgb(var(--v-theme-background));
   border-left: 1px solid #212121;
   flex: 0 0 40px;
+}
+#tools-strip.right-strip {
+  border-left: 0;
+  border-right: 1px solid #212121;
 }
 
 .tool-separator {

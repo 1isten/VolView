@@ -32,6 +32,7 @@ export default defineComponent({
       size="40"
       icon="mdi-restore"
       name="Reset Crop"
+      :tooltip-location="false ? '' : 'right'"
       @click="resetCrop"
     />
   </v-card>
