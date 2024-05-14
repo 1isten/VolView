@@ -36,41 +36,41 @@ const vuetify = createVuetify({
           'selection-bg-color': '#01579b',
           'selection-border-color': '#01579b',
         // Nebula START
-          background: '#0f172a',
+          background: '#0f172a', // tw-slate-900
           // 'background-overlay-multiplier': 1,
-          surface: '#1e293b',
+          surface: '#1e293b', // tw-slate-800
           // 'surface-overlay-multiplier': 1,
-          'surface-bright': '#87a7ff',
-          // 'surface-bright-overlay-multiplier': 2,
-          'surface-light': '#2e3d59',
+          'surface-light': '#334155', // tw-slate-700
           // 'surface-light-overlay-multiplier': 1,
-          'surface-variant': '#334155',
+          'surface-bright': '#d1d5db', // tw-gray-300
+          // 'surface-bright-overlay-multiplier': 2,
+          'surface-variant': '#9ca3af', // tw-gray-400
           // 'surface-variant-overlay-multiplier': 1,
 
           primary: '#3462e3',
           // 'primary-overlay-multiplier': 1,
           // 'primary-darken-1': '#1c2d60',
           // 'primary-darken-1-overlay-multiplier': 1,
-          secondary: '#0284c7',
+          secondary: '#0284c7', // tw-sky-600
           // 'secondary-overlay-multiplier': 2,
-          // 'secondary-darken-1': '#0369a1',
+          // 'secondary-darken-1': '#0369a1', // tw-sky-700
           // 'secondary-darken-1-overlay-multiplier': 1,
-          accent: '#0ea5e9',
+          accent: '#0ea5e9', // tw-sky-500
           // 'accent-overlay-multiplier': 2,
-          info: '#64748b',
+          info: '#64748b', // tw-slate-500
           // 'info-overlay-multiplier': 1,
-          success: '#14b8a6',
+          success: '#14b8a6', // tw-teal-500
           // 'success-overlay-multiplier': 2,
-          error: '#ef4444',
+          error: '#ef4444', // tw-red-500
           // 'error-overlay-multiplier': 2,
-          warning: '#f97316',
+          warning: '#f97316', // tw-orange-500
           // 'warning-overlay-multiplier': 2,
 
           // 'on-background': '#ffffff',
           // 'on-surface': '#ffffff',
           // 'on-surface-bright': '#ffffff',
           // 'on-surface-light': '#ffffff',
-          'on-surface-variant': '#ffffff',
+          // 'on-surface-variant': '#ffffff',
           // 'on-primary': '#ffffff',
           // 'on-primary-darken-1': '#ffffff',
           // 'on-secondary': '#ffffff',
