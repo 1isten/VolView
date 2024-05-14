@@ -7,6 +7,7 @@ import {
   getImageID,
   selectionEquals,
 } from '@/src/utils/dataSelection';
+import useLoadDataStore from './load-data';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
@@ -90,6 +91,16 @@ export const useDatasetStore = defineStore('dataset', () => {
       selectionEquals(sel, primarySelection.value)
     ) {
       primarySelection.value = null;
+    }
+
+    const loadDataStore = useLoadDataStore();
+    const imageID = getImageID(sel);
+    if (imageID in loadDataStore.imageIDToVolumeKeyUID) {
+      const { selection } = loadDataStore.getLoadedByBus(loadDataStore.imageIDToVolumeKeyUID[imageID]);
+      if (selection) {
+        delete loadDataStore.loadedByBus[loadDataStore.imageIDToVolumeKeyUID[imageID]];
+      }
+      delete loadDataStore.imageIDToVolumeKeyUID[imageID];
     }
 
     if (sel.type === 'dicom') {

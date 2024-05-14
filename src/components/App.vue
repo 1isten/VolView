@@ -60,7 +60,9 @@ import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
+import { getDataID } from '@/src/utils/dataSelection';
 import useLoadDataStore from '@/src/store/load-data';
+import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
@@ -107,6 +109,7 @@ export default defineComponent({
     // --- file handling --- //
 
     const loadDataStore = useLoadDataStore();
+    const dataStore = useDatasetStore();
     const hasData = computed(
       () =>
         imageStore.idList.length > 0 ||
@@ -136,7 +139,13 @@ export default defineComponent({
         }
 
         loadUrls(payload.urlParams, options);
-      }
+      },
+      unload() {
+        // remove all data loaded by event bus
+        Object.keys(loadDataStore.imageIDToVolumeKeyUID).forEach(imageID => {
+          dataStore.remove(getDataID(imageID));
+        });
+      },
     });
 
     onMounted(() => {

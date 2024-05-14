@@ -25,8 +25,9 @@ export interface LoadEvent extends LoadEventOptions {
 }
 
 export type Events = {
-  // handle from outside
+  // received from outside
   load: LoadEvent;
+  unload: void;
   // ...
 
   // emit to outside
@@ -39,6 +40,7 @@ export type Events = {
 
 export type Handlers = {
   load: (payload: Events['load']) => void;
+  unload: () => void;
 };
 
 export function useEventBus(handlers?: Handlers) {
@@ -48,12 +50,14 @@ export function useEventBus(handlers?: Handlers) {
   onMounted(() => {
     if (handlers) {
       emitter.on('load', handlers.load);
+      emitter.on('unload', handlers.unload);
     }
   });
 
   onUnmounted(() => {
     if (handlers) {
       emitter.off('load', handlers.load);
+      emitter.off('unload', handlers.unload);
     }
   });
 
