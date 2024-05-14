@@ -12,6 +12,7 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useViewStore } from '@/src/store/views';
+import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { getImageID } from '@/src/utils/dataSelection';
 import { wrapInArray, nonNullable } from '@/src/utils';
 import { basename } from '@/src/utils/path';
@@ -263,6 +264,11 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
       if (isVolumeResult(primaryDataSource)) {
         const selection = toDataSelection(primaryDataSource);
+        if (volumeKeySuffix) {
+          loadDataStore.setLoadedByBus(volumeKeySuffix, {
+            selection,
+          });
+        }
         dataStore.setPrimarySelection(selection);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
@@ -346,6 +352,44 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
     const loadDataStore = useLoadDataStore();
     const dataStore = useDatasetStore();
     const { volumeKeySuffix, ...loadOptions } = options;
+    const handleCache = () => {
+      let cacheHit = false;
+      let cacheIsInvalid = false;
+      const loadedByBus = loadDataStore.getLoadedByBus(volumeKeySuffix);
+      if (loadedByBus) {
+        const { selection } = loadedByBus;
+        if (selection) {
+          const imageID = getImageID(selection);
+          if (imageID) {
+            const { layoutName, initialSlices } = loadOptions;
+            if (layoutName) {
+              const viewStore = useViewStore();
+              viewStore.setLayoutByName(layoutName);
+            }
+            if (initialSlices) {
+              const viewSliceStore = useViewSliceStore();
+              Object.entries(initialSlices).forEach(([viewID, slice]) => {
+                viewSliceStore.updateConfig(viewID, imageID, {
+                  slice,
+                });
+              });
+            }
+            dataStore.setPrimarySelection(selection);
+            cacheHit = true;
+            cacheIsInvalid = false;
+          } else if (imageID in loadDataStore.imageIDToVolumeKeyUID) {
+            delete loadDataStore.imageIDToVolumeKeyUID[imageID];
+            cacheHit = false;
+            cacheIsInvalid = true;
+          }
+        }
+      }
+      if (cacheHit && cacheIsInvalid && volumeKeySuffix) {
+        delete loadDataStore.loadedByBus[volumeKeySuffix];
+        cacheHit = false;
+      }
+      return !cacheHit;
+    };
     const onBeforeLoadedByBus = () => {
       loadDataStore.isLoadingByBus = true;
       loadDataStore.setLoadedByBus(volumeKeySuffix, loadOptions);
@@ -406,9 +450,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           }
         }
       }
-      return onBeforeLoadedByBus() && loadFiles(dicomWebFiles, volumeKeySuffix).then(onAfterLoadedByBus);
+      return handleCache() && onBeforeLoadedByBus() && loadFiles(dicomWebFiles, volumeKeySuffix).then(onAfterLoadedByBus);
     }
-    return onBeforeLoadedByBus() && loadDataSources(sources, volumeKeySuffix).then(onAfterLoadedByBus);
+    return handleCache() && onBeforeLoadedByBus() && loadDataSources(sources, volumeKeySuffix).then(onAfterLoadedByBus);
   }
 
   return loadDataSources(sources);

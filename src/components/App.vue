@@ -130,6 +130,11 @@ export default defineComponent({
           return;
         }
 
+        // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
+        if ('volumeKeyUID' in options && typeof options.volumeKeyUID === 'string' && !('volumeKeySuffix' in options)) {
+          options.volumeKeySuffix = options.volumeKeyUID;
+        }
+
         loadUrls(payload.urlParams, options);
       }
     });

@@ -2,7 +2,8 @@ import { inject, onMounted, onUnmounted } from 'vue';
 import { Emitter } from 'mitt';
 
 export interface LoadEventOptions {
-  volumeKeySuffix?: string; // make use of it as volumeKeyUID
+  volumeKeyUID?: string;
+  volumeKeySuffix?: string; // make use of volumeKeySuffix as volumeKeyUID
   layoutName?: string;
   initialSlices?: {
     Axial?: number;

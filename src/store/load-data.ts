@@ -3,13 +3,14 @@ import { Maybe } from '@/src/types';
 import { logError } from '@/src/utils/loggers';
 import { defineStore } from 'pinia';
 import { computed, ref, shallowRef, watch } from 'vue';
+import { toDataSelection } from '@/src/io/import/importDataSources';
 import type { LoadEventOptions } from '@/src/composables/useEventBus';
 import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
 
 export interface LoadedByBusDataRecord extends LoadEventOptions {
-  // ...
+  selection?: ReturnType<typeof toDataSelection>;
 };
 
 const NotificationMessages = {
