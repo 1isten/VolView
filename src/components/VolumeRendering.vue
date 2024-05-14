@@ -341,7 +341,7 @@ export default defineComponent({
 
 <template>
   <div class="overflow-hidden">
-    <div class="mt-4 pwf-editor" ref="editorContainerRef">
+    <div ref="editorContainerRef" class="mt-4 pwf-editor" :class="!preset || preset === 'Default' ? 'pointer-events-none' : ''">
       <div ref="pwfEditorRef" />
     </div>
     <div class="mapping-range-editor">
@@ -353,6 +353,7 @@ export default defineComponent({
         :min="rangeShiftMin"
         :max="rangeShiftMax"
         :step="colorSliderStep"
+        :disabled="!preset || preset === 'Default'"
         @pointerdown="request3DAnimation"
         @pointerup="cancel3DAnimation"
       />
@@ -364,6 +365,7 @@ export default defineComponent({
         min="1"
         :max="rangeWidthMax"
         :step="colorSliderStep"
+        :disabled="!preset || preset === 'Default'"
         @pointerdown="request3DAnimation"
         @pointerup="cancel3DAnimation"
       />
