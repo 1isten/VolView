@@ -141,6 +141,7 @@ function toggleGlobalHidden() {
     <v-col align-self="center" class="d-flex justify-end">
       <v-btn
         icon
+        density="compact"
         variant="text"
         :disabled="selectionState === MultipleSelectionState.None"
         @click.stop="toggleGlobalHidden"
@@ -153,6 +154,7 @@ function toggleGlobalHidden() {
       </v-btn>
       <v-btn
         icon
+        density="compact"
         variant="text"
         :disabled="selectionState === MultipleSelectionState.None"
         @click.stop="removeAll"
@@ -173,7 +175,7 @@ function toggleGlobalHidden() {
     <v-container>
       <v-row class="d-flex align-center main-row">
         <v-checkbox
-          class="no-grow mr-4"
+          class="no-grow mr-2"
           density="compact"
           hide-details
           :key="tool.id"
@@ -182,7 +184,7 @@ function toggleGlobalHidden() {
           @click.stop
         />
 
-        <v-icon class="tool-icon mr-4">{{ tool.icon }}</v-icon>
+        <v-icon size="small" class="tool-icon mr-4">{{ tool.icon }}</v-icon>
 
         <div
           class="color-dot flex-shrink-0 mr-2"
@@ -193,20 +195,20 @@ function toggleGlobalHidden() {
         </v-list-item-title>
 
         <span class="ml-auto flex-shrink-0">
-          <v-btn icon variant="text" @click="tool.jumpTo()">
+          <v-btn icon density="compact" variant="text" class="mr-1" @click="tool.jumpTo()">
             <v-icon>mdi-target</v-icon>
             <v-tooltip location="top" activator="parent">
               Reveal Slice
             </v-tooltip>
           </v-btn>
-          <v-btn icon variant="text" @click="tool.toggleHidden()">
+          <v-btn icon density="compact" variant="text" class="mr-1" @click="tool.toggleHidden()">
             <v-icon v-if="tool.toolData.hidden">mdi-eye-off</v-icon>
             <v-icon v-else>mdi-eye</v-icon>
             <v-tooltip location="top" activator="parent">{{
               tool.toolData.hidden ? 'Show' : 'Hide'
             }}</v-tooltip>
           </v-btn>
-          <v-btn icon variant="text" @click="tool.remove()">
+          <v-btn icon density="compact" variant="text" class="mr-1" @click="tool.remove()">
             <v-icon>mdi-delete</v-icon>
             <v-tooltip location="top" activator="parent">Delete</v-tooltip>
           </v-btn>

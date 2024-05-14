@@ -21,8 +21,9 @@
         </vtk-volume-view>
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
-        <template v-slot:top-left>
-          <div class="annotation-cell">
+        <template v-slot:top-right>
+          <div class="annotation-cell d-flex align-center justify-end">
+            <span class="ml-auto mr-3">{{ presetName }}</span>
             <v-btn
               class="pointer-events-all"
               dark
@@ -42,7 +43,6 @@
                 Reset Camera
               </v-tooltip>
             </v-btn>
-            <span class="ml-3">{{ presetName }}</span>
           </div>
         </template>
       </view-overlay-grid>

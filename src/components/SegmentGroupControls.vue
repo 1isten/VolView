@@ -209,19 +209,25 @@ function openSaveDialog(id: string) {
             <v-btn
               icon="mdi-content-save"
               size="small"
+              density="compact"
               variant="flat"
+              class="mr-1"
               @click.stop="openSaveDialog(group.id)"
             ></v-btn>
             <v-btn
               icon="mdi-pencil"
               size="small"
+              density="compact"
               variant="flat"
+              class="mr-1"
               @click.stop="startEditing(group.id)"
             ></v-btn>
             <v-btn
               icon="mdi-delete"
               size="small"
+              density="compact"
               variant="flat"
+              class="mr-1"
               @click.stop="deleteGroup(group.id)"
             ></v-btn>
           </div>

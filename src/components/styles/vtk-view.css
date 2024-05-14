@@ -47,6 +47,8 @@
   display: flex;
   flex-flow: column;
   background: black;
+  padding-top: 5.5px;
+  padding-right: 3.5px;
 }
 
 .slice-slider {

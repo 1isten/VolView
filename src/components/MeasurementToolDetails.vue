@@ -7,7 +7,7 @@ defineProps<{
 </script>
 
 <template>
-  <v-row>
+  <v-row class="text-caption">
     <v-col cols="4">Slice: {{ tool.slice + 1 }}</v-col>
     <v-col cols="4">Axis: {{ tool.axis }}</v-col>
   </v-row>
