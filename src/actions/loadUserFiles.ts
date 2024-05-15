@@ -343,9 +343,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
   );
   // intercept load event from bus emitter
   if (options) {
-    const dataStore = useDatasetStore();
     const loadDataStore = useLoadDataStore();
-
     const { volumeKeySuffix, ...loadOptions } = options;
     loadDataStore.setLoadedByBus(volumeKeySuffix, {
       volumeKeySuffix,
@@ -353,16 +351,13 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
       ...loadOptions,
     });
 
-    const { layoutName, selection } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-    if (layoutName) {
-      const viewStore = useViewStore();
-      viewStore.setLayoutByName(layoutName);
-    }
+    const dataStore = useDatasetStore();
 
     const handleCache = () => {
       let cacheHit = false;
       let cacheIsInvalid = false;
       if (volumeKeySuffix) {
+        const { selection, layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
         if (selection) {
           const imageStore = useImageStore();
           const imageID = getImageID(selection);
@@ -402,16 +397,21 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
 
     const onBeforeLoadedByBus = () => {
       loadDataStore.isLoadingByBus = true;
+      const { layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+      if (layoutName) {
+        const viewStore = useViewStore();
+        viewStore.setLayoutByName(layoutName);
+      }
       return loadDataStore.isLoadingByBus;
     };
 
     const onAfterLoadedByBus = async () => {
-      const sel = dataStore.primarySelection;
-      if (volumeKeySuffix && sel) {
+      const selection = dataStore.primarySelection;
+      if (volumeKeySuffix && selection) {
         const tryGetImageID = async (retryCount = 100) => {
           let imageID;
           while (!imageID && retryCount > 0) {
-            imageID = getImageID(sel);
+            imageID = getImageID(selection);
             // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
             await new Promise(r => setTimeout(r, 10));
             // eslint-disable-next-line no-param-reassign
