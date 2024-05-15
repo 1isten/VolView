@@ -18,7 +18,8 @@ import { useEventBus } from '@/src/composables/useEventBus';
 
 declare module 'vue' {
   interface ComponentCustomProperties {
-    closeButton: Boolean;
+    closeButton: boolean;
+    fileButtons: boolean;
   }
 }
 
@@ -150,20 +151,22 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       />
       <div class="my-1 tool-separator" />
     </template>
-    <control-button
-      size="40"
-      icon="mdi-folder-open"
-      name="Open files"
-      @click="loadUserPromptedFiles"
-    />
-    <control-button
-      size="40"
-      icon="mdi-content-save-all"
-      name="Save session"
-      :loading="isSaving"
-      @click="handleSave"
-    />
-    <div class="my-1 tool-separator" />
+    <template v-if="fileButtons">
+      <control-button
+        size="40"
+        icon="mdi-folder-open"
+        name="Open files"
+        @click="loadUserPromptedFiles"
+      />
+      <control-button
+        size="40"
+        icon="mdi-content-save-all"
+        name="Save session"
+        :loading="isSaving"
+        @click="handleSave"
+      />
+      <div class="my-1 tool-separator" />
+    </template>
     <v-menu :location="'right' && 'left'" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
