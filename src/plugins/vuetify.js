@@ -1,3 +1,5 @@
+// eslint-disable-next-line import/no-unresolved
+import 'vuetify/styles';
 import { createVuetify } from 'vuetify';
 import { useLocalStorage } from '@vueuse/core';
 
@@ -35,35 +37,52 @@ const vuetify = createVuetify({
         colors: {
           'selection-bg-color': '#01579b',
           'selection-border-color': '#01579b',
+
+          'gray-50': '#f9fafb',
+          'gray-100': '#f3f4f6',
+          'gray-200': '#e5e7eb',
+          'gray-300': '#d1d5db',
+          'gray-400': '#9ca3af',
+          'gray-500': '#6b7280',
+          'gray-600': '#4b5563',
+          'gray-700': '#374151',
+          'gray-800': '#1f2937',
+          'gray-900': '#111827',
+          'gray-950': '#030712',
+
         // Nebula START
-          background: '#0f172a', // tw-slate-900
+          'dark-page': '#111827', // gray-900
+          background: '#0f172a', // slate-900
           // 'background-overlay-multiplier': 1,
-          surface: '#1e293b', // tw-slate-800
+          dark: '#1f2937', // gray-800
+          surface: '#1e293b', // slate-800
           // 'surface-overlay-multiplier': 1,
-          'surface-light': '#334155', // tw-slate-700
+          'surface-light': '#334155', // slate-700
           // 'surface-light-overlay-multiplier': 1,
-          'surface-bright': '#d1d5db', // tw-gray-300
+          'surface-bright': '#d1d5db', // gray-300
           // 'surface-bright-overlay-multiplier': 2,
-          'surface-variant': '#9ca3af', // tw-gray-400
+          'surface-variant': '#9ca3af', // gray-400
           // 'surface-variant-overlay-multiplier': 1,
 
-          primary: '#3462e3',
+          primary: '#6b7280', // gray-500
           // 'primary-overlay-multiplier': 1,
           // 'primary-darken-1': '#1c2d60',
           // 'primary-darken-1-overlay-multiplier': 1,
-          secondary: '#0284c7', // tw-sky-600
+          secondary: '#4b5563', // gray-600
           // 'secondary-overlay-multiplier': 2,
-          // 'secondary-darken-1': '#0369a1', // tw-sky-700
+          // 'secondary-darken-1': '#0369a1', // sky-700
           // 'secondary-darken-1-overlay-multiplier': 1,
-          accent: '#0ea5e9', // tw-sky-500
+          accent: '#374151', // gray-700
           // 'accent-overlay-multiplier': 2,
-          info: '#64748b', // tw-slate-500
+          info: '#3b82f6', // blue-500
           // 'info-overlay-multiplier': 1,
-          success: '#14b8a6', // tw-teal-500
+          positive: '#14b8a6', // teal-500
+          success: '#22c55e', // green-500
           // 'success-overlay-multiplier': 2,
-          error: '#ef4444', // tw-red-500
+          negative: '#ef4444', // red-500
+          error: '#ef4444', // red-500
           // 'error-overlay-multiplier': 2,
-          warning: '#f97316', // tw-orange-500
+          warning: '#eab308', // yellow-500
           // 'warning-overlay-multiplier': 2,
 
           // 'on-background': '#ffffff',
@@ -115,7 +134,12 @@ const vuetify = createVuetify({
   display: {
     mobileBreakpoint: 'lg',
     thresholds: {
+      xs: 0,
+      sm: 640,
+      md: 768,
       lg: 1024,
+      xl: 1280,
+      xxl: 1536,
     },
   },
 });

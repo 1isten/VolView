@@ -1,5 +1,6 @@
 import 'vue-toastification/dist/index.css';
-import 'vuetify/lib/styles/main.css';
+// import 'vuetify/lib/styles/main.css';
+import '@/src/styles/tailwind.css';
 import '@/src/global.css';
 
 import '@kitware/vtk.js/Rendering/OpenGL/Profiles/Geometry';

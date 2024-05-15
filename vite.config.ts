@@ -151,9 +151,14 @@ export default defineConfig({
       __SENTRY_DEBUG__: false,
       __SENTRY_TRACING__: false,
     }),
-    vue({ template: { transformAssetUrls } }),
+    vue({
+      template: { transformAssetUrls },
+    }),
     vuetify({
       autoImport: true,
+      // styles: {
+      //   configFile: 'src/styles/settings.scss',
+      // },
     }),
     createHtmlPlugin({
       minify: true,
