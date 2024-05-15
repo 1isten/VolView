@@ -1,7 +1,7 @@
 <template>
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
-      <v-layout class="position-relative w-100 h-100 overflow-hidden">
+      <v-layout class="position-relative w-100 h-100 overflow-hidden bg-gray-950 bg-opacity-80">
         <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
@@ -34,12 +34,12 @@
                 @click="loadUserPromptedFiles"
               >
               </welcome-page>
-              <div v-if="busLoading" class="position-absolute w-100 h-100 d-flex bg-black">
+              <div v-if="busLoading" class="is-loading-mask">
                 <div class="ma-auto">
                   <v-progress-circular indeterminate color="blue" />
                 </div>
               </div>
-              <div v-else-if="!hasData" class="position-absolute w-100 h-100 d-flex bg-black">
+              <div v-else-if="!hasData" class="no-data-mask">
                 <div class="ma-auto">
                   <!-- [NO DATA] -->
                 </div>
@@ -236,12 +236,22 @@ export default defineComponent({
   position: absolute;
 }
 
+.is-loading-mask,
+.no-data-mask {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  background: black;
+  border-right: 1px solid #222;
+}
+
 #left-nav {
   border-right: 1px solid rgb(var(--v-theme-background));
 }
 #left-nav.right-nav {
   border-right: 0;
-  border-left: 1px solid rgba(var(--v-theme-surface-variant), var(--v-pressed-opacity));
+  border-left: 1px solid #222;
 }
 
 #content-main > .v-content__wrap {
