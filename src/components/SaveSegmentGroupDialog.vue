@@ -26,6 +26,7 @@
       <v-btn
         :loading="saving"
         color="secondary"
+        variant="elevated"
         @click="saveSegmentGroup"
         :disabled="!valid"
       >

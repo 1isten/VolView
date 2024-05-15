@@ -149,10 +149,10 @@ export default defineComponent({
             cols="12"
             :class="{
               'thumbnail-container': true,
-              'bg-blue': active,
+              'bg-selection-bg-color': active,
+              'bg-surface-light': !active,
               'mt-2': i > 0,
             }"
-            :style="active ? '' : 'background-color: rgba(var(--v-theme-info), var(--v-border-opacity))'"
             @click="select"
           >
             <div class="px-1">

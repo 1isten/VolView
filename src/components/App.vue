@@ -11,6 +11,7 @@
           touchless
           :width="false ? 450 : 350"
           id="left-nav"
+          class="bg-slate-950 bg-opacity-80"
           :class="false ? '' : 'right-nav'"
           :location="false ? 'start' : 'end'"
           :mobile-breakpoint="720"
@@ -240,7 +241,7 @@ export default defineComponent({
 }
 #left-nav.right-nav {
   border-right: 0;
-  border-left: 1px solid rgb(var(--v-theme-background));
+  border-left: 1px solid rgba(var(--v-theme-surface-variant), var(--v-pressed-opacity));
 }
 
 #content-main > .v-content__wrap {

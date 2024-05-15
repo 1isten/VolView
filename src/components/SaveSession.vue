@@ -20,6 +20,7 @@
       <v-btn
         :loading="saving"
         color="secondary"
+        variant="elevated"
         @click="saveSession"
         :disabled="!valid"
       >

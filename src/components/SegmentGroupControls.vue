@@ -156,7 +156,7 @@ function openSaveDialog(id: string) {
     >
       <v-btn
         variant="tonal"
-        color="secondary"
+        color="surface-bright"
         density="compact"
         @click.stop="createSegmentGroup"
       >
@@ -166,7 +166,7 @@ function openSaveDialog(id: string) {
         <template v-slot:activator="{ props }">
           <v-btn
             variant="tonal"
-            color="secondary"
+            color="surface-bright"
             density="compact"
             v-bind="props"
           >

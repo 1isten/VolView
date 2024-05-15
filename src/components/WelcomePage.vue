@@ -50,7 +50,7 @@ const dataSecurityDialog = ref(false);
               <v-btn
                 class="mt-2"
                 variant="tonal"
-                color="secondary"
+                color="white"
                 @click.stop="dataSecurityDialog = true"
               >
                 Learn More

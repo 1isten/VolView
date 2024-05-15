@@ -112,7 +112,7 @@ export default defineComponent({
         border="top"
         variant="tonal"
         type="warning"
-        color="grey"
+        color="grey-lighten-1"
         elevation="2"
         close-text="Close Warning"
         transition="slide-y-transition"
@@ -124,6 +124,7 @@ export default defineComponent({
         </div>
         <v-btn
           size="small"
+          color="grey-lighten-2"
           variant="tonal"
           block
           class="mt-2"
@@ -135,7 +136,7 @@ export default defineComponent({
           Don't Show Again
         </v-btn>
       </v-alert>
-      <v-divider class="my-8" />
+      <v-divider class="my-4" />
       <v-slider
         label="Ambient"
         min="0"
@@ -165,7 +166,7 @@ export default defineComponent({
         :model-value="cvrParams.lightFollowsCamera"
         @update:model-value="setCVRParam('lightFollowsCamera', !!$event)"
       />
-      <v-divider class="my-8" />
+      <v-divider class="my-4" />
 
       <v-switch
         label="Local Ambient Occlusion"
