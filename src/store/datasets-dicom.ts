@@ -548,8 +548,21 @@ export const useDICOMStore = defineStore('dicom', {
         const viewID = imageStore.getPrimaryViewID(volumeKey);
         const volumeKeySuffix = volumeKeyGetSuffix(volumeKey);
         if (volumeKeySuffix) {
-          if (viewID && loadDataStore.getLoadedByBus(volumeKeySuffix).layoutName === undefined) {
-            viewStore.setLayoutByViewID(viewID);
+          if (viewID) {
+            const { layoutName, defaultSlices, slice } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+            if (layoutName === undefined) {
+              loadDataStore.setLoadedByBus(volumeKeySuffix, {
+                layoutName: viewStore.setLayoutByViewID(viewID),
+              });
+            }
+            if (slice !== undefined && (defaultSlices === undefined || defaultSlices[viewID] === undefined)) {
+              loadDataStore.setLoadedByBus(volumeKeySuffix, {
+                defaultSlices: {
+                  ...(defaultSlices || {}),
+                  [viewID]: slice,
+                },
+              });
+            }
           }
         } else if (viewID) {
             // viewStore.setLayoutByViewID(viewID);

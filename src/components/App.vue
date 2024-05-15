@@ -146,8 +146,10 @@ export default defineComponent({
         }
 
         // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
-        if ('volumeKeyUID' in options && typeof options.volumeKeyUID === 'string' && !('volumeKeySuffix' in options)) {
-          options.volumeKeySuffix = options.volumeKeyUID;
+        const volumeKeyUID = options.volumeKeyUID || options.uid;
+        if (volumeKeyUID) {
+          if (!('volumeKeySuffix' in options)) options.volumeKeySuffix = volumeKeyUID;
+          delete options.uid;
         }
 
         loadUrls(payload.urlParams, options);

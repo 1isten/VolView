@@ -11,6 +11,7 @@ import {
 import { Maybe } from '@/src/types';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { useEventBus } from '@/src/composables/useEventBus';
@@ -39,7 +40,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     const loadDataStore = useLoadDataStore();
     const volumeKeyUID = loadDataStore.imageIDToVolumeKeyUID[dataID];
     const { layoutName } = loadDataStore.getLoadedByBus(volumeKeyUID);
-    if (layoutName && layoutName.includes(viewID)) {
+    if (layoutName && layoutName.includes(viewID) || volumeKeyUID && useImageStore().getPrimaryViewID(dataID) === viewID) {
       if (syncWindowLevelWithTag.value) {
         const dicomStore = useDICOMStore();
         const volumeSlicesInfo = dicomStore.volumeSlicesInfo[dicomStore.imageIDToVolumeKey[dataID]];
@@ -64,8 +65,10 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
           }
         }
       }
+    }
+    if (volumeKeyUID) {
       emitter.emit('slicing', {
-        volumeKeyUID,
+        uid: volumeKeyUID,
         slice: config.slice,
       });
     }
@@ -97,16 +100,24 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     const selection = dataStore.primarySelection;
 
     const tryGetInitialSlice = async (retryCount = 100) => {
-      let slice: number | undefined;
+      let s: number | undefined;
       if (
         viewID === 'Axial' ||
         viewID === 'Sagittal' ||
         viewID === 'Coronal'
       ) {
-        while (slice === undefined && retryCount > 0) {
-          const { initialSlices } = loadDataStore.getLoadedByBus(loadDataStore.imageIDToVolumeKeyUID[dataID]);
-          if (initialSlices) {
-            slice = initialSlices[viewID];
+        while (s === undefined && retryCount > 0) {
+          const loadedByBus = loadDataStore.loadedByBus[loadDataStore.imageIDToVolumeKeyUID[dataID]];
+          if (loadedByBus) {
+            if (!('defaultSlices' in loadedByBus || 'slice' in loadedByBus)) {
+              break;
+            }
+          }
+          const { defaultSlices, slice } = loadedByBus || {};
+          if (defaultSlices) {
+            s = defaultSlices[viewID];
+          } else if (slice !== undefined) {
+            s = slice;
           }
           // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
           await new Promise(r => setTimeout(r, 10));
@@ -114,14 +125,14 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
           retryCount--;
         }
       }
-      if (typeof slice === 'number') {
-        if (slice < config.min) {
-          slice = config.min;
-        } else if (slice > config.max) {
-          slice = config.max;
+      if (typeof s === 'number') {
+        if (s < config.min) {
+          s = config.min;
+        } else if (s > config.max) {
+          s = config.max;
         }
       }
-      return slice;
+      return s;
     };
     const initialSlice = selection && selection.type === 'dicom' && useDICOMStore().volumeKeyGetSuffix(selection.volumeKey) ? await tryGetInitialSlice() : undefined;
 

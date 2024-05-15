@@ -2,14 +2,16 @@ import { inject, onMounted, onUnmounted } from 'vue';
 import { Emitter } from 'mitt';
 
 export interface LoadEventOptions {
-  volumeKeyUID?: string;
-  volumeKeySuffix?: string; // make use of volumeKeySuffix as volumeKeyUID
+  uid?: string; // shortcut for volumeKeyUID
+  volumeKeyUID?: string; // alias for volumeKeySuffix
+  volumeKeySuffix?: string; // make use of volumeKeySuffix as UID
   layoutName?: string;
-  initialSlices?: {
+  defaultSlices?: {
     Axial?: number;
     Sagittal?: number;
     Coronal?: number;
   };
+  slice?: number;
 }
 
 export interface LoadEvent extends LoadEventOptions {
@@ -32,7 +34,7 @@ export type Events = {
 
   // emit to outside
   slicing: {
-    volumeKeyUID: string;
+    uid: string;
     slice: number;
   };
   // ...

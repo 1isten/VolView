@@ -8,6 +8,7 @@ import {
 import type { LoadEventOptions } from '@/src/composables/useEventBus';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -238,7 +239,6 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
   const load = async () => {
     const loadDataStore = useLoadDataStore();
     const dataStore = useDatasetStore();
-    const viewStore = useViewStore();
 
     let results: ImportDataSourcesResult[];
     try {
@@ -250,12 +250,6 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
     const [succeeded, errored] = partitionResults(results);
 
-    if (volumeKeySuffix) {
-      const { layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-      if (layoutName) {
-        viewStore.setLayoutByName(layoutName);
-      }
-    }
     if ((true || !dataStore.primarySelection) && succeeded.length) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
@@ -349,28 +343,43 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
   );
   // intercept load event from bus emitter
   if (options) {
-    const loadDataStore = useLoadDataStore();
     const dataStore = useDatasetStore();
+    const loadDataStore = useLoadDataStore();
+
     const { volumeKeySuffix, ...loadOptions } = options;
+    loadDataStore.setLoadedByBus(volumeKeySuffix, {
+      volumeKeySuffix,
+      volumeKeyUID: loadOptions.volumeKeyUID || volumeKeySuffix,
+      ...loadOptions,
+    });
+
+    const { layoutName, selection } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+    if (layoutName) {
+      const viewStore = useViewStore();
+      viewStore.setLayoutByName(layoutName);
+    }
+
     const handleCache = () => {
       let cacheHit = false;
       let cacheIsInvalid = false;
-      const loadedByBus = loadDataStore.getLoadedByBus(volumeKeySuffix);
-      if (loadedByBus) {
-        const { selection } = loadedByBus;
+      if (volumeKeySuffix) {
         if (selection) {
+          const imageStore = useImageStore();
           const imageID = getImageID(selection);
           if (imageID) {
-            const { layoutName, initialSlices } = loadOptions;
-            if (layoutName) {
-              const viewStore = useViewStore();
-              viewStore.setLayoutByName(layoutName);
-            }
-            if (initialSlices) {
-              const viewSliceStore = useViewSliceStore();
-              Object.entries(initialSlices).forEach(([viewID, slice]) => {
+            const viewSliceStore = useViewSliceStore();
+            const { defaultSlices, slice } = loadOptions;
+            if (!defaultSlices && slice !== undefined) {
+              const viewID = imageStore.getPrimaryViewID(imageID) || layoutName && layoutName.includes(' Only') && layoutName.replace(' Only', '');
+              if (viewID) {
                 viewSliceStore.updateConfig(viewID, imageID, {
                   slice,
+                });
+              }
+            } else if (defaultSlices) {
+              Object.entries(defaultSlices).forEach(([viewID, s]) => {
+                viewSliceStore.updateConfig(viewID, imageID, {
+                  slice: s,
                 });
               });
             }
@@ -390,19 +399,19 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
       }
       return !cacheHit;
     };
+
     const onBeforeLoadedByBus = () => {
       loadDataStore.isLoadingByBus = true;
-      loadDataStore.setLoadedByBus(volumeKeySuffix, loadOptions);
-      // can do other preparations ...
-      return loadDataStore.getLoadedByBus(volumeKeySuffix);
+      return loadDataStore.isLoadingByBus;
     };
+
     const onAfterLoadedByBus = async () => {
-      const selection = dataStore.primarySelection;
-      if (volumeKeySuffix && selection) {
+      const sel = dataStore.primarySelection;
+      if (volumeKeySuffix && sel) {
         const tryGetImageID = async (retryCount = 100) => {
           let imageID;
           while (!imageID && retryCount > 0) {
-            imageID = getImageID(selection);
+            imageID = getImageID(sel);
             // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
             await new Promise(r => setTimeout(r, 10));
             // eslint-disable-next-line no-param-reassign
@@ -415,9 +424,10 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           loadDataStore.imageIDToVolumeKeyUID[imageID] = volumeKeySuffix;
         }
       }
-      // loaded by bus done ...
       loadDataStore.isLoadingByBus = false;
+      return loadDataStore.getLoadedByBus(volumeKeySuffix);
     };
+
     const dicomWebURL = params.dicomWebURL?.toString();
     if (dicomWebURL) {
       const dicomWebFiles: File[] = [];

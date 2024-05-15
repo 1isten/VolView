@@ -57,10 +57,12 @@ export const useViewStore = defineStore('view', {
     setLayoutByName(layoutName: string) {
       const layout = Layouts[layoutName];
       if (layout) this.setLayout(layout);
+      return layoutName;
     },
     setLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
       const layoutName = `${viewID} Only`;
       this.setLayoutByName(layoutName);
+      return layoutName;
     },
     serialize(stateFile: StateFile) {
       const viewConfigStore = useViewConfigStore();
