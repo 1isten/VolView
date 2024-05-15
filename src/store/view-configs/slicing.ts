@@ -65,12 +65,12 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
           }
         }
       }
-    }
-    if (volumeKeyUID) {
-      emitter.emit('slicing', {
-        uid: volumeKeyUID,
-        slice: config.slice,
-      });
+      if (volumeKeyUID) {
+        emitter.emit('slicing', {
+          uid: volumeKeyUID,
+          slice: config.slice,
+        });
+      }
     }
   }, 1);
 
