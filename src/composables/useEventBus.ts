@@ -37,6 +37,7 @@ export type Events = {
     uid: string;
     slice: number;
   };
+  close: void;
   // ...
 };
 

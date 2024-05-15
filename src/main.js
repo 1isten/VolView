@@ -58,6 +58,7 @@ const createVolViewApp = () => {
   app.use(pinia);
   app.use(VueToast);
   app.use(vuetify);
+  app.config.globalProperties.closeButton = false;
   app.config.globalProperties.emitter = mitt();
   app.provide('bus', app.config.globalProperties.emitter);
 

@@ -14,6 +14,13 @@ import { MessageType, useMessageStore } from '@/src/store/messages';
 import { ConnectionState, useServerStore } from '@/src/store/server';
 import { useViewStore } from '@/src/store/views';
 import { Layouts, DefaultLayoutName } from '@/src/config';
+import { useEventBus } from '@/src/composables/useEventBus';
+
+declare module 'vue' {
+  interface ComponentCustomProperties {
+    closeButton: Boolean;
+  }
+}
 
 interface Props {
   hasData: boolean;
@@ -23,6 +30,12 @@ interface Props {
 defineProps<Props>();
 
 const emit = defineEmits(['click:left-menu']);
+
+const { emitter } = useEventBus();
+
+function exitToApp() {
+  emitter.emit('close');
+}
 
 function useViewLayout() {
   const viewStore = useViewStore();
@@ -128,6 +141,15 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
     class="d-flex flex-column align-center"
     :class="false ? '' : 'right-strip'"
   >
+    <template v-if="closeButton">
+      <control-button
+        size="40"
+        icon="mdi-exit-to-app"
+        name="Close"
+        @click="exitToApp"
+      />
+      <div class="my-1 tool-separator" />
+    </template>
     <control-button
       size="40"
       icon="mdi-folder-open"
@@ -201,8 +223,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
     <template v-else>
       <control-button
         size="40"
-        :icon="leftMenu ? (false ? 'mdi-page-first' : 'mdi-page-last') : 'mdi-menu'"
-        :name="false ? (leftMenu ? 'Hide panel' : 'Show panel') : ''"
+        :icon="leftMenu ? 'mdi-menu-close' : 'mdi-menu-open'"
+        :name="leftMenu ? 'Hide panel' : 'Show panel'"
         @click="emit('click:left-menu')"
       />
       <!-- <q-btn :icon="rightSideBar ? 'sym_s_last_page' : 'sym_s_menu_open'" flat square padding="sm" color="grey-12" :ripple="false" class="col-auto" @click="rightSideBar = !rightSideBar"></q-btn> -->
