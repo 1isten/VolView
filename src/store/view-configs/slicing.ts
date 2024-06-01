@@ -43,7 +43,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     if (layoutName && layoutName.includes(viewID) || volumeKeyUID && useImageStore().getPrimaryViewID(dataID) === viewID) {
       if (syncWindowLevelWithTag.value) {
         const dicomStore = useDICOMStore();
-        const volumeSlicesInfo = dicomStore.volumeSlicesInfo[dicomStore.imageIDToVolumeKey[dataID]];
+        const volumeSlicesInfo = dicomStore.volumeSlicesInfo[dataID];
         if (volumeSlicesInfo && volumeSlicesInfo.windowingDiffs) {
           const tag = volumeSlicesInfo.tags?.[config.slice];
           const dataRange = volumeSlicesInfo.dataRanges?.[config.slice];
@@ -134,7 +134,8 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
       }
       return s;
     };
-    const initialSlice = selection && selection.type === 'dicom' && useDICOMStore().volumeKeyGetSuffix(selection.volumeKey) ? await tryGetInitialSlice() : undefined;
+    const volumeKey = selection;
+    const initialSlice = volumeKey && useDICOMStore().volumeKeyGetSuffix(volumeKey) ? await tryGetInitialSlice() : undefined;
 
     // Setting this to floor() will affect images where the
     // middle slice is fractional.

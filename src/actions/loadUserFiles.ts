@@ -14,7 +14,6 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
-import { getImageID } from '@/src/utils/dataSelection';
 import { wrapInArray, nonNullable } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -360,7 +359,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         const { selection, layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
         if (selection) {
           const imageStore = useImageStore();
-          const imageID = getImageID(selection);
+          const imageID = selection;
           if (imageID) {
             const viewSliceStore = useViewSliceStore();
             const { defaultSlices, slice } = loadOptions;
@@ -411,7 +410,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         const tryGetImageID = async (retryCount = 100) => {
           let imageID;
           while (!imageID && retryCount > 0) {
-            imageID = getImageID(selection);
+            imageID = selection;
             // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
             await new Promise(r => setTimeout(r, 10));
             // eslint-disable-next-line no-param-reassign
@@ -422,6 +421,22 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         const imageID = await tryGetImageID();
         if (imageID) {
           loadDataStore.imageIDToVolumeKeyUID[imageID] = volumeKeySuffix;
+        }
+        const tryGetLayoutName = async (retryCount = 100) => {
+          let layoutName;
+          while (!layoutName && retryCount > 0) {
+            layoutName = loadDataStore.getLoadedByBus(volumeKeySuffix).layoutName;
+            // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
+            await new Promise(r => setTimeout(r, 10));
+            // eslint-disable-next-line no-param-reassign
+            retryCount--;
+          }
+          return layoutName;
+        };
+        const layoutName = await tryGetLayoutName();
+        if (layoutName) {
+          const viewStore = useViewStore();
+          viewStore.setLayoutByName(layoutName);
         }
       }
       loadDataStore.isLoadingByBus = false;

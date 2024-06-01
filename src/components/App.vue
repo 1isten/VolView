@@ -73,7 +73,6 @@ import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
-import { getDataID } from '@/src/utils/dataSelection';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
@@ -158,7 +157,7 @@ export default defineComponent({
       unload() {
         // remove all data loaded by event bus
         Object.keys(loadDataStore.imageIDToVolumeKeyUID).forEach(imageID => {
-          dataStore.remove(getDataID(imageID));
+          dataStore.remove(imageID);
         });
       },
     });
