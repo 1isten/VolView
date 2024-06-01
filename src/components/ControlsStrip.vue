@@ -258,7 +258,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 }
 #tools-strip-wrapper {
   overflow: auto;
-  background-color: rgba(0, 0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 #tools-strip-wrapper::-webkit-scrollbar {
   display: none;
@@ -270,7 +270,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </style>
 <style scoped>
 #tools-strip {
-  background-color: rgba(0, 0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.05);
   border-left: 1px solid #212121;
   flex: 0 0 40px;
 }
