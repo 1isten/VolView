@@ -1,9 +1,10 @@
 import JSZip from 'jszip';
 import { z } from 'zod';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import vtkPiecewiseFunctionProxy, {
-  type PiecewiseGaussian,
-  type PiecewiseNode,
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import type {
+  PiecewiseGaussian,
+  PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
 import type { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
