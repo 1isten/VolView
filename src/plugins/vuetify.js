@@ -2,17 +2,17 @@
 import 'vuetify/styles';
 import { createVuetify } from 'vuetify';
 import { en, zhHant, zhHans } from 'vuetify/locale';
-import { useLocalStorage } from '@vueuse/core';
+// import { useLocalStorage } from '@vueuse/core';
 
 import KitwareMark from '@/src/components/icons/KitwareLogoIcon.vue';
 import {
-  DefaultTheme,
+  // DefaultTheme,
   DarkTheme,
   LightTheme,
-  ThemeStorageKey,
+  // ThemeStorageKey,
 } from '@/src/constants';
 
-import { customThemes, breakpoints } from '../../tailwind.config';
+import { DefaultTheme, customThemes, breakpoints } from '../../tailwind.config';
 
 const vuetify = createVuetify({
   defaults: {
@@ -38,11 +38,9 @@ const vuetify = createVuetify({
       [DarkTheme]: {
         dark: true,
         colors: {
-          ...customThemes.nebula.colors,
           'selection-bg-color': '#01579b',
           'selection-border-color': '#01579b',
         },
-        variables: customThemes.nebula.variables,
       },
       [LightTheme]: {
         dark: false,
@@ -53,6 +51,7 @@ const vuetify = createVuetify({
           'on-surface-variant': '#d0d0d0',
         },
       },
+      ...customThemes,
     },
   },
   display: {
@@ -77,10 +76,14 @@ const vuetify = createVuetify({
   },
 });
 
+/*
 const theme = useLocalStorage(ThemeStorageKey, DefaultTheme);
 if (theme.value !== DarkTheme && theme.value !== LightTheme) {
   theme.value = DefaultTheme;
+} else {
+  theme.value = DefaultTheme;
 }
 vuetify.theme.global.name.value = theme.value;
+*/
 
 export default vuetify;

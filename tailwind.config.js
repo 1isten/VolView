@@ -2,12 +2,27 @@
 import colors from 'tailwindcss/colors';
 import defaultTheme from 'tailwindcss/defaultTheme';
 
+export const blue = '#01579b';
+export const DefaultTheme = 'nebula';
 export const customThemes = {
-  nebula: {
+  [DefaultTheme]: {
     dark: true,
     colors: {
-      'selection-bg-color': '#01579b',
-      'selection-border-color': '#01579b',
+      'selection-bg-color': blue,
+      'selection-border-color': blue,
+
+      'blue': blue,
+      'blue-50': colors.sky[50],
+      'blue-100': colors.sky[100],
+      'blue-200': colors.sky[200],
+      'blue-300': colors.sky[300],
+      'blue-400': colors.sky[400],
+      'blue-500': colors.sky[500],
+      'blue-600': colors.sky[600],
+      'blue-700': colors.sky[700],
+      'blue-800': colors.sky[800],
+      'blue-900': colors.sky[900],
+      'blue-950': colors.sky[950],
 
       'gray-50': colors.slate[50],
       'gray-100': colors.slate[100],
@@ -24,6 +39,8 @@ export const customThemes = {
       'dark-page': colors.slate[950],
       'background': colors.slate[900],
       'dark': colors.slate[800],
+      'light': colors.gray[100],
+      'surface-dark': colors.gray[900],
       'surface': colors.gray[800],
       'surface-light': colors.gray[700],
       'surface-bright': colors.slate[300],
@@ -36,11 +53,13 @@ export const customThemes = {
       'accent': colors.slate[700],
 
       'info': colors.blue[500],
-      'positive': colors.teal[500],
-      'success': colors.green[500],
+      'alert': colors.cyan[500],
+      'success': colors.teal[500],
+      'positive': colors.green[500],
       'negative': colors.red[500],
-      'error': colors.red[600],
       'warning': colors.yellow[500],
+      'danger': colors.orange[500],
+      'error': colors.red[600],
     },
     variables: {
       'border-color': colors.white,
