@@ -2,16 +2,16 @@
 import colors from 'tailwindcss/colors';
 import defaultTheme from 'tailwindcss/defaultTheme';
 
-export const blue = '#01579b';
+export const LightBlueDarken4 = '#01579b';
 export const DefaultTheme = 'nebula';
 export const customThemes = {
   [DefaultTheme]: {
     dark: true,
     colors: {
-      'selection-bg-color': blue,
-      'selection-border-color': blue,
+      'selection-bg-color': LightBlueDarken4,
+      'selection-border-color': LightBlueDarken4,
 
-      'blue': blue,
+      'blue': LightBlueDarken4,
       'blue-50': colors.sky[50],
       'blue-100': colors.sky[100],
       'blue-200': colors.sky[200],
