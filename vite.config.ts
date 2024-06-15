@@ -76,7 +76,7 @@ export default defineConfig({
       output: LIB_MODE ? {
         assetFileNames: `${LIB_NAME}.[ext]`,
         // banner: '// @ts-nocheck',
-        footer: `globalThis['$volview'] = volview;`,
+        footer: `globalThis['VolView'] = volview;`,
       } : {
         manualChunks(id) {
           if (id.includes('vuetify')) {
