@@ -54,10 +54,10 @@ function configureSentryPlugin() {
 
 export default defineConfig({
   build: {
+    // target: LIB_MODE ? 'esnext' : 'modules',
     // outDir: LIB_MODE ? resolvePath(rootDir, 'dist', 'lib') : resolvePath(rootDir, 'dist'),
     copyPublicDir: !LIB_MODE,
     minify: !LIB_MODE,
-    target: LIB_MODE ? 'esnext' : 'modules',
     lib: LIB_MODE
       ? {
           entry: resolvePath(rootDir, 'lib', 'main.ts'),
@@ -75,7 +75,7 @@ export default defineConfig({
         : [],
       output: LIB_MODE ? {
         assetFileNames: `${LIB_NAME}.[ext]`,
-        banner: '// @ts-nocheck',
+        // banner: '// @ts-nocheck',
         footer: `globalThis['$volview'] = volview;`,
       } : {
         manualChunks(id) {
@@ -92,7 +92,7 @@ export default defineConfig({
         },
       },
     },
-    sourcemap: true,
+    // sourcemap: !!LIB_MODE,
   },
   define: {
     __VERSIONS__: {
@@ -101,6 +101,9 @@ export default defineConfig({
       'itk-wasm': pkgLock.dependencies['itk-wasm'].version,
     },
     global: {},
+    ...(LIB_MODE ? {
+      'process.env.NODE_ENV': '"production"',
+    } : {}),
   },
   resolve: {
     alias: [
