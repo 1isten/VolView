@@ -99,7 +99,7 @@ function deleteEditingLabel() {
 </script>
 
 <template>
-  <v-card class="pt-2" color="gray-950">
+  <v-card class="pt-2" color="background">
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <editable-chip-list

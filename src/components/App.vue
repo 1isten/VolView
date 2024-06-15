@@ -1,7 +1,7 @@
 <template>
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
-      <v-layout class="position-relative w-100 h-100 overflow-hidden bg-gray-950 bg-opacity-80">
+      <v-layout class="position-relative w-100 h-100 overflow-hidden bg-dark-page bg-opacity-80">
         <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
@@ -11,7 +11,7 @@
           touchless
           :width="false ? 450 : 350"
           id="left-nav"
-          color="gray-950"
+          color="background"
           :class="false ? '' : 'right-nav'"
           :location="false ? 'start' : 'end'"
           :mobile-breakpoint="720"
@@ -246,6 +246,7 @@ export default defineComponent({
 }
 
 #left-nav {
+  background-color: rgba(var(--v-theme-background), var(--v-medium-emphasis-opacity)) !important;
   border-right: 1px solid rgb(var(--v-theme-background));
 }
 #left-nav.right-nav {
