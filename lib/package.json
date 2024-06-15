@@ -2,13 +2,13 @@
   "name": "volview",
   "version": "4.2.0",
   "type": "module",
-  "module": "./index.js",
+  "module": "./volview.js",
   "exports": {
     ".": {
-      "import": "./index.js"
+      "import": "./volview.js"
     },
     "./style.css": {
-      "import": "./style.css"
+      "import": "./volview.css"
     }
   }
 }

@@ -34,10 +34,10 @@ function resolvePath(...args: string[]) {
 }
 
 const rootDir = resolvePath(__dirname);
-const distDir = resolvePath(rootDir, 'dist');
 const itkConfig = resolvePath(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
 
-const BUILD_LIB = process.env.VITE_BUILD_LIB;
+const LIB_NAME = 'volview';
+const LIB_MODE = process.env.VITE_BUILD_LIB;
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
 
@@ -54,26 +54,30 @@ function configureSentryPlugin() {
 
 export default defineConfig({
   build: {
-    outDir: BUILD_LIB ? resolvePath(distDir, 'volview') : distDir,
-    copyPublicDir: !BUILD_LIB,
-    minify: !BUILD_LIB,
-    target: BUILD_LIB ? 'esnext' : 'modules',
-    lib: BUILD_LIB
+    // outDir: LIB_MODE ? resolvePath(rootDir, 'dist', 'lib') : resolvePath(rootDir, 'dist'),
+    copyPublicDir: !LIB_MODE,
+    minify: !LIB_MODE,
+    target: LIB_MODE ? 'esnext' : 'modules',
+    lib: LIB_MODE
       ? {
           entry: resolvePath(rootDir, 'lib', 'main.ts'),
           formats: ['es'],
           name: 'VolView',
-          fileName: 'index',
+          fileName: LIB_NAME,
         }
       : false,
     rollupOptions: {
-      external: BUILD_LIB
+      external: LIB_MODE
         ? [
             // 'vue',
             // 'pinia',
           ]
         : [],
-      output: BUILD_LIB ? undefined : {
+      output: LIB_MODE ? {
+        assetFileNames: `${LIB_NAME}.[ext]`,
+        banner: '// @ts-nocheck',
+        footer: `globalThis['$volview'] = volview;`,
+      } : {
         manualChunks(id) {
           if (id.includes('vuetify')) {
             return 'vuetify';
@@ -201,13 +205,13 @@ export default defineConfig({
           ),
           dest: 'itk/pipelines',
         },
-        ...(BUILD_LIB ? [{
-          src: resolvePath(
-            rootDir,
-            'lib/package.json'
-          ),
-          dest: '',
-        }] : []),
+        // ...(LIB_MODE ? [{
+        //   src: resolvePath(
+        //     rootDir,
+        //     'lib/package.json'
+        //   ),
+        //   dest: '',
+        // }] : []),
       ],
     }),
     ANALYZE_BUNDLE
