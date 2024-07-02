@@ -51,6 +51,11 @@ export interface WindowingInfo {
 }
 
 export interface VolumeInfo extends WindowingInfo {
+  SliceThickness?: string;
+  SliceLocation?: string;
+  RepetitionTime?: string;
+  EchoTime?: string;
+  MagneticFieldStrength?: string;
   Modality: string;
   BodyPartExamined: string;
   TransferSyntaxUID?: string;
@@ -124,6 +129,11 @@ const mainDicomTags = [
   { name: 'InstitutionName', tag: '0008|0080' },
   { name: 'ManufacturerModelName', tag: '0008|1090' },
   // Series
+  { name: 'SliceThickness', tag: '0018|0050' },
+  { name: 'SliceLocation', tag: '0020|1041' },
+  { name: 'RepetitionTime', tag: '0018|0080' },
+  { name: 'EchoTime', tag: '0018|0081' },
+  { name: 'MagneticFieldStrength', tag: '0018|0087' },
   { name: 'Modality', tag: '0008|0060' },
   { name: 'BodyPartExamined', tag: '0018|0015' },
   // { name: 'TransferSyntaxUID', tag: '0002|0010' },
@@ -312,6 +322,11 @@ export const useDICOMStore = defineStore('dicom', {
             const volumeInfo = {
               ...pick(
                 tags,
+                'SliceThickness',
+                'SliceLocation',
+                'RepetitionTime',
+                'EchoTime',
+                'MagneticFieldStrength',
                 'Modality',
                 'BodyPartExamined',
                 // 'TransferSyntaxUID',
