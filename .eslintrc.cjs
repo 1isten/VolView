@@ -34,6 +34,7 @@ module.exports = {
     'import/no-named-as-default': 'off',
     'import/prefer-default-export': 'off',
     'no-plusplus': 'off',
+    'no-nested-ternary': 'off',
     'no-underscore-dangle': 'off',
     'import/no-cycle': 'off',
     'import/extensions': [
@@ -69,6 +70,7 @@ module.exports = {
       },
     ],
     'prefer-destructuring': 'off',
+    'prefer-template': 'off',
   },
 
   overrides: [
