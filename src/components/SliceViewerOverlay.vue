@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { inject, toRefs, computed } from 'vue';
+import { inject, toRefs, ref, computed, watch } from 'vue';
+import vtkCoordinate from '@kitware/vtk.js/Rendering/Core/Coordinate';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import { getImageData } from '@/src/composables/useCurrentImage';
+import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
@@ -10,20 +14,29 @@ import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useViewStore } from '@/src/store/views';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import {
+  // worldToSVG,
+  normalizeIJKCoords
+} from '@/src/utils/vtk-helpers';
 
 interface Props {
   viewId: string;
   imageId: Maybe<string>;
+  slicingMode: string;
+  hover?: boolean;
 }
 
 const props = defineProps<Props>();
-const { viewId, imageId } = toRefs(props);
+const { viewId, imageId, slicingMode, hover } = toRefs(props);
+const currentImageData = computed(() => getImageData(imageId.value));
 
 const viewStore = useViewStore();
 const layoutName = computed(() => viewStore.layout?.name || '');
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
+
+const sliceRep = useSliceRepresentation(view, currentImageData.value);
 
 const dicomStore = useDICOMStore();
 const dicomMoreInfo = computed(() => {
@@ -45,6 +58,7 @@ const dicomMoreInfo = computed(() => {
     const institutionName = studyInfo.InstitutionName;               // (0008,0080)
     const manufacturerModelName = studyInfo.ManufacturerModelName;   // (0008,1090)
     const referringPhysicianName = studyInfo.ReferringPhysicianName; // (0008,0090)
+    const studyID = studyInfo.StudyID;                               // (0020,0010)
     const studyDate = studyInfo.StudyDate;                           // (0008,0020)
 
     const sliceThickness = volumeInfo.SliceThickness;                // (0018,0050)
@@ -69,6 +83,7 @@ const dicomMoreInfo = computed(() => {
       institutionName,
       manufacturerModelName,
       referringPhysicianName,
+      studyID,
       studyDate,
 
       // bottom-left
@@ -98,6 +113,63 @@ const {
   width: windowWidth,
   level: windowLevel,
 } = useWindowingConfig(viewId, imageId);
+
+const coordinate = vtkCoordinate.newInstance();
+coordinate.setCoordinateSystemToDisplay();
+const pointValue = ref({
+  x: '',
+  y: '',
+  value: '',
+});
+onVTKEvent(view.interactor, 'onMouseMove', e => {
+  if (!hover.value) {
+    return;
+  }
+  if (!e.position) {
+    return;
+  }
+  if (!currentImageData.value || !sliceRep) {
+    return;
+  }
+  coordinate.setValue([e.position.x, e.position.y, e.position.z]);
+  const xyz = coordinate.getComputedWorldValue(view.renderer); // mm
+  const ijk = currentImageData.value.worldToIndex([xyz[0], xyz[1], xyz[2]]); // px
+  // const pos = worldToSVG([xyz[0], xyz[1], xyz[2]], view.renderer); // px
+
+  // let x: number | string = pos ? pos[0] : 0;
+  // let y: number | string = pos ? pos[1] : 0;
+  // x = x.toFixed(2) + 'px';
+  // y = y.toFixed(2) + 'px';
+
+  const {
+    ijk: [i, j, k],
+    outOfRange,
+  } = normalizeIJKCoords(ijk, slicingMode.value, slice.value, currentImageData.value.getExtent());
+
+  let offsetIndex = -1;
+  let pixelValue = 0;
+  if (outOfRange) {
+    //
+  } else {
+    offsetIndex = currentImageData.value.computeOffsetIndex([i, j, k]);
+    pixelValue = currentImageData.value.getPointData().getScalars().getData()[offsetIndex];
+    pixelValue = Math.round(pixelValue);
+  }
+
+  // console.log(viewId.value, { x, y }, [i, j], pixelValue);
+  pointValue.value = {
+    x: (slicingMode.value === 'I' ? 'Y: ' : slicingMode.value === 'J' ? 'X: ' : 'X: ') + `${i.toFixed(2)} px`,
+    y: (slicingMode.value === 'I' ? 'Z: ' : slicingMode.value === 'J' ? 'Z: ' : 'Y: ') + `${j.toFixed(2)} px`,
+    value: 'Value: ' + pixelValue,
+  };
+});
+watch(hover, () => {
+  if (!hover.value) {
+    pointValue.value.x = '';
+    pointValue.value.y = '';
+    pointValue.value.value = '';
+  }
+});
 </script>
 
 <template>
@@ -136,6 +208,9 @@ const {
         </div>
         <div v-if="dicomMoreInfo?.referringPhysicianName">
           {{ dicomMoreInfo.referringPhysicianName }}
+        </div>
+        <div v-if="dicomMoreInfo?.studyID">
+          {{ dicomMoreInfo.studyID }}
         </div>
         <div v-if="dicomMoreInfo?.studyDate">
           {{ dicomMoreInfo.studyDate }}
@@ -179,15 +254,14 @@ const {
       </div>
     </template>
     <template v-slot:bottom-right>
-      <div class="annotation-cell font-mono opacity-90" v-if="false">
-        <div v-if="true">
-          X: {{ '***' }} px  Y: {{ '**' }} px
+      <div class="annotation-cell font-mono opacity-90">
+        <div v-if="pointValue.x || pointValue.y">
+          {{ pointValue.x }} {{ pointValue.y }}
         </div>
-        <div v-if="true">
-          Value: {{ '***' }}
+        <div v-if="pointValue.value">
+          {{ pointValue.value }}
         </div>
       </div>
-      <div class="annotation-cell" v-else></div>
     </template>
   </view-overlay-grid>
 </template>

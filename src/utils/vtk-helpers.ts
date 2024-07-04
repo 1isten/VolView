@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions, default-case */
+import { vec3 } from 'gl-matrix';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3, Extent } from '@kitware/vtk.js/types';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { intersectDisplayWithPlane } from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { OpacityFunction } from '@/src/types/views';
@@ -72,6 +74,39 @@ export function intersectMouseEventWithPlane(
     renderer,
     view
   );
+}
+
+export function normalizeIJKCoords(ijk: vec3, slicingMode: string, currentSlice: number, extend: Extent) {
+  let [i, j, k] = ijk;
+  let outOfRange = false;
+
+  switch (slicingMode) {
+    case 'I':
+      i = currentSlice;
+      break;
+    case 'J':
+      j = currentSlice;
+      break;
+    case 'K':
+      k = currentSlice;
+      break;
+  }
+
+  const [imin, imax, jmin, jmax, kmin, kmax] = extend;
+  // i = Math.round(i);
+  i < imin && (outOfRange = true) && (i = imin);
+  i > imax && (outOfRange = true) && (i = imax + 1);
+  // j = Math.round(j);
+  j < jmin && (outOfRange = true) && (j = jmin);
+  j > jmax && (outOfRange = true) && (j = jmax + 1);
+  // k = Math.round(k);
+  k < kmin && (outOfRange = true) && (k = kmin);
+  k > kmax && (outOfRange = true) && (k = kmax + 1);
+
+  return {
+    ijk: [i, j, k] as Vector3,
+    outOfRange,
+  };
 }
 
 /**
