@@ -91,8 +91,6 @@
 .annotation-cell {
   padding: 4px;
   white-space: nowrap;
-  font-family: monospace;
-  opacity: 0.9;
 }
 
 .loading {
