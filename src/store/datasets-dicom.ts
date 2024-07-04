@@ -31,6 +31,9 @@ export interface PatientInfo {
   PatientID: string;
   PatientBirthDate: string;
   PatientSex: string;
+  PatientAge: string;
+  PatientWeight: string;
+  PatientAddress: string;
 }
 
 export interface StudyInfo {
@@ -42,6 +45,7 @@ export interface StudyInfo {
   StudyDescription: string;
   AccessionNumber: string;
   InstitutionName?: string;
+  ReferringPhysicianName?: string;
   ManufacturerModelName?: string;
 }
 
@@ -51,17 +55,21 @@ export interface WindowingInfo {
 }
 
 export interface VolumeInfo extends WindowingInfo {
-  SliceThickness?: string;
-  SliceLocation?: string;
+  SeriesInstanceUID: string;
+  SeriesNumber: string;
+  SeriesDate: string;
+  SeriesTime: string;
+  SeriesDescription: string;
+  Modality: string;
+  BodyPartExamined: string;
   RepetitionTime?: string;
   EchoTime?: string;
   MagneticFieldStrength?: string;
-  Modality: string;
-  BodyPartExamined: string;
   TransferSyntaxUID?: string;
-  SeriesInstanceUID: string;
-  SeriesNumber: string;
-  SeriesDescription: string;
+
+  SliceThickness?: string;
+  SliceLocation?: string;
+  PixelSpacing?: string;
 
   NumberOfSlices: number;
   VolumeID: string;
@@ -103,12 +111,14 @@ interface State {
 const instanceTags = [
   { name: 'SOPInstanceUID', tag: '0008|0018' },
   { name: 'InstanceNumber', tag: '0020|0013' },
+  { name: 'SliceThickness', tag: '0018|0050' },
+  { name: 'SliceLocation', tag: '0020|1041' },
   // { name: 'ImagePositionPatient', tag: '0020|0032' },
   // { name: 'ImageOrientationPatient', tag: '0020|0037' },
   // { name: 'Rows', tag: '0028|0010' },
   // { name: 'Columns', tag: '0028|0011' },
   // { name: 'PixelSpacing', tag: '0028|0030' },
-  { name: 'WindowLevel', tag: '0028|1050' },
+  { name: 'WindowLevel', tag: '0028|1050' }, // WindowCenter
   { name: 'WindowWidth', tag: '0028|1051' },
 ];
 
@@ -118,28 +128,32 @@ const mainDicomTags = [
   { name: 'PatientID', tag: '0010|0020', strconv: true },
   { name: 'PatientBirthDate', tag: '0010|0030' },
   { name: 'PatientSex', tag: '0010|0040' },
+  { name: 'PatientAge', tag: '0010|1010' },
+  { name: 'PatientWeight', tag: '0010|1030' },
+  { name: 'PatientAddress', tag: '0010|1040' },
   // Study
   { name: 'StudyInstanceUID', tag: '0020|000d' },
   { name: 'StudyID', tag: '0020|0010', strconv: true },
-  { name: 'StudyName', tag: '0010|0010' },
+  { name: 'StudyName', tag: '0010|0010' }, // PatientName
   { name: 'StudyDate', tag: '0008|0020' },
   { name: 'StudyTime', tag: '0008|0030' },
   { name: 'StudyDescription', tag: '0008|1030', strconv: true },
   { name: 'AccessionNumber', tag: '0008|0050' },
   { name: 'InstitutionName', tag: '0008|0080' },
+  { name: 'ReferringPhysicianName', tag: '0008|0090' },
   { name: 'ManufacturerModelName', tag: '0008|1090' },
   // Series
-  { name: 'SliceThickness', tag: '0018|0050' },
-  { name: 'SliceLocation', tag: '0020|1041' },
+  { name: 'SeriesInstanceUID', tag: '0020|000e' },
+  { name: 'SeriesNumber', tag: '0020|0011' },
+  { name: 'SeriesDate', tag: '0008|0021' },
+  { name: 'SeriesTime', tag: '0008|0031' },
+  { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+  { name: 'Modality', tag: '0008|0060' },
+  { name: 'BodyPartExamined', tag: '0018|0015' },
   { name: 'RepetitionTime', tag: '0018|0080' },
   { name: 'EchoTime', tag: '0018|0081' },
   { name: 'MagneticFieldStrength', tag: '0018|0087' },
-  { name: 'Modality', tag: '0008|0060' },
-  { name: 'BodyPartExamined', tag: '0018|0015' },
   // { name: 'TransferSyntaxUID', tag: '0002|0010' },
-  { name: 'SeriesInstanceUID', tag: '0020|000e' },
-  { name: 'SeriesNumber', tag: '0020|0011' },
-  { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
   // Instance
   ...instanceTags,
 ];
@@ -304,6 +318,9 @@ export const useDICOMStore = defineStore('dicom', {
               PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
               PatientBirthDate: tags.PatientBirthDate || '',
               PatientSex: tags.PatientSex || '',
+              PatientAge: tags.PatientAge || '',
+              PatientWeight: tags.PatientWeight || '',
+              PatientAddress: tags.PatientAddress || '',
             };
 
             const study = pick(
@@ -316,23 +333,30 @@ export const useDICOMStore = defineStore('dicom', {
               'StudyDescription',
               'AccessionNumber',
               'InstitutionName',
+              'ReferringPhysicianName',
               'ManufacturerModelName'
             );
 
             const volumeInfo = {
               ...pick(
                 tags,
-                'SliceThickness',
-                'SliceLocation',
+                'SeriesInstanceUID',
+                'SeriesNumber',
+                'SeriesDate',
+                'SeriesTime',
+                'SeriesDescription',
+                'Modality',
+                'BodyPartExamined',
                 'RepetitionTime',
                 'EchoTime',
                 'MagneticFieldStrength',
-                'Modality',
-                'BodyPartExamined',
                 // 'TransferSyntaxUID',
-                'SeriesInstanceUID',
-                'SeriesNumber',
-                'SeriesDescription',
+                // ...
+                'SliceThickness',
+                'SliceLocation',
+                // ...
+                'PixelSpacing',
+                // ...
                 'WindowLevel',
                 'WindowWidth'
               ),

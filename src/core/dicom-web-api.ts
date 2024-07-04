@@ -19,31 +19,43 @@ const tags = {
   PatientID: '00100020',
   PatientBirthDate: '00100030',
   PatientSex: '00100040',
+  PatientAge: '00101010',
+  PatientWeight: '00101030',
+  PatientAddress: '00101040',
   // Study
   StudyInstanceUID: '0020000D',
   StudyID: '00200010',
-  StudyName: '00100010',
+  StudyName: '00100010', // PatientName
   StudyDate: '00080020',
   StudyTime: '00080030',
   StudyDescription: '00081030',
   AccessionNumber: '00080050',
   InstitutionName: '00080080',
+  ReferringPhysicianName: '00080090',
   ManufacturerModelName: '00081090',
   // Series
-  Modality: '00080060',
-  BodyPartExamined: '00180015',
-  // TransferSyntaxUID: '00020010',
   SeriesInstanceUID: '0020000E',
   SeriesNumber: '00200011',
+  SeriesDate: '00080021',
+  SeriesTime: '00080031',
   SeriesDescription: '0008103E',
+  Modality: '00080060',
+  BodyPartExamined: '00180015',
+  RepetitionTime: '00180080',
+  EchoTime: '00180081',
+  MagneticFieldStrength: '00180087',
+  TransferSyntaxUID: '00020010',
   // Instance
   SopInstanceUID: '00080018',
   InstanceNumber: '00200013',
-
+  SliceThickness: '00180050',
+  SliceLocation: '00201041',
+  ImagePositionPatient: '00200032',
+  ImageOrientationPatient: '00200037',
   Rows: '00280010',
   Columns: '00280011',
-
-  WindowLevel: '00281050',
+  PixelSpacing: '00280030',
+  WindowLevel: '00281050', // WindowCenter
   WindowWidth: '00281051',
 };
 
