@@ -66,11 +66,15 @@ export interface VolumeInfo extends WindowingInfo {
   EchoTime?: string;
   MagneticFieldStrength?: string;
   TransferSyntaxUID?: string;
-
+  //
   SliceThickness?: string;
   SliceLocation?: string;
+  ImagePositionPatient?: string;
+  ImageOrientationPatient?: string;
+  Rows: number | string;
+  Columns: number | string;
   PixelSpacing?: string;
-
+  //
   NumberOfSlices: number;
   VolumeID: string;
 }
@@ -113,11 +117,11 @@ const instanceTags = [
   { name: 'InstanceNumber', tag: '0020|0013' },
   { name: 'SliceThickness', tag: '0018|0050' },
   { name: 'SliceLocation', tag: '0020|1041' },
-  // { name: 'ImagePositionPatient', tag: '0020|0032' },
-  // { name: 'ImageOrientationPatient', tag: '0020|0037' },
-  // { name: 'Rows', tag: '0028|0010' },
-  // { name: 'Columns', tag: '0028|0011' },
-  // { name: 'PixelSpacing', tag: '0028|0030' },
+  { name: 'ImagePositionPatient', tag: '0020|0032' },
+  { name: 'ImageOrientationPatient', tag: '0020|0037' },
+  { name: 'Rows', tag: '0028|0010' },
+  { name: 'Columns', tag: '0028|0011' },
+  { name: 'PixelSpacing', tag: '0028|0030' },
   { name: 'WindowLevel', tag: '0028|1050' }, // WindowCenter
   { name: 'WindowWidth', tag: '0028|1051' },
 ];
@@ -351,12 +355,15 @@ export const useDICOMStore = defineStore('dicom', {
                 'EchoTime',
                 'MagneticFieldStrength',
                 // 'TransferSyntaxUID',
-                // ...
+                //
                 'SliceThickness',
                 'SliceLocation',
-                // ...
+                'ImagePositionPatient',
+                'ImageOrientationPatient',
+                'Rows',
+                'Columns',
                 'PixelSpacing',
-                // ...
+                //
                 'WindowLevel',
                 'WindowWidth'
               ),

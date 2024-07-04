@@ -104,7 +104,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const instance = {
       studyInstanceUID: studyInfo.StudyInstanceUID,
       seriesInstanceUID: volumeInfo.SeriesInstanceUID,
-      sopInstanceUID: middleInstance.SopInstanceUID,
+      sopInstanceUID: middleInstance.SOPInstanceUID,
     };
     return fetchInstanceThumbnail(cleanHost.value, instance);
   };

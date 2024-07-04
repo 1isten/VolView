@@ -10,7 +10,7 @@ import { pick, removeFromArray } from '../../utils';
 import { Instance } from '../../core/dicom-web-api';
 
 interface InstanceInfo {
-  SopInstanceUID: string;
+  SOPInstanceUID: string;
   InstanceNumber: string;
   Rows: number;
   Columns: number;
@@ -70,6 +70,9 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
         PatientBirthDate: info.PatientBirthDate || '',
         PatientSex: info.PatientSex || '',
+        PatientAge: info.PatientAge || '',
+        PatientWeight: info.PatientWeight || '',
+        PatientAddress: info.PatientAddress || '',
       };
 
       const study = pick(
@@ -82,18 +85,33 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         'StudyDescription',
         'AccessionNumber',
         'InstitutionName',
+        'ReferringPhysicianName',
         'ManufacturerModelName'
       );
 
       const volumeInfo = {
         ...pick(
           info,
-          'Modality',
-          'BodyPartExamined',
-          // 'TransferSyntaxUID',
           'SeriesInstanceUID',
           'SeriesNumber',
+          'SeriesDate',
+          'SeriesTime',
           'SeriesDescription',
+          'Modality',
+          'BodyPartExamined',
+          'RepetitionTime',
+          'EchoTime',
+          'MagneticFieldStrength',
+          // 'TransferSyntaxUID',
+          //
+          'SliceThickness',
+          'SliceLocation',
+          'ImagePositionPatient',
+          'ImageOrientationPatient',
+          'Rows',
+          'Columns',
+          'PixelSpacing',
+          //
           'WindowLevel',
           'WindowWidth'
         ),
@@ -102,7 +120,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
       };
 
       const instanceInfo = {
-        ...pick(info, 'SopInstanceUID', 'InstanceNumber'),
+        ...pick(info, 'SOPInstanceUID', 'InstanceNumber'),
         Rows: Number.parseInt(info.Rows, 10),
         Columns: Number.parseInt(info.Columns, 10),
       };
@@ -177,7 +195,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         this.studyVolumes[studyKey].push(volumeKey);
       }
 
-      const instanceKey = instance.SopInstanceUID;
+      const instanceKey = instance.SOPInstanceUID;
       if (instanceKey && !(instanceKey in this.instanceInfo)) {
         this.instanceInfo[instanceKey] = instance;
         this.instanceVolume[instanceKey] = volumeKey;

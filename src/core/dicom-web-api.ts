@@ -46,7 +46,7 @@ const tags = {
   MagneticFieldStrength: '00180087',
   TransferSyntaxUID: '00020010',
   // Instance
-  SopInstanceUID: '00080018',
+  SOPInstanceUID: '00080018',
   InstanceNumber: '00200013',
   SliceThickness: '00180050',
   SliceLocation: '00201041',
