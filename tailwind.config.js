@@ -111,6 +111,7 @@ export default {
       },
       fontFamily: {
         sans: ['Roboto', ...defaultTheme.fontFamily.sans],
+        mono: [...defaultTheme.fontFamily.mono],
       },
     },
   },
