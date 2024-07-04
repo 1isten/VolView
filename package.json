@@ -21,9 +21,9 @@
     "build:watch": "npm run build -- --watch",
     "postinstall": "patch-package",
     "prettify": "prettier --write src tests",
-    "doc": "kw-doc -c ./documentation/config.cjs",
-    "doc:www": "kw-doc -c ./documentation/config.cjs -s",
-    "doc:publish": "kw-doc -c ./documentation/config.cjs -mp"
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.435.0",
@@ -79,7 +79,6 @@
     "@wdio/static-server-service": "^8.11.0",
     "autoprefixer": "^10.4.19",
     "babel-eslint": "10.1.0",
-    "canvas": "^2.11.2",
     "chai": "4.3.6",
     "chai-almost": "^1.0.1",
     "chai-as-promised": "7.1.1",
@@ -94,9 +93,7 @@
     "eslint-plugin-vue": "^8.0.3",
     "eslint-plugin-vuejs-accessibility": "^1.1.0",
     "geckodriver": "^4.0.4",
-    "kw-doc": "3.1.2",
     "lint-staged": "10.5.4",
-    "msedgedriver": "^91.0.0",
     "patch-package": "^8.0.0",
     "postcss": "^8.4.38",
     "prettier": "2.8.8",
@@ -111,6 +108,7 @@
     "vite-plugin-html": "^3.2.2",
     "vite-plugin-static-copy": "^0.17.1",
     "vite-plugin-vuetify": "^2.0.3",
+    "vitepress": "^1.2.3",
     "vitest": "^0.32.4",
     "vue-tsc": "^1.8.27",
     "wdio-chromedriver-service": "^8.1.1",
