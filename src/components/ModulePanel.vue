@@ -40,7 +40,7 @@
 <script lang="ts">
 import { Component, defineComponent, ref, watch } from 'vue';
 
-import DataBrowser from './DataBrowser.vue';
+// import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 import { useToolStore } from '../store/tools';
@@ -53,11 +53,11 @@ interface Module {
 }
 
 const Modules: Module[] = [
-  {
-    name: 'Data',
-    icon: 'database',
-    component: DataBrowser,
-  },
+  // {
+  //   name: 'Data',
+  //   icon: 'database',
+  //   component: DataBrowser,
+  // },
   {
     name: 'Annotations',
     icon: 'pencil',

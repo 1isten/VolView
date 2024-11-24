@@ -30,7 +30,7 @@ export default {
     name: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
     buttonClass: [String, Array, Object],
-    tooltipLocation: { type: String, default: 'right' },
+    tooltipLocation: { type: String, default: 'left' },
   },
 
   computed: {

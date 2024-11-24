@@ -2,20 +2,25 @@
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
-        <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
+        <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
           app
           clipped
           touchless
-          width="450"
+          width="350"
           id="left-nav"
+          location="end"
+          mobile-breakpoint="0"
+          disable-resize-watcher
+          disable-route-watcher
+          temporary
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData"></controls-strip>
+            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
@@ -153,7 +158,7 @@ export default defineComponent({
     const display = useDisplay();
 
     return {
-      leftSideBar: ref(!display.mobile.value),
+      leftSideBar: ref(!display.mobile.value) && ref(false),
       loadUserPromptedFiles,
       loadFiles,
       hasData,

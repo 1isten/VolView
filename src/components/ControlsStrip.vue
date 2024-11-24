@@ -17,9 +17,12 @@ import { Layouts, DefaultLayoutName } from '@/src/config';
 
 interface Props {
   hasData: boolean;
+  leftMenu: boolean;
 }
 
 defineProps<Props>();
+
+const emit = defineEmits(['click:left-menu']);
 
 function useViewLayout() {
   const viewStore = useViewStore();
@@ -122,9 +125,16 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <template>
   <div
     id="tools-strip"
-    class="bg-grey-darken-4 d-flex flex-column align-center"
+    class="bg-neutral-darken-4 d-flex flex-column align-center hide-scrollbar"
   >
     <control-button
+      size="40"
+      icon="mdi-menu"
+      name="Module panel"
+      @click="emit('click:left-menu')"
+    />
+    <control-button
+      v-if="false"
       size="40"
       icon="mdi-folder-open"
       name="Open files"
@@ -172,6 +182,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="settingsDialog = true"
     />
     <v-badge
+      v-if="false"
       offset-x="10"
       offset-y="10"
       :content="msgCount"
@@ -187,13 +198,23 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       />
     </v-badge>
     <control-button
+      v-if="false"
       size="40"
       icon="mdi-cog"
       name="Settings"
       @click="settingsDialog = true"
     />
+    <template v-if="true">
+      <div class="my-1 tool-separator" />
+      <control-button
+        size="40"
+        icon="mdi-exit-to-app"
+        name="Close"
+        @click.stop
+      />
+    </template>
   </div>
-  <closeable-dialog v-model="saveDialog" max-width="30%">
+  <closeable-dialog v-model="saveDialog" width="350" max-width="30%">
     <template v-slot="{ close }">
       <save-session :close="close" />
     </template>
@@ -214,6 +235,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 #tools-strip {
   border-left: 1px solid #212121;
   flex: 0 0 40px;
+  order: 1;
+  overflow: auto;
 }
 
 .tool-separator {
