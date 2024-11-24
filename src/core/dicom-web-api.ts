@@ -14,31 +14,52 @@ export interface FetchInstanceOptions extends FetchSeriesOptions {
 }
 
 const tags = {
+  // Patient
   PatientID: '00100020',
   PatientName: '00100010',
   PatientBirthDate: '00100030',
   PatientSex: '00100040',
+  // PatientAge: '00101010',
+  // PatientWeight: '00101030',
+  // PatientAddress: '00101040',
 
+  // Study
   StudyID: '00200010',
   StudyInstanceUID: '0020000D',
-  StudyName: '00100010',
+  StudyDescription: '00081030',
+  StudyName: '00100010', // PatientName
   StudyDate: '00080020',
   StudyTime: '00080030',
   AccessionNumber: '00080050',
-  StudyDescription: '00081030',
+  // InstitutionName: '00080080',
+  // ReferringPhysicianName: '00080090',
+  // ManufacturerModelName: '00081090',
 
+  // Series
   SeriesInstanceUID: '0020000E',
   SeriesNumber: '00200011',
   SeriesDescription: '0008103E',
+  // SeriesDate: '00080021',
+  // SeriesTime: '00080031',
   Modality: '00080060',
-  WindowLevel: '00281050',
+  // BodyPartExamined: '00180015',
+  // RepetitionTime: '00180080',
+  // EchoTime: '00180081',
+  // MagneticFieldStrength: '00180087',
+  // TransferSyntaxUID: '00020010',
+  WindowLevel: '00281050', // WindowCenter
   WindowWidth: '00281051',
 
+  // Instance
   SopInstanceUID: '00080018',
   InstanceNumber: '00200013',
-
+  // PixelSpacing: '00280030',
   Rows: '00280010',
   Columns: '00280011',
+  // SliceThickness: '00180050',
+  // SliceLocation: '00201041',
+  // ImagePositionPatient: '00200032',
+  // ImageOrientationPatient: '00200037',
 };
 
 export type Instance = typeof tags;
@@ -106,6 +127,17 @@ export async function fetchSeries(
     progressCallback,
   })) as ArrayBuffer[];
   return series.map(toFile);
+}
+
+export async function fetchInstance(
+  dicomWebRoot: string,
+  instance: FetchInstanceOptions
+) {
+  const client = makeClient(dicomWebRoot);
+  const dicom = await client.retrieveInstance({
+    ...instance,
+  }) as ArrayBuffer;
+  return toFile(dicom);
 }
 
 export async function fetchInstanceThumbnail(

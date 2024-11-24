@@ -28,26 +28,52 @@ export interface PatientInfo {
   PatientName: string;
   PatientBirthDate: string;
   PatientSex: string;
+  PatientAge?: string;
+  PatientWeight?: string;
+  PatientAddress?: string;
 }
 
 export interface StudyInfo {
   StudyID: string;
   StudyInstanceUID: string;
+  StudyDescription: string;
+  StudyName?: string;
   StudyDate: string;
   StudyTime: string;
   AccessionNumber: string;
-  StudyDescription: string;
+  InstitutionName?: string;
+  ReferringPhysicianName?: string;
+  ManufacturerModelName?: string;
 }
 
-export interface VolumeInfo {
-  NumberOfSlices: number;
-  VolumeID: string;
-  Modality: string;
+export interface WindowingInfo {
+  WindowLevel: string;
+  WindowWidth: string;
+}
+
+export interface VolumeInfo extends WindowingInfo {
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
-  WindowLevel: string;
-  WindowWidth: string;
+  SeriesDate?: string;
+  SeriesTime?: string;
+  Modality: string;
+  BodyPartExamined?: string;
+  RepetitionTime?: string;
+  EchoTime?: string;
+  MagneticFieldStrength?: string;
+  TransferSyntaxUID?: string;
+
+  PixelSpacing?: string;
+  Rows?: number | string;
+  Columns?: number | string;
+  SliceThickness?: string;
+  SliceLocation?: string;
+  ImagePositionPatient?: string;
+  ImageOrientationPatient?: string;
+
+  NumberOfSlices: number;
+  VolumeID: string;
 }
 
 const buildImage = async (seriesFiles: File[], modality: string) => {
@@ -108,6 +134,9 @@ interface State {
   // volumeKey -> volume info
   volumeInfo: Record<string, VolumeInfo>;
 
+  // volumeKey -> volume slices info
+  volumeSlicesInfo: Record<string, any>;
+
   // parent pointers
   // volumeKey -> studyKey
   volumeStudy: Record<string, string>;
@@ -115,25 +144,60 @@ interface State {
   studyPatient: Record<string, string>;
 }
 
-const readDicomTags = (file: File) =>
-  DICOM.readTags(file, [
-    { name: 'PatientName', tag: '0010|0010', strconv: true },
-    { name: 'PatientID', tag: '0010|0020', strconv: true },
-    { name: 'PatientBirthDate', tag: '0010|0030' },
-    { name: 'PatientSex', tag: '0010|0040' },
-    { name: 'StudyInstanceUID', tag: '0020|000d' },
-    { name: 'StudyDate', tag: '0008|0020' },
-    { name: 'StudyTime', tag: '0008|0030' },
-    { name: 'StudyID', tag: '0020|0010', strconv: true },
-    { name: 'AccessionNumber', tag: '0008|0050' },
-    { name: 'StudyDescription', tag: '0008|1030', strconv: true },
-    { name: 'Modality', tag: '0008|0060' },
-    { name: 'SeriesInstanceUID', tag: '0020|000e' },
-    { name: 'SeriesNumber', tag: '0020|0011' },
-    { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
-    { name: 'WindowLevel', tag: '0028|1050' },
-    { name: 'WindowWidth', tag: '0028|1051' },
-  ]);
+const instanceTags = [
+  { name: 'WindowLevel', tag: '0028|1050' }, // WindowCenter
+  { name: 'WindowWidth', tag: '0028|1051' },
+  // { name: 'SopInstanceUID', tag: '0008|0018' },
+  // { name: 'InstanceNumber', tag: '0020|0013' },
+  // { name: 'PixelSpacing', tag: '0028|0030' },
+  // { name: 'Rows', tag: '0028|0010' },
+  // { name: 'Columns', tag: '0028|0011' },
+  // { name: 'SliceThickness', tag: '0018|0050' },
+  // { name: 'SliceLocation', tag: '0020|1041' },
+  // { name: 'ImagePositionPatient', tag: '0020|0032' },
+  // { name: 'ImageOrientationPatient', tag: '0020|0037' },
+];
+
+const mainDicomTags = [
+  // Patient
+  { name: 'PatientName', tag: '0010|0010', strconv: true },
+  { name: 'PatientID', tag: '0010|0020', strconv: true },
+  { name: 'PatientBirthDate', tag: '0010|0030' },
+  { name: 'PatientSex', tag: '0010|0040' },
+  // { name: 'PatientAge', tag: '0010|1010' },
+  // { name: 'PatientWeight', tag: '0010|1030' },
+  // { name: 'PatientAddress', tag: '0010|1040' },
+
+  // Study
+  { name: 'StudyID', tag: '0020|0010', strconv: true },
+  { name: 'StudyInstanceUID', tag: '0020|000d' },
+  { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+  // { name: 'StudyName', tag: '0010|0010' }, // PatientName
+  { name: 'StudyDate', tag: '0008|0020' },
+  { name: 'StudyTime', tag: '0008|0030' },
+  { name: 'AccessionNumber', tag: '0008|0050' },
+  // { name: 'InstitutionName', tag: '0008|0080' },
+  // { name: 'ReferringPhysicianName', tag: '0008|0090' },
+  // { name: 'ManufacturerModelName', tag: '0008|1090' },
+
+  // Series
+  { name: 'SeriesInstanceUID', tag: '0020|000e' },
+  { name: 'SeriesNumber', tag: '0020|0011' },
+  { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+  // { name: 'SeriesDate', tag: '0008|0021' },
+  // { name: 'SeriesTime', tag: '0008|0031' },
+  { name: 'Modality', tag: '0008|0060' },
+  // { name: 'BodyPartExamined', tag: '0018|0015' },
+  // { name: 'RepetitionTime', tag: '0018|0080' },
+  // { name: 'EchoTime', tag: '0018|0081' },
+  // { name: 'MagneticFieldStrength', tag: '0018|0087' },
+  // { name: 'TransferSyntaxUID', tag: '0002|0010' },
+
+  // Instance
+  ...instanceTags,
+];
+
+export const readDicomTags = (file: File, tags = mainDicomTags) => DICOM.readTags(file, tags);
 
 /**
  * Trims and collapses multiple spaces into one.
@@ -151,7 +215,7 @@ export const getDisplayName = (info: VolumeInfo) => {
   );
 };
 
-export const getWindowLevels = (info: VolumeInfo) => {
+export const getWindowLevels = (info: VolumeInfo | WindowingInfo) => {
   const { WindowWidth, WindowLevel } = info;
   if (
     WindowWidth == null ||
@@ -187,11 +251,14 @@ export const useDICOMStore = defineStore('dicom', {
     studyInfo: {},
     studyVolumes: {},
     volumeInfo: {},
+    volumeSlicesInfo: {},
     volumeStudy: {},
     studyPatient: {},
     needsRebuild: {},
   }),
   actions: {
+    readDicomTags,
+
     async importFiles(datasets: DataSourceWithFile[]) {
       if (!datasets.length) return [];
 
