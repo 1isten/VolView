@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { DefaultViewSpec, InitViewSpecs } from '../config';
+import { Layouts, DefaultViewSpec, InitViewSpecs } from '../config';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewConfigStore } from './view-configs';
 import { ViewSpec } from '../types/views';
@@ -37,6 +37,20 @@ export const useViewStore = defineStore('view', {
       if (id in this.viewSpecs) {
         delete this.viewSpecs[id];
       }
+    },
+    getLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = `${viewID} Only`;
+      return layoutName;
+    },
+    setLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = this.getLayoutByViewID(viewID);
+      this.setLayoutByName(layoutName);
+      return layoutName;
+    },
+    setLayoutByName(layoutName: string) {
+      const layout = Layouts[layoutName];
+      if (layout) this.setLayout(layout);
+      return layoutName;
     },
     setLayout(layout: Layout) {
       this.layout = layout;
