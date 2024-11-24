@@ -75,6 +75,7 @@ function configureSentryPlugin() {
 }
 
 export default defineConfig({
+  base: './',
   build: {
     outDir: distDir,
     rollupOptions: {
@@ -203,7 +204,7 @@ export default defineConfig({
     configureSentryPlugin(),
   ],
   server: {
-    port: 8080,
+    port: 8043,
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
       '/tmp': config.baseUrl!,
