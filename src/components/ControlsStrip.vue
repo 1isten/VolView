@@ -121,7 +121,7 @@ const liteMode = computed(() => query.uiMode === 'lite');
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
-const layoutName = useViewLayout(query.layoutName);
+const layoutName = useViewLayout((query.layoutName || '').toString());
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </script>
