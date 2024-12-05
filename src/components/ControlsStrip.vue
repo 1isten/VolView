@@ -116,6 +116,7 @@ function useServerConnection() {
 }
 
 const query = useUrlSearchParams('history');
+const liteMode = computed(() => query.uiMode === 'lite');
 
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
@@ -128,7 +129,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <template>
   <div
     id="tools-strip"
-    class="bg-neutral-darken-4 d-flex flex-column align-center hide-scrollbar"
+    class="bg-neutral-darken-4 flex-column align-center hide-scrollbar"
+    :class="liteMode ? 'd-none' : 'd-flex'"
   >
     <control-button
       size="40"

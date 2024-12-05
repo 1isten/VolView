@@ -3,6 +3,10 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { Maybe } from '@/src/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { computed, toRef } from 'vue';
+import { useWindowSize } from '@vueuse/core';
+
+const { width: vw, height: vh } = useWindowSize();
+const xsAndDown = computed(() => vw.value < 600 || vh.value < 400);
 
 interface Props {
   imageId: Maybe<string>;
@@ -47,7 +51,7 @@ const dicomInfo = computed(() => {
     left
     nudge-left="10"
     dark
-    v-if="dicomInfo !== null"
+    v-if="dicomInfo !== null && !xsAndDown"
     max-width="300px"
   >
     <template v-slot:activator="{ props }">
