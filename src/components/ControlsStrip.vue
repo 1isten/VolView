@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { ref, computed, watch } from 'vue';
+import { useUrlSearchParams } from '@vueuse/core'
 import { loadUserPromptedFiles } from '@/src/actions/loadUserFiles';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
@@ -24,9 +25,9 @@ defineProps<Props>();
 
 const emit = defineEmits(['click:left-menu', 'click:close']);
 
-function useViewLayout() {
+function useViewLayout(defaultLayoutName?: string) {
   const viewStore = useViewStore();
-  const layoutName = ref(DefaultLayoutName);
+  const layoutName = ref(defaultLayoutName || DefaultLayoutName);
   const { layout: currentLayout } = storeToRefs(viewStore);
 
   watch(
@@ -114,10 +115,12 @@ function useServerConnection() {
   return { icon, url };
 }
 
+const query = useUrlSearchParams('history');
+
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
-const layoutName = useViewLayout();
+const layoutName = useViewLayout(query.layoutName);
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </script>
