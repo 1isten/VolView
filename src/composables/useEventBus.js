@@ -77,6 +77,12 @@ export function useEventBus(handlers) {
     };
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
+
+    if (window.parent !== window) {
+      window.parent.postMessage('LOAD', '*');
+    } else {
+      console.log('[volview]', 'mounted!');
+    }
   });
 
   onUnmounted(() => {
