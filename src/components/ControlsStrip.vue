@@ -117,6 +117,7 @@ function useServerConnection() {
 
 const query = useUrlSearchParams('history');
 const liteMode = computed(() => query.uiMode === 'lite');
+const closeable = computed(() => query.closeable === 'true' || query.closeable === '1');
 
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
@@ -209,7 +210,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       name="Settings"
       @click="settingsDialog = true"
     />
-    <template v-if="true">
+    <template v-if="closeable">
       <div class="my-1 tool-separator" />
       <control-button
         size="40"
