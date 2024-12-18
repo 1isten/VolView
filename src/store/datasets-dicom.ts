@@ -8,6 +8,7 @@ import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { useLoadDataStore } from './load-data';
 import { useViewStore } from './views';
+import { useViewSliceStore } from './view-configs/slicing';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { useMessageStore } from './messages';
@@ -573,30 +574,40 @@ export const useDICOMStore = defineStore('dicom', {
         const name = getDisplayName(info);
         imageStore.addVTKImageData(name, volumeBuildResults.image, volumeKey);
 
-        // auto set layout to be the correct axis view (when loaded by bus)
-        const loadDataStore = useLoadDataStore();
-        const viewStore = useViewStore();
+        // set primary layout and slice (when loaded by bus)
         const viewID = imageStore.getPrimaryViewID(volumeKey);
         const volumeKeySuffix = this.volumeKeyGetSuffix(volumeKey);
-        if (volumeKeySuffix) {
-          if (viewID) {
-            const { layoutName, defaultSlices, slice } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-            if (layoutName === undefined) {
-              loadDataStore.setLoadedByBus(volumeKeySuffix, {
-                layoutName: viewStore.getLayoutByViewID(viewID),
-              });
-            }
-            if (slice !== undefined && (defaultSlices === undefined || defaultSlices[viewID] === undefined)) {
-              loadDataStore.setLoadedByBus(volumeKeySuffix, {
-                defaultSlices: {
-                  ...(defaultSlices || {}),
-                  [viewID]: slice,
-                },
-              });
-            }
+        if (volumeKeySuffix && viewID) {
+          const viewStore = useViewStore();
+          const viewSliceStore = useViewSliceStore();
+          const loadDataStore = useLoadDataStore();
+          const { layoutName, defaultSlices, slice } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+          if (layoutName === undefined) {
+            loadDataStore.setLoadedByBus(volumeKeySuffix, {
+              layoutName: viewStore.getLayoutByViewID(viewID),
+            });
           }
-        } else if (viewID) {
-          // viewStore.setLayoutByViewID(viewID);
+          if (slice !== undefined && (defaultSlices === undefined || defaultSlices[viewID] === undefined)) {
+            loadDataStore.setLoadedByBus(volumeKeySuffix, {
+              defaultSlices: {
+                ...(defaultSlices || {}),
+                [viewID]: slice,
+              },
+            });
+          }
+          if (loadDataStore.isLoadingByBus) {
+            setTimeout(() => {
+              // eslint-disable-next-line @typescript-eslint/no-shadow
+              const { selection, layoutName, slice } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+              if (selection && slice !== undefined) {
+                viewSliceStore.updateConfig(viewID, selection, { slice });
+              }
+              if (layoutName) {
+                viewStore.setLayoutByName(layoutName);
+              }
+              loadDataStore.isLoadingByBus = false;
+            }, 100);
+          }
         }
       }
 

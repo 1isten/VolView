@@ -37,7 +37,7 @@ async function handleVolViewEvents() {
   }
 }
 
-export function useEventBus(handlers) {
+export function useEventBus(handlers, loadDataStore) {
   const emitter = inject('bus');
   const bus = { emitter };
 
@@ -77,6 +77,10 @@ export function useEventBus(handlers) {
     };
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
+
+    if (loadDataStore) {
+      window.$loadDataStore = loadDataStore;
+    }
 
     if (window.parent !== window) {
       window.parent.postMessage('LOAD', '*');

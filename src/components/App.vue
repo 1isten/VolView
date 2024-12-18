@@ -20,7 +20,7 @@
         </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="emitter.emit('close')"></controls-strip>
+            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
@@ -109,6 +109,7 @@ export default defineComponent({
     const loadDataStore = useLoadDataStore();
     const hasData = computed(
       () =>
+        loadDataStore.isLoadingByBus ? false :
         imageStore.idList.length > 0 ||
         Object.keys(dicomStore.volumeInfo).length > 0
     );
@@ -116,7 +117,7 @@ export default defineComponent({
     // since the welcome screen shouldn't be visible when
     // a dataset is opened.
     const showLoading = computed(
-      () => loadDataStore.isLoading || hasData.value
+      () => loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
     );
 
     // --- event handling --- //
@@ -148,7 +149,7 @@ export default defineComponent({
       onunselect() {
         dataStore.setPrimarySelection(null);
       },
-    } as unknown as EventHandlers));
+    } as unknown as EventHandlers), loadDataStore);
 
     // --- parse URL -- //
 
@@ -192,6 +193,12 @@ export default defineComponent({
 
     return {
       emitter,
+      closeApp: () => {
+        emitter.emit('unselect');
+        setTimeout(() => {
+          emitter.emit('close');
+        }, 100);
+      },
 
       leftSideBar: ref(!display.mobile.value) && ref(false),
       loadUserPromptedFiles,

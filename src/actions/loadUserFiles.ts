@@ -356,51 +356,32 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
 
     const dataStore = useDatasetStore();
 
-    const handleCache = () => {
-      let cacheHit = false;
-      let cacheIsInvalid = false;
-      if (volumeKeySuffix) {
-        const { selection, layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-        if (selection) {
-          const imageStore = useImageStore();
-          const imageID = selection;
-          if (imageID) {
-            const viewSliceStore = useViewSliceStore();
-            const { defaultSlices, slice } = loadOptions;
-            if (!defaultSlices && slice !== undefined) {
-              const viewID = imageStore.getPrimaryViewID(imageID) || layoutName && layoutName.includes(' Only') && layoutName.replace(' Only', '');
-              if (viewID) {
-                viewSliceStore.updateConfig(viewID, imageID, {
-                  slice,
-                });
-              }
-            } else if (defaultSlices) {
-              Object.entries(defaultSlices).forEach(([viewID, s]) => {
-                viewSliceStore.updateConfig(viewID, imageID, {
-                  slice: s,
-                });
-              });
-            }
-            dataStore.setPrimarySelection(selection);
-            cacheHit = true;
-            cacheIsInvalid = false;
-          } else if (imageID in loadDataStore.imageIDToVolumeKeyUID) {
-            delete loadDataStore.imageIDToVolumeKeyUID[imageID];
-            cacheHit = false;
-            cacheIsInvalid = true;
-          }
-        }
-      }
-      if (cacheHit && cacheIsInvalid && volumeKeySuffix) {
-        delete loadDataStore.loadedByBus[volumeKeySuffix];
-        cacheHit = false;
-      }
-      return !cacheHit;
-    };
-
     const onBeforeLoadedByBus = () => {
-      loadDataStore.isLoadingByBus = true;
-      const { layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+      const { selection, layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+      if (volumeKeySuffix && selection) {
+        const imageID = selection;
+        const imageStore = useImageStore();
+        const viewSliceStore = useViewSliceStore();
+        const { defaultSlices, slice } = loadOptions;
+        if (!defaultSlices && slice !== undefined) {
+          const viewID = imageStore.getPrimaryViewID(imageID) || layoutName && layoutName.includes(' Only') && layoutName.replace(' Only', '');
+          if (viewID) {
+            viewSliceStore.updateConfig(viewID, imageID, {
+              slice,
+            });
+          }
+        } else if (defaultSlices) {
+          Object.entries(defaultSlices).forEach(([viewID, s]) => {
+            viewSliceStore.updateConfig(viewID, imageID, {
+              slice: s,
+            });
+          });
+        }
+        dataStore.setPrimarySelection(selection);
+        loadDataStore.isLoadingByBus = false;
+      } else {
+        loadDataStore.isLoadingByBus = true;
+      }
       if (layoutName) {
         const viewStore = useViewStore();
         viewStore.setLayoutByName(layoutName);
@@ -408,42 +389,12 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
       return loadDataStore.isLoadingByBus;
     };
 
-    const onAfterLoadedByBus = async () => {
-      const selection = dataStore.primarySelection;
-      if (volumeKeySuffix && selection) {
-        const tryGetImageID = async (retryCount = 100) => {
-          let imageID;
-          while (!imageID && retryCount > 0) {
-            imageID = selection;
-            // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-            await new Promise(r => setTimeout(r, 10));
-            // eslint-disable-next-line no-param-reassign
-            retryCount--;
-          }
-          return imageID;
-        };
-        const imageID = await tryGetImageID();
-        if (imageID) {
-          loadDataStore.imageIDToVolumeKeyUID[imageID] = volumeKeySuffix;
-        }
-        const tryGetLayoutName = async (retryCount = 100) => {
-          let layoutName;
-          while (!layoutName && retryCount > 0) {
-            layoutName = loadDataStore.getLoadedByBus(volumeKeySuffix).layoutName;
-            // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-            await new Promise(r => setTimeout(r, 10));
-            // eslint-disable-next-line no-param-reassign
-            retryCount--;
-          }
-          return layoutName;
-        };
-        const layoutName = await tryGetLayoutName();
-        if (layoutName) {
-          const viewStore = useViewStore();
-          viewStore.setLayoutByName(layoutName);
-        }
+    const onAfterLoadedByBus = () => {
+      if (volumeKeySuffix && dataStore.primarySelection) {
+        const imageID = dataStore.primarySelection;
+        loadDataStore.imageIDToVolumeKeyUID[imageID] = volumeKeySuffix;
       }
-      loadDataStore.isLoadingByBus = false;
+      // loadDataStore.isLoadingByBus = false;
       return loadDataStore.getLoadedByBus(volumeKeySuffix);
     };
 
@@ -479,9 +430,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           }
         }
       }
-      return handleCache() && onBeforeLoadedByBus() && loadFiles(dicomWebFiles, volumeKeySuffix).then(onAfterLoadedByBus);
+      return onBeforeLoadedByBus() && loadFiles(dicomWebFiles, volumeKeySuffix).then(onAfterLoadedByBus);
     }
-    return handleCache() && onBeforeLoadedByBus() && loadDataSources(sources, volumeKeySuffix).then(onAfterLoadedByBus);
+    return onBeforeLoadedByBus() && loadDataSources(sources, volumeKeySuffix).then(onAfterLoadedByBus);
   }
 
   return loadDataSources(sources);
