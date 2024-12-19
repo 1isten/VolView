@@ -1,6 +1,6 @@
 import { clampValue } from '@/src/utils';
 import { defineStore } from 'pinia';
-import { reactive, ref } from 'vue';
+import { reactive } from 'vue';
 import { useDebounceFn } from '@vueuse/core';
 import {
   DoubleKeyRecord,
@@ -14,9 +14,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
-import { useWindowingStore } from './windowing';
 import { useImageStore } from '../datasets-images';
-import { useDICOMStore } from '../datasets-dicom';
 import { useLoadDataStore } from '../load-data';
 
 export const defaultSliceConfig = (): SliceConfig => ({
@@ -29,38 +27,11 @@ export const defaultSliceConfig = (): SliceConfig => ({
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
   const { emitter } = useEventBus();
-  const syncWindowLevelWithTag = ref(true);
-
   const loadDataStore = useLoadDataStore();
-  const dicomStore = useDICOMStore();
-  const windowingStore = useWindowingStore();
-
   const handleConfigUpdate = useDebounceFn((viewID, dataID, config) => {
     const volumeKeyUID = loadDataStore.imageIDToVolumeKeyUID[dataID];
     const { layoutName } = loadDataStore.getLoadedByBus(volumeKeyUID);
     if (layoutName && layoutName.includes(viewID) || volumeKeyUID && useImageStore().getPrimaryViewID(dataID) === viewID) {
-      if (syncWindowLevelWithTag.value) {
-        const volumeSlicesInfo = dicomStore.volumeSlicesInfo[dataID];
-        if (volumeSlicesInfo && volumeSlicesInfo.windowingDiffs) {
-          const tag = volumeSlicesInfo.tags?.[config.slice];
-          const dataRange = volumeSlicesInfo.dataRanges?.[config.slice];
-          if (tag && dataRange) {
-            const { WindowLevel, WindowWidth } = tag;
-            const { min, max } = dataRange;
-            try {
-              // console.warn(`auto reset windowing based on dicom tags for slice ${config.slice + 1}`);
-              windowingStore.updateConfig(viewID, dataID, {
-                width: Number(WindowWidth),
-                level: Number(WindowLevel),
-                min,
-                max,
-              });
-            } catch (error) {
-              console.warn(error);
-            }
-          }
-        }
-      }
       if (volumeKeyUID) {
         emitter.emit('slicing', {
           uid: volumeKeyUID,
