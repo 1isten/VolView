@@ -230,11 +230,18 @@ export async function buildSegmentGroups(file: File) {
  * @returns ItkImage
  */
 export async function buildImage(seriesFiles: File[]) {
-  const inputImages = seriesFiles.map((file) => sanitizeFile(file));
+  let singleSortedSeries = false;
+  const inputImages = seriesFiles.map((file) => {
+    if (!singleSortedSeries && 'n' in file) {
+      singleSortedSeries = true;
+      console.warn('sorted by instance number');
+    }
+    return sanitizeFile(file);
+  });
   const result = await readImageDicomFileSeries({
     webWorkerPool: getDicomSeriesWorkerPool(),
     inputImages,
-    singleSortedSeries: 'n' in seriesFiles[0],
+    singleSortedSeries,
   });
   return result;
 }

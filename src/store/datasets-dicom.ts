@@ -270,27 +270,36 @@ export const useDICOMStore = defineStore('dicom', {
       const volumeToFiles = await DICOM.splitAndSort(allFiles, identity, volumeKeySuffix);
       if (Object.keys(volumeToFiles).length === 0) {
         throw new Error('No volumes categorized from DICOM file(s)');
-      } else if ('dicomParser' in window) {
-        // the "splitAndSort" function may return incorrect file order
-        // so we sort the files by their instance number
-        for (let k = 0; k < Object.keys(volumeToFiles).length; k++) {
-          const volumeKey = Object.keys(volumeToFiles)[k];
-          const files = [];
-          for (let i = 0; i < volumeToFiles[volumeKey].length; i++) {
-            const file = volumeToFiles[volumeKey][i];
-            // eslint-disable-next-line no-await-in-loop
-            const arrayBuffer = await file.arrayBuffer();
-            const byteArray = new Uint8Array(arrayBuffer);
-            // @ts-ignore
-            const dataSet = window.dicomParser.parseDicom(byteArray);
-            const instanceNumber: string = dataSet.string('x00200013');
-            // can get more tags here if needed...
-            // @ts-ignore
-            file.n = parseInt(instanceNumber || '0', 10);
-            files.push(file);
+      } else if (volumeKeySuffix) {
+        if ('dicomParser' in window) {
+          // do not rely on the `splitAndSort` function's result order
+          // make sure files are sorted in order of their instance number
+          for (let k = 0; k < Object.keys(volumeToFiles).length; k++) {
+            const volumeKey = Object.keys(volumeToFiles)[k];
+            const filesInOrder = [];
+            const fileInstanceNumber = new WeakMap();
+            for (let i = 0; i < volumeToFiles[volumeKey].length; i++) {
+              const file = volumeToFiles[volumeKey][i];
+              // eslint-disable-next-line no-await-in-loop
+              const arrayBuffer = await file.arrayBuffer();
+              const byteArray = new Uint8Array(arrayBuffer);
+              // @ts-ignore
+              const dataSet = window.dicomParser.parseDicom(byteArray);
+              const instanceNumber: string = dataSet.string('x00200013');
+              // can get more tags here if needed...
+              fileInstanceNumber.set(file, parseInt(instanceNumber || '0', 10));
+              filesInOrder.push(file);
+            }
+            filesInOrder.sort((a, b) => fileInstanceNumber.get(a) - fileInstanceNumber.get(b));
+            for (let i = 0; i < filesInOrder.length; i++) {
+              const file = filesInOrder[i]
+              if (volumeToFiles[volumeKey][i] !== file) {
+                // @ts-ignore
+                volumeToFiles[volumeKey][i].n = fileInstanceNumber.get(file); // ('n' in file) checked by `buildImage` function in `dicom.ts`
+                volumeToFiles[volumeKey][i] = file;
+              }
+            }
           }
-          // @ts-ignore
-          volumeToFiles[volumeKey] = files.sort((a, b) => a.n - b.n);
         }
       }
 
