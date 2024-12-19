@@ -79,7 +79,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('close', onclose);
 
     if (loadDataStore) {
-      window.$loadDataStore = loadDataStore;
+      window.$loadDataStore = loadDataStore.$state;
     }
 
     if (window.parent !== window) {

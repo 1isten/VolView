@@ -378,11 +378,11 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           });
         }
         dataStore.setPrimarySelection(selection);
-        loadDataStore.isLoadingByBus = false;
+        loadDataStore.isLoadingByBus = false; // cache hit
       } else {
         loadDataStore.isLoadingByBus = true;
       }
-      if (layoutName) {
+      if (layoutName && loadDataStore.isLoadingByBus) {
         const viewStore = useViewStore();
         viewStore.setLayoutByName(layoutName);
       }
