@@ -162,11 +162,11 @@ export default defineComponent({
 
       const volumeKeyUID = urlParams.uid;
       if (volumeKeyUID) {
-        const options = {
+        const options = JSON.parse(JSON.stringify({
           volumeKeySuffix: volumeKeyUID as string,
-          layoutName: urlParams.layoutName ? (urlParams.layoutName as string) : undefined,
-          slice: urlParams.slice ? +(urlParams.slice as string) : undefined,
-        };
+          layoutName: urlParams.layoutName !== undefined ? `${urlParams.layoutName}` : undefined,
+          slice: urlParams.slice !== undefined ? +`${urlParams.slice}` : undefined,
+        }));
         loadUrls(urlParams, options);
         return;
       }
