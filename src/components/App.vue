@@ -160,6 +160,17 @@ export default defineComponent({
         return;
       }
 
+      const volumeKeyUID = urlParams.uid;
+      if (volumeKeyUID) {
+        const options = {
+          volumeKeySuffix: volumeKeyUID as string,
+          layoutName: urlParams.layoutName ? (urlParams.layoutName as string) : undefined,
+          slice: urlParams.slice ? +(urlParams.slice as string) : undefined,
+        };
+        loadUrls(urlParams, options);
+        return;
+      }
+
       loadUrls(urlParams);
     });
 
