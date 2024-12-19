@@ -18,6 +18,7 @@ module.exports = {
   plugins: ['@typescript-eslint', 'import'],
 
   ignorePatterns: [
+    'public/**',
     'src/io/itk-dicom/emscripten-build/**',
     'src/io/resample/emscripten-build/**',
     '**/*.d.ts',
