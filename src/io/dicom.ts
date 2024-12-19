@@ -234,7 +234,7 @@ export async function buildImage(seriesFiles: File[]) {
   const result = await readImageDicomFileSeries({
     webWorkerPool: getDicomSeriesWorkerPool(),
     inputImages,
-    singleSortedSeries: false,
+    singleSortedSeries: 'n' in seriesFiles[0],
   });
   return result;
 }

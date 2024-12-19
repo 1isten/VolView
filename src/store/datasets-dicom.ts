@@ -137,9 +137,6 @@ interface State {
   // volumeKey -> volume info
   volumeInfo: Record<string, VolumeInfo>;
 
-  // volumeKey -> volume slices info
-  volumeSlicesInfo: Record<string, any>;
-
   // parent pointers
   // volumeKey -> studyKey
   volumeStudy: Record<string, string>;
@@ -254,7 +251,6 @@ export const useDICOMStore = defineStore('dicom', {
     studyInfo: {},
     studyVolumes: {},
     volumeInfo: {},
-    volumeSlicesInfo: {},
     volumeStudy: {},
     studyPatient: {},
     needsRebuild: {},
@@ -274,62 +270,28 @@ export const useDICOMStore = defineStore('dicom', {
       const volumeToFiles = await DICOM.splitAndSort(allFiles, identity, volumeKeySuffix);
       if (Object.keys(volumeToFiles).length === 0) {
         throw new Error('No volumes categorized from DICOM file(s)');
-      } else {
-        /*
-        const volumeKeys = Object.keys(volumeToFiles);
-        for (let i = 0; i < volumeKeys.length; i++) {
-          const volumeKey = volumeKeys[i];
-          // eslint-disable-next-line no-await-in-loop
-          const filesWithTagsInfo = await Promise.all(
-            volumeToFiles[volumeKey].map(async file => {
-              const tags = await this.readDicomTags(file, [
-                ...instanceTags,
-              ]);
-              const windowLevels = getWindowLevels({
-                WindowLevel: tags.WindowLevel,
-                WindowWidth: tags.WindowWidth,
-              });
-              return {
-                file,
-                tags: {
-                  ...tags,
-                  InstanceNumber: `${parseInt(tags.InstanceNumber || '0', 10)}`,
-                  WindowLevel: `${windowLevels[0]?.level || tags.WindowLevel}`,
-                  WindowWidth: `${windowLevels[0]?.width || tags.WindowWidth}`,
-                },
-              };
-            })
-          );
-          filesWithTagsInfo.sort((a, b) => +a.tags.InstanceNumber - +b.tags.InstanceNumber);
-          let reSorted = false;
-          let windowingDiffs= false;
-          const windowLevels: number[] = [];
-          const windowWidths: number[] = [];
-          const tags: Record<string, string>[] = [];
-          volumeToFiles[volumeKey].forEach((file, idx) => {
-            const { file: fileSorted, tags: fileTags } = filesWithTagsInfo[idx];
-            if (file !== fileSorted) {
-              volumeToFiles[volumeKey][idx] = fileSorted;
-              reSorted = true;
-            }
-            tags[idx] = fileTags;
-            windowLevels.push(Number(fileTags.WindowLevel));
-            windowWidths.push(Number(fileTags.WindowWidth));
-          });
-          if (
-            Math.max(...windowLevels) !== Math.min(...windowLevels) ||
-            Math.max(...windowWidths) !== Math.min(...windowWidths)
-          ) {
-            windowingDiffs = true;
+      } else if ('dicomParser' in window) {
+        // the "splitAndSort" function may return incorrect file order
+        // so we sort the files by their instance number
+        for (let k = 0; k < Object.keys(volumeToFiles).length; k++) {
+          const volumeKey = Object.keys(volumeToFiles)[k];
+          const files = [];
+          for (let i = 0; i < volumeToFiles[volumeKey].length; i++) {
+            const file = volumeToFiles[volumeKey][i];
+            // eslint-disable-next-line no-await-in-loop
+            const arrayBuffer = await file.arrayBuffer();
+            const byteArray = new Uint8Array(arrayBuffer);
+            // @ts-ignore
+            const dataSet = window.dicomParser.parseDicom(byteArray);
+            const instanceNumber: string = dataSet.string('x00200013');
+            // can get more tags here if needed...
+            // @ts-ignore
+            file.n = parseInt(instanceNumber || '0', 10);
+            files.push(file);
           }
-          this.volumeSlicesInfo[volumeKey] = {
-            reSorted,
-            tags,
-            windowingDiffs,
-            dataRanges: [],
-          };
+          // @ts-ignore
+          volumeToFiles[volumeKey] = files.sort((a, b) => a.n - b.n);
         }
-        */
       }
 
       const fileStore = useFileStore();
