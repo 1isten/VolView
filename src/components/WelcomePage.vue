@@ -57,9 +57,12 @@ const dataSecurityDialog = ref(false);
               </v-btn>
             </div>
           </template>
-          <template v-else-if="loading">
+          <template v-else-if="false">
             <div class="text-h6 my-4">Loading data...</div>
             <v-progress-linear indeterminate />
+          </template>
+          <template v-else-if="loading">
+            <v-progress-circular indeterminate color="blue" />
           </template>
         </v-card>
       </v-row>
