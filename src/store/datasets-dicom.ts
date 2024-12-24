@@ -272,14 +272,12 @@ export const useDICOMStore = defineStore('dicom', {
         throw new Error('No volumes categorized from DICOM file(s)');
       } else if (volumeKeySuffix) {
         if ('dicomParser' in window) {
-          // do not rely on the `splitAndSort` function's result order
-          // make sure files are sorted in order of their instance number
-          for (let k = 0; k < Object.keys(volumeToFiles).length; k++) {
-            const volumeKey = Object.keys(volumeToFiles)[k];
-            const filesInOrder = [];
+          // eslint-disable-next-line no-restricted-syntax
+          for (const [volumeKey, files] of Object.entries(volumeToFiles)) {
+            const filesSortedByInstanceNumber = []
             const fileInstanceNumber = { map: new WeakMap() };
-            for (let i = 0; i < volumeToFiles[volumeKey].length; i++) {
-              const file = volumeToFiles[volumeKey][i];
+            // eslint-disable-next-line no-restricted-syntax
+            for (const file of files) {
               // eslint-disable-next-line no-await-in-loop
               const arrayBuffer = await file.arrayBuffer();
               const byteArray = new Uint8Array(arrayBuffer);
@@ -288,19 +286,28 @@ export const useDICOMStore = defineStore('dicom', {
               const instanceNumber: string = dataSet.string('x00200013');
               // can get more tags here if needed...
               fileInstanceNumber.map.set(file, parseInt(instanceNumber || '0', 10));
-              filesInOrder.push(file);
+              filesSortedByInstanceNumber.push(file);
             }
-            filesInOrder.sort((a, b) => fileInstanceNumber.map.get(a) - fileInstanceNumber.map.get(b));
-            for (let i = 0; i < filesInOrder.length; i++) {
-              const file = filesInOrder[i]
-              if (volumeToFiles[volumeKey][i] !== file) {
-                // @ts-ignore
-                volumeToFiles[volumeKey][i].n = fileInstanceNumber.map.get(file); // ('n' in file) checked by `buildImage` function in `dicom.ts`
-                volumeToFiles[volumeKey][i] = file;
+            filesSortedByInstanceNumber.sort((a, b) => fileInstanceNumber.map.get(a) - fileInstanceNumber.map.get(b));
+            if (files.length > 1) {
+              const reversed = filesSortedByInstanceNumber[0] !== files[0] && filesSortedByInstanceNumber[0] === files[files.length - 1];
+              if (reversed) {
+                if (volumeKey.endsWith(volumeKeySuffix)) {
+                  const originalIndexToSortedIndex = new Map();
+                  const sortedIndexToOriginalIndex = new Map();
+                  files.forEach((file, i) => {
+                    originalIndexToSortedIndex.set(i, files.length - 1 - i);
+                    sortedIndexToOriginalIndex.set(files.length - 1 - i, i);
+                  });
+                  const loadDataStore = useLoadDataStore();
+                  loadDataStore.setLoadedByBus(volumeKeySuffix, {
+                    originalIndexToSortedIndex,
+                    sortedIndexToOriginalIndex,
+                  });
+                }
+                console.warn('Axial in reverse');
               }
             }
-            // @ts-ignore
-            delete fileInstanceNumber.map;
           }
         }
       }
@@ -571,9 +578,10 @@ export const useDICOMStore = defineStore('dicom', {
           if (loadDataStore.isLoadingByBus) {
             setTimeout(() => {
               // eslint-disable-next-line @typescript-eslint/no-shadow
-              const { selection, layoutName, slice } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+              const { selection, layoutName, slice, originalIndexToSortedIndex } = loadDataStore.getLoadedByBus(volumeKeySuffix);
               if (selection && slice !== undefined) {
-                viewSliceStore.updateConfig(viewID, selection, { slice });
+                const s = originalIndexToSortedIndex?.get(slice) ?? slice;
+                viewSliceStore.updateConfig(viewID, selection, { slice: s });
               }
               if (layoutName) {
                 viewStore.setLayoutByName(layoutName);

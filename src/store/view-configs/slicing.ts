@@ -30,12 +30,13 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
   const loadDataStore = useLoadDataStore();
   const handleConfigUpdate = useDebounceFn((viewID, dataID, config) => {
     const volumeKeyUID = loadDataStore.imageIDToVolumeKeyUID[dataID];
-    const { layoutName } = loadDataStore.getLoadedByBus(volumeKeyUID);
+    const { layoutName, sortedIndexToOriginalIndex } = loadDataStore.getLoadedByBus(volumeKeyUID);
     if (layoutName && layoutName.includes(viewID) || volumeKeyUID && useImageStore().getPrimaryViewID(dataID) === viewID) {
       if (volumeKeyUID) {
+        const s = sortedIndexToOriginalIndex?.get(config.slice) ?? config.slice;
         emitter.emit('slicing', {
           uid: volumeKeyUID,
-          slice: config.slice,
+          slice: s,
         });
       }
     }

@@ -357,7 +357,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
     const dataStore = useDatasetStore();
 
     const onBeforeLoadedByBus = () => {
-      const { selection, layoutName } = loadDataStore.getLoadedByBus(volumeKeySuffix);
+      const { selection, layoutName, originalIndexToSortedIndex } = loadDataStore.getLoadedByBus(volumeKeySuffix);
       if (volumeKeySuffix && selection) {
         const imageID = selection;
         const imageStore = useImageStore();
@@ -366,12 +366,15 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         if (!defaultSlices && slice !== undefined) {
           const viewID = imageStore.getPrimaryViewID(imageID) || layoutName && layoutName.includes(' Only') && layoutName.replace(' Only', '');
           if (viewID) {
+            const s = originalIndexToSortedIndex?.get(slice) ?? slice;
             viewSliceStore.updateConfig(viewID, imageID, {
-              slice,
+              slice: s,
             });
           }
         } else if (defaultSlices) {
-          Object.entries(defaultSlices).forEach(([viewID, s]) => {
+          // eslint-disable-next-line @typescript-eslint/no-shadow
+          Object.entries(defaultSlices).forEach(([viewID, slice]) => {
+            const s = originalIndexToSortedIndex?.get(slice) ?? slice;
             viewSliceStore.updateConfig(viewID, imageID, {
               slice: s,
             });

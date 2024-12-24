@@ -51,6 +51,8 @@ export type Events = {
 
 export interface LoadedByBusDataRecord extends LoadEventOptions {
   selection?: ReturnType<typeof toDataSelection>;
+  originalIndexToSortedIndex?: Map<number, number>;
+  sortedIndexToOriginalIndex?: Map<number, number>;
 };
 
 const NotificationMessages = {
