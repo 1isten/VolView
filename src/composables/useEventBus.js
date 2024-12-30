@@ -1,45 +1,35 @@
-import { inject, onMounted, onUnmounted } from 'vue';
+import { inject, ref, watch, onMounted, onUnmounted } from 'vue';
+import { useUrlSearchParams, useWebSocket } from '@vueuse/core';
 
-async function handleVolViewEvents() {
-  async function handleVolViewEvent(event) {
-    if (!event.data?.type) {
-      console.log('[port1]:', event.data);
-      return;
-    }
+/* eslint-disable no-param-reassign */
 
-    const { type, payload } = event.data;
-    console.log(type, payload);
-
-    if (type === 'load') {
-      window.$bus.emitter.emit(type, payload);
-    }
-    if (type === 'unload') {
-      window.$bus.emitter.emit(type);
-    }
-    if (type === 'unselect') {
-      window.$bus.emitter.emit(type);
-    }
-  }
-
-  window.addEventListener('message', e => {
-    if (e.source === window && e.data === 'project-volview-port') {
-      const [port2] = e.ports;
-      port2.onmessage = handleVolViewEvent;
-      port2.postMessage('PONG');
-      window._port2 = port2;
+export function useEventBus(handlers, loadDataStore) {
+  const query = useUrlSearchParams('history');
+  const { datasetId, projectId, uid } = query;
+  const _wsId = `volview-${projectId || datasetId || uid || document.location.href}`;
+  const _ws = ref();
+  const ws = useWebSocket(_ws, { heartbeat: true });
+  watch(ws.data, async data => {
+    data = typeof data === 'string' ? data : await data.text();
+    if (data.startsWith('{')) data = JSON.parse(data);
+    if (data.sender === 'self') return;
+    if (data.message?.startsWith('{')) data.message = JSON.parse(data.message);
+    if (data.message?.source === _wsId) {
+      const { type, payload } = data.message;
+      if (type === 'load') {
+        window.$bus.emitter.emit(type, payload);
+      }
+      if (type === 'unload') {
+        window.$bus.emitter.emit(type);
+      }
+      if (type === 'unselect') {
+        window.$bus.emitter.emit(type);
+      }
     }
   });
 
-  // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-  while (!window.$electron) await new Promise(r => setTimeout(r, 100));
-  if (window.$electron) {
-    window.$electron.requestProjectVolviewPorts();
-  }
-}
-
-export function useEventBus(handlers, loadDataStore) {
   const emitter = inject('bus');
-  const bus = { emitter };
+  const bus = { emitter, ws: ws.ws };
 
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
@@ -48,11 +38,14 @@ export function useEventBus(handlers, loadDataStore) {
   let onclose;
 
   onMounted(async () => {
-    if (!handlers) {
+    if (handlers) {
+      window.$bus = bus;
+      if (window.parent === window) {
+        _ws.value = localStorage.getItem('_ws') || undefined;
+      }
+    } else {
       return;
     }
-    handleVolViewEvents();
-    window.$bus = bus;
 
     if (onload) {
       emitter.on('load', onload);
@@ -64,16 +57,10 @@ export function useEventBus(handlers, loadDataStore) {
       emitter.on('unselect', onunselect);
     }
     onslicing = payload => {
-      const port2 = window._port2;
-      if (port2) {
-        port2.postMessage({ type: 'slicing', payload });
-      }
+      ws.send(JSON.stringify({ source: _wsId, type: 'slicing', payload }));
     };
     onclose = () => {
-      const port2 = window._port2;
-      if (port2) {
-        port2.postMessage({ type: 'close' });
-      }
+      ws.send(JSON.stringify({ source: _wsId, type: 'close' }));
     };
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
@@ -83,7 +70,12 @@ export function useEventBus(handlers, loadDataStore) {
     }
 
     if (window.parent !== window) {
-      window.parent.postMessage('LOAD', '*');
+      window.addEventListener('message', e => {
+        if (!_ws.value && `${e.data}`.endsWith('/_ws')) {
+          _ws.value = e.data;
+        }
+      });
+      window.parent.postMessage('volview:LOAD', '*');
     } else {
       console.log('[volview]', 'mounted!');
     }
@@ -93,7 +85,6 @@ export function useEventBus(handlers, loadDataStore) {
     if (!handlers) {
       return;
     }
-    delete window._port2;
     delete window.$bus;
 
     if (onload) {
