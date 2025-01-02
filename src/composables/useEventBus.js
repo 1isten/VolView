@@ -63,10 +63,19 @@ export function useEventBus(handlers, loadDataStore) {
       emitter.on('unselect', onunselect);
     }
     onslicing = payload => {
-      ws.send(JSON.stringify({ type: 'slicing', payload, from: _wsId, to: _wsId.replace('volview-', 'tab-project-') }));
+      ws.send(JSON.stringify({
+        type: 'slicing',
+        payload,
+        from: _wsId,
+        to: _wsId.replace('volview-', 'tab-project-'),
+      }));
     };
     onclose = () => {
-      ws.send(JSON.stringify({ type: 'close', from: _wsId, to: _wsId.replace('volview-', 'tab-project-') }));
+      ws.send(JSON.stringify({
+        type: 'close',
+        from: _wsId,
+        to: _wsId.replace('volview-', 'tab-project-'),
+      }));
     };
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
