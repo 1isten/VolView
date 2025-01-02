@@ -1,31 +1,37 @@
 import { inject, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useUrlSearchParams, useWebSocket } from '@vueuse/core';
 
-/* eslint-disable no-param-reassign */
-
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams('history');
   const { datasetId, projectId, uid } = query;
   const _wsId = `volview-${projectId || datasetId || uid || document.location.href}`;
   const _ws = ref();
   const ws = useWebSocket(_ws, { heartbeat: true });
-  watch(ws.data, async data => {
-    data = typeof data === 'string' ? data : await data.text();
-    if (data.startsWith('{')) data = JSON.parse(data);
-    if (data.sender === 'self') return;
-    if (data.message?.startsWith('{')) data.message = JSON.parse(data.message);
-    if (data.message?.source === _wsId) {
-      const { type, payload } = data.message;
+  watch(ws.data, async (data) => {
+    let message = typeof data === 'string' ? data : await data.text();
+    if (message.startsWith('{')) message = JSON.parse(message);
+    if (message?.type === 'open') {
+      return ws.send(JSON.stringify({
+        type: 'map',
+        payload: { peerUid: _wsId },
+        from: message.to,
+        to: message.from,
+      }));
+    }
+    if (message?.to === _wsId) {
+      const { type, payload } = message;
       if (type === 'load') {
-        window.$bus.emitter.emit(type, payload);
+        return window.$bus.emitter.emit(type, payload);
       }
       if (type === 'unload') {
-        window.$bus.emitter.emit(type);
+        return window.$bus.emitter.emit(type);
       }
       if (type === 'unselect') {
-        window.$bus.emitter.emit(type);
+        return window.$bus.emitter.emit(type);
       }
     }
+    // console.log('[ws] message', message);
+    return _wsId;
   });
 
   const emitter = inject('bus');
@@ -57,10 +63,10 @@ export function useEventBus(handlers, loadDataStore) {
       emitter.on('unselect', onunselect);
     }
     onslicing = payload => {
-      ws.send(JSON.stringify({ source: _wsId, type: 'slicing', payload }));
+      ws.send(JSON.stringify({ type: 'slicing', payload, from: _wsId, to: _wsId.replace('volview-', 'tab-project-') }));
     };
     onclose = () => {
-      ws.send(JSON.stringify({ source: _wsId, type: 'close' }));
+      ws.send(JSON.stringify({ type: 'close', from: _wsId, to: _wsId.replace('volview-', 'tab-project-') }));
     };
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
