@@ -18,6 +18,9 @@ export function useEventBus(handlers, loadDataStore) {
         to: message.from,
       }));
     }
+    if (message?.type === 'mapped') {
+      // ...
+    }
     if (message?.to === _wsId) {
       const { type, payload } = message;
       if (type === 'load') {
