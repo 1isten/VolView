@@ -44,6 +44,7 @@ import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { writeImage } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
+import { useLoadDataStore } from '@/src/store/load-data';
 
 const EXTENSIONS = [
   'nrrd',
@@ -69,6 +70,7 @@ const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 const saveToRemote = computed(() => fileFormat.value === 'nii.gz' || fileFormat.value === 'nii');
 
+const loadDataStore = useLoadDataStore();
 const segmentGroupStore = useSegmentGroupStore();
 
 async function saveSegmentGroup() {
@@ -96,6 +98,12 @@ async function saveSegmentGroup() {
       } else {
         console.error(res.status, res.statusText);
       }
+      const emitter = loadDataStore.$bus.emitter;
+      emitter?.emit('savesegmentation', {
+        manualNodeId: 'test-manual-node-id',
+        slotIndex: 0,
+        path: '/some/path/labelmap.nii.gz',
+      });
       return;
     }
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);

@@ -163,6 +163,10 @@ export const useLoadDataStore = defineStore('loadData', () => {
     };
     return loadedByBus.value[volumeKeyUID];
   };
+  const $bus = {
+    emitter: null as any,
+    ws: null as any,
+  };
 
   return {
     segmentGroupExtension,
@@ -176,6 +180,11 @@ export const useLoadDataStore = defineStore('loadData', () => {
     getLoadedByBus,
     setLoadedByBus,
     isLoadingByBus,
+    loadBus: (emitter?: any, ws?: any) => {
+      $bus.emitter = emitter || null;
+      $bus.ws = ws || null;
+    },
+    $bus,
   };
 });
 

@@ -43,6 +43,7 @@ export function useEventBus(handlers, loadDataStore) {
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
   const onunselect = handlers?.onunselect;
+  let onsavesegmentation;
   let onslicing;
   let onclose;
 
@@ -65,6 +66,9 @@ export function useEventBus(handlers, loadDataStore) {
     if (onunselect) {
       emitter.on('unselect', onunselect);
     }
+    onsavesegmentation = payload => {
+      console.log('onsavesegmentation:', payload);
+    };
     onslicing = payload => {
       ws.send(JSON.stringify({
         type: 'slicing',
@@ -80,10 +84,12 @@ export function useEventBus(handlers, loadDataStore) {
         to: _wsId.replace('volview-', 'tab-project-'),
       }));
     };
+    emitter.on('savesegmentation', onsavesegmentation);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
     if (loadDataStore) {
+      loadDataStore.loadBus(bus.emitter);
       window.$loadDataStore = loadDataStore.$state;
     }
 
@@ -113,6 +119,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onunselect) {
       emitter.off('unselect', onunselect);
+    }
+    if (onsavesegmentation) {
+      emitter.off('savesegmentation', onsavesegmentation);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

@@ -9,7 +9,6 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
-import { useEventBus } from '@/src/composables/useEventBus';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
@@ -26,7 +25,6 @@ export const defaultSliceConfig = (): SliceConfig => ({
 });
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
-  const { emitter } = useEventBus();
   const loadDataStore = useLoadDataStore();
   const handleConfigUpdate = useDebounceFn((viewID, dataID, config) => {
     const volumeKeyUID = loadDataStore.imageIDToVolumeKeyUID[dataID];
@@ -34,7 +32,8 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     if (layoutName && layoutName.includes(viewID) || volumeKeyUID && useImageStore().getPrimaryViewID(dataID) === viewID) {
       if (volumeKeyUID) {
         const s = sortedIndexToOriginalIndex?.get(config.slice) ?? config.slice;
-        emitter.emit('slicing', {
+        const emitter = loadDataStore.$bus.emitter;
+        emitter?.emit('slicing', {
           uid: volumeKeyUID,
           slice: s,
         });
