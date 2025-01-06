@@ -85,6 +85,10 @@ async function saveSegmentGroup() {
       const fileContent = new Blob([serialized], { type: 'application/vnd.unknown.nifti-1' });
       formData.append('fileContent', fileContent);
       formData.set('fileExtension', fileFormat.value);
+      formData.set('oid', 'test-oid');
+      formData.set('pipelineId', 'test-pipeline-id');
+      formData.set('projectId', 'test-project-id');
+      formData.set('datasetId', 'test-dataset-id');
       const res = await fetch('connect://localhost/api/volview/create-segmentation', { method: 'POST', body: formData });
       if (res.ok) {
         const data = await res.json();
