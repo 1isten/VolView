@@ -14,7 +14,7 @@
           mobile-breakpoint="0"
           disable-resize-watcher
           disable-route-watcher
-          temporary
+          :temporary="temporaryDrawer"
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
@@ -56,7 +56,7 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams, watchOnce } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
@@ -154,8 +154,10 @@ export default defineComponent({
     // --- parse URL -- //
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+    const query = useUrlSearchParams();
 
     onMounted(() => {
+      console.log(query);
       if (!urlParams.urls) {
         return;
       }
@@ -202,6 +204,16 @@ export default defineComponent({
 
     const display = useDisplay();
 
+    const permanentDrawer = computed(() => query.drawer === 'permanent');
+    const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
+    const leftSideBar = ref(false);
+
+    watchOnce(display.mobile, (isMobile) => {
+      if (!isMobile && !leftSideBar.value) {
+        leftSideBar.value = !temporaryDrawer.value;
+      }
+    })
+
     return {
       emitter,
       closeApp: () => {
@@ -211,7 +223,8 @@ export default defineComponent({
         }, 100);
       },
 
-      leftSideBar: ref(!display.mobile.value) && ref(false),
+      temporaryDrawer,
+      leftSideBar,
       loadUserPromptedFiles,
       loadFiles,
       hasData,

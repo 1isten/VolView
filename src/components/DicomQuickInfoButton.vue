@@ -3,10 +3,10 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { Maybe } from '@/src/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { computed, toRef } from 'vue';
-import { useWindowSize } from '@vueuse/core';
+import { useDisplay } from 'vuetify';
 
-const { width: vw, height: vh } = useWindowSize();
-const xsAndDown = computed(() => vw.value < 600 || vh.value < 400);
+const display = useDisplay();
+const xsAndDown = computed(() => display.width.value < 600 || display.height.value < 400);
 
 interface Props {
   imageId: Maybe<string>;

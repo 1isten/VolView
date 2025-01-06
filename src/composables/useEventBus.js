@@ -2,7 +2,7 @@ import { inject, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useUrlSearchParams, useWebSocket } from '@vueuse/core';
 
 export function useEventBus(handlers, loadDataStore) {
-  const query = useUrlSearchParams('history');
+  const query = useUrlSearchParams();
   const { datasetId, projectId, uid } = query;
   const _wsId = `volview-${projectId || datasetId || uid || document.location.href}`;
   const _ws = ref();

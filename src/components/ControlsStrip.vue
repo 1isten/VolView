@@ -115,9 +115,10 @@ function useServerConnection() {
   return { icon, url };
 }
 
-const query = useUrlSearchParams('history');
+const query = useUrlSearchParams();
 const liteMode = computed(() => query.uiMode === 'lite');
 const closeable = computed(() => query.closeable === 'true' || query.closeable === '1');
+const defaultTool = computed(() => query.defaultTool ? query.defaultTool.toString() : '');
 
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
@@ -178,7 +179,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
         </v-card-text>
       </v-card>
     </v-menu>
-    <controls-strip-tools v-if="hasData" />
+    <controls-strip-tools v-if="hasData" :default-tool="defaultTool" />
     <v-spacer />
     <control-button
       v-if="serverUrl"
