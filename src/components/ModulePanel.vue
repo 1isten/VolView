@@ -91,8 +91,9 @@ export default defineComponent({
     watch(
       () => toolStore.currentTool,
       (newTool) => {
-        if (autoSwitchToAnnotationsTools.includes(newTool))
-          selectedModuleIndex.value = 1;
+        if (autoSwitchToAnnotationsTools.includes(newTool)) {
+          selectedModuleIndex.value = Modules.findIndex(({ name}) => name === 'Annotations');
+        }
       }
     );
 
