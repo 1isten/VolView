@@ -157,7 +157,6 @@ export default defineComponent({
     const query = useUrlSearchParams();
 
     onMounted(() => {
-      console.log(query);
       if (!urlParams.urls) {
         return;
       }
