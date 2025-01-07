@@ -86,6 +86,7 @@ async function saveSegmentGroup() {
       const formData = new FormData();
       const fileContent = new Blob([serialized], { type: 'application/vnd.unknown.nifti-1' });
       formData.append('fileContent', fileContent);
+      formData.set('fileName', fileName.value);
       formData.set('fileExtension', fileFormat.value);
       formData.set('oid', 'test-oid');
       formData.set('pipelineId', 'test-pipeline-id');
