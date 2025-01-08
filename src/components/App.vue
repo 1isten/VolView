@@ -211,7 +211,7 @@ export default defineComponent({
       if (!isMobile && !leftSideBar.value) {
         leftSideBar.value = !temporaryDrawer.value;
       }
-    })
+    }, { immediate: !display.mobile.value });
 
     return {
       emitter,
