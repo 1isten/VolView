@@ -3,7 +3,7 @@ import { useUrlSearchParams, useWebSocket } from '@vueuse/core';
 
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
-  const { datasetId, projectId, uid } = query;
+  const { uid, datasetId, projectId, pipelineId, manualNodeId } = query;
   const _wsId = `volview-${projectId || datasetId || uid || document.location.href}`;
   const _ws = ref();
   const ws = useWebSocket(_ws, { heartbeat: true });
@@ -67,7 +67,22 @@ export function useEventBus(handlers, loadDataStore) {
       emitter.on('unselect', onunselect);
     }
     onsavesegmentation = payload => {
-      console.log('onsavesegmentation:', payload);
+      if (pipelineId && manualNodeId) {
+        const labelmap = payload?.data?.path;
+        if (labelmap) {
+          ws.send(JSON.stringify({
+            type: 'create-segmentation',
+            payload: {
+              pipelineId,
+              manualNodeId,
+              oid: uid,
+              labelmap,
+            },
+            from: _wsId,
+            to: `comfyui-${pipelineId}`,
+          }));
+        }
+      }
     };
     onslicing = payload => {
       ws.send(JSON.stringify({

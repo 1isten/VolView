@@ -96,15 +96,11 @@ async function saveSegmentGroup() {
       if (res.ok) {
         const data = await res.json();
         console.log(data);
+        const emitter = loadDataStore.$bus.emitter;
+        emitter?.emit('savesegmentation', data);
       } else {
         console.error(res.status, res.statusText);
       }
-      const emitter = loadDataStore.$bus.emitter;
-      emitter?.emit('savesegmentation', {
-        manualNodeId: 'test-manual-node-id',
-        slotIndex: 0,
-        path: '/some/path/labelmap.nii.gz',
-      });
       return;
     }
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
