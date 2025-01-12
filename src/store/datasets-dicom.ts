@@ -303,21 +303,15 @@ export const useDICOMStore = defineStore('dicom', {
           }
           loadDataStore.dataIDToVolumeKeyUID[volumeKey] = volumeKeySuffix;
         }
-        Object.entries(loadDataStore.loadedByBus[volumeKeySuffix].volumes).map(([volumeKey, { slices }]) => ({ volumeKey, n0: slices[0]?.n })).sort((a, b) => a.n0 - b.n0).forEach(({ volumeKey }, i) => {
+        let offset = 0;
+        Object.entries(loadDataStore.loadedByBus[volumeKeySuffix].volumes).map(([volumeKey, { slices }]) => ({ volumeKey, n0: slices[0]?.n })).sort((a, b) => a.n0 - b.n0).forEach(({ volumeKey }) => {
           const volumeKeys = loadDataStore.loadedByBus[volumeKeySuffix].volumeKeys;
           volumeKeys.push(volumeKey);
-          const prevVolumeKey = volumeKeys[i - 1];
-          const prevVol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[prevVolumeKey];
-          const prevVolSlices = prevVol?.slices;
-          if (prevVolSlices) {
-            const prevVolLastSlice = prevVolSlices[prevVolSlices.length - 1];
-            if (typeof prevVolLastSlice.i === 'number') {
-              const { slices } = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
-              slices.forEach((slice, s) => {
-                slices[s].i += prevVolLastSlice.i + 1;
-              });
-            }
-          }
+          const { slices } = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          slices.forEach((slice, s) => {
+            slices[s].i += offset;
+          });
+          offset += slices.length;
         });
       }
 

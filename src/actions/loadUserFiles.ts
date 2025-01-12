@@ -419,8 +419,10 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                   // console.log('cache hit!', volumeKey, vol.layoutName, s);
                   // useViewStore().setLayoutByName(vol.layoutName);
                 }
-                useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 useDatasetStore().setPrimarySelection(volumeKey);
+                requestAnimationFrame(() => {
+                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                });
                 return loadDataStore.setIsLoadingByBus(false);
               }
             }
@@ -437,8 +439,10 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                   // console.log('cache hit!', volumeKey, vol.layoutName, s);
                   // useViewStore().setLayoutByName(vol.layoutName);
                 }
-                useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 useDatasetStore().setPrimarySelection(volumeKey);
+                requestAnimationFrame(() => {
+                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                });
                 return loadDataStore.setIsLoadingByBus(false);
               }
             }
@@ -455,8 +459,10 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                   // console.log('cache hit!', volumeKey, vol.layoutName, s);
                   // useViewStore().setLayoutByName(vol.layoutName);
                 }
-                useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 useDatasetStore().setPrimarySelection(volumeKey);
+                requestAnimationFrame(() => {
+                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                });
                 return loadDataStore.setIsLoadingByBus(false);
               }
             }

@@ -1,6 +1,7 @@
 import { clampValue } from '@/src/utils';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -25,7 +26,7 @@ export const defaultSliceConfig = (): SliceConfig => ({
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
   const loadDataStore = useLoadDataStore();
-  const handleConfigUpdate = ((viewID: string, dataID: string, config: any) => {
+  const handleConfigUpdate = useDebounceFn((viewID: string, dataID: string, config: any) => {
     const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
     if (volumeKeySuffix) {
       const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
@@ -40,7 +41,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         }
       }
     }
-  });
+  }, 1);
 
   const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
