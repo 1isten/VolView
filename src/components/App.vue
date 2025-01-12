@@ -54,7 +54,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams, useUrlSearchParams, watchOnce } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -121,6 +121,13 @@ export default defineComponent({
     );
 
     // --- event handling --- //
+    /*
+    $bus.emitter.emit('load', {
+      urlParams: { urls: ['./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip'], names: ['archive.zip'] },
+      uid: '8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3',
+      n: 1,
+    });
+    */
 
     const dataStore = useDatasetStore();
     const { emitter } = useEventBus(({
@@ -142,8 +149,8 @@ export default defineComponent({
       },
       onunload() {
         // remove all data loaded by event bus
-        Object.keys(loadDataStore.imageIDToVolumeKeyUID).forEach(imageID => {
-          dataStore.remove(imageID);
+        Object.keys(loadDataStore.dataIDToVolumeKeyUID).forEach(dataID => {
+          dataStore.remove(dataID);
         });
       },
       onunselect() {
@@ -151,7 +158,23 @@ export default defineComponent({
       },
     } as unknown as EventHandlers), loadDataStore);
 
+    const { primarySelection } = storeToRefs(dataStore);
+    watch(primarySelection, async (volumeKey) => {
+      if (volumeKey) {
+        const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
+        if (volumeKeySuffix) {
+          const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          if (vol.layoutName) {
+            useViewStore().setLayoutByName(vol.layoutName);
+          }
+        }
+      }
+    });
+
     // --- parse URL -- //
+    /*
+    http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
+    */
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
     const query = useUrlSearchParams();
@@ -161,12 +184,14 @@ export default defineComponent({
         return;
       }
 
-      const volumeKeyUID = urlParams.uid;
+      const volumeKeyUID = urlParams.volumeKeyUID || urlParams.uid;
       if (volumeKeyUID) {
         const options = JSON.parse(JSON.stringify({
           volumeKeySuffix: volumeKeyUID as string,
-          layoutName: urlParams.layoutName !== undefined ? `${urlParams.layoutName}` : undefined,
-          slice: urlParams.slice !== undefined ? +`${urlParams.slice}` : undefined,
+          v: urlParams.v,
+          s: urlParams.s ?? undefined,
+          n: urlParams.n ?? undefined,
+          i: urlParams.i ?? undefined,
         }));
         loadUrls(urlParams, options);
         return;

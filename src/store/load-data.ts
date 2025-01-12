@@ -6,20 +6,34 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
-import { toDataSelection } from '@/src/io/import/importDataSources';
 
 export interface LoadEventOptions {
   uid?: string; // shortcut for volumeKeyUID
   volumeKeyUID?: string; // alias for volumeKeySuffix
   volumeKeySuffix?: string; // make use of volumeKeySuffix as UID
-  layoutName?: string;
-  defaultSlices?: {
-    Axial?: number;
-    Sagittal?: number;
-    Coronal?: number;
-  };
-  slice?: number;
+  // ...
+  v?: string; // viewID
+  s?: number; // slice
+  n?: number; // instance number (x00200013)
+  i?: number; // index (from parsed data list)
 }
+
+export type LoadedByBusRecord = {
+  options: LoadEventOptions;
+  volumes: Record<
+    string, // volumeKey
+    {
+      layoutName?: string;
+      slices: { n: number; i: number; }[];
+    }
+  >;
+  volumeKeys: string[]; // ordered volumes
+};
+
+export type LoadedByBus = Record<
+  string, // volumeKeyUID
+  LoadedByBusRecord
+>;
 
 export interface LoadEvent extends LoadEventOptions {
   urlParams: {
@@ -47,12 +61,6 @@ export type Events = {
   };
   onclose?: void;
   // ...
-};
-
-export interface LoadedByBusDataRecord extends LoadEventOptions {
-  selection?: ReturnType<typeof toDataSelection>;
-  originalIndexToSortedIndex?: Map<number, number>;
-  sortedIndexToOriginalIndex?: Map<number, number>;
 };
 
 const NotificationMessages = {
@@ -149,19 +157,21 @@ export const useLoadDataStore = defineStore('loadData', () => {
 
   const segmentGroupExtension = ref('');
 
-  const imageIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
-  const loadedByBus = shallowRef<Record<string, LoadedByBusDataRecord>>(Object.create(null));
+  const dataIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
+  const loadedByBus = shallowRef<LoadedByBus>(Object.create(null));
   const isLoadingByBus = ref(false);
-  const getLoadedByBus = (volumeKeyUID: string | undefined) => volumeKeyUID ? loadedByBus.value[volumeKeyUID] : {};
-  const setLoadedByBus = (volumeKeyUID: string | undefined, value: LoadedByBusDataRecord) => {
+  const getLoadedByBusOptions = (volumeKeyUID?: string) => volumeKeyUID && loadedByBus.value[volumeKeyUID]?.options || {};
+  const setLoadedByBusOptions = (volumeKeyUID: string | undefined, options: LoadEventOptions) => {
     if (!volumeKeyUID) {
-      return value;
+      return options;
     }
-    loadedByBus.value[volumeKeyUID] = {
-      ...(loadedByBus.value[volumeKeyUID] || {}),
-      ...value
-    };
-    return loadedByBus.value[volumeKeyUID];
+    if (!loadedByBus.value[volumeKeyUID]) {
+      loadedByBus.value[volumeKeyUID] = Object.create(null);
+      loadedByBus.value[volumeKeyUID].volumes = Object.create(null);
+      loadedByBus.value[volumeKeyUID].volumeKeys = [];
+    }
+    loadedByBus.value[volumeKeyUID].options = options;
+    return loadedByBus.value[volumeKeyUID].options;
   };
   const $bus = {
     emitter: null as any,
@@ -175,11 +185,11 @@ export const useLoadDataStore = defineStore('loadData', () => {
     stopLoading,
     setError,
 
-    imageIDToVolumeKeyUID,
-    loadedByBus,
-    getLoadedByBus,
-    setLoadedByBus,
+    dataIDToVolumeKeyUID,
     isLoadingByBus,
+    loadedByBus,
+    getLoadedByBusOptions,
+    setLoadedByBusOptions,
     loadBus: (emitter?: any, ws?: any) => {
       $bus.emitter = emitter || null;
       $bus.ws = ws || null;

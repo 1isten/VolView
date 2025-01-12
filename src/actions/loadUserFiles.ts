@@ -11,8 +11,8 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
+import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { wrapInArray, nonNullable } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -252,20 +252,73 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
     const [succeeded, errored] = partitionResults(results);
 
-    if ((!dataStore.primarySelection || true) && succeeded.length) {
+    if (!dataStore.primarySelection || succeeded.length) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
         loadDataStore.segmentGroupExtension
       );
 
       if (isVolumeResult(primaryDataSource)) {
-        const selection = toDataSelection(primaryDataSource);
+        let selection = toDataSelection(primaryDataSource);
+
         if (volumeKeySuffix) {
-          loadDataStore.setLoadedByBus(volumeKeySuffix, {
-            selection,
+          let dataID: string | null = null;
+          let viewID: string | null = null;
+          let s = -1;
+
+          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
+
+          if (typeof options.s === 'number') {
+            const vol = volumes[selection];
+            if (vol?.layoutName) {
+              useViewStore().setLayoutByName(vol.layoutName);
+              s = options.s;
+              if (s !== -1) {
+                dataID = selection;
+                viewID = useImageStore().getPrimaryViewID(dataID);
+              }
+            }
+          } else if (typeof options.n === 'number') {
+            selection = '';
+            // eslint-disable-next-line no-restricted-syntax
+            for (const volumeKey of Object.keys(volumes)) {
+              const vol = volumes[volumeKey];
+              if (vol?.layoutName) {
+                useViewStore().setLayoutByName(vol.layoutName);
+                s = vol.slices.findIndex(({ n }) => n === options.n);
+                if (s !== -1) {
+                  selection = volumeKey;
+                  dataID = volumeKey;
+                  viewID = useImageStore().getPrimaryViewID(volumeKey);
+                  break;
+                }
+              }
+            }
+          } else if (typeof options.i === 'number') {
+            selection = '';
+            // eslint-disable-next-line no-restricted-syntax
+            for (const volumeKey of Object.keys(volumes)) {
+              const vol = volumes[volumeKey];
+              if (vol?.layoutName) {
+                useViewStore().setLayoutByName(vol.layoutName);
+                s = vol.slices.findIndex(({ i }) => i === options.i);
+                if (s !== -1) {
+                  selection = volumeKey;
+                  dataID = volumeKey;
+                  viewID = useImageStore().getPrimaryViewID(volumeKey);
+                  break;
+                }
+              }
+            }
+          }
+          requestAnimationFrame(() => {
+            if (viewID && dataID && s !== -1) {
+              useViewSliceStore().updateConfig(viewID, dataID, { slice: s });
+            }
           });
         }
-        dataStore.setPrimarySelection(selection);
+
+        dataStore.setPrimarySelection(selection || null);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
           primaryDataSource,
@@ -273,6 +326,10 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           loadDataStore.segmentGroupExtension
         );
       } // then must be primaryDataSource.type === 'model'
+
+      if (loadDataStore.isLoadingByBus) {
+        loadDataStore.isLoadingByBus = false;
+      }
     }
 
     if (errored.length) {
@@ -345,60 +402,75 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
   );
 
   // intercept load event from bus emitter
-  if (options) {
+  if (options && options.volumeKeySuffix) {
     const loadDataStore = useLoadDataStore();
-    const { volumeKeySuffix, ...loadOptions } = options;
-    loadDataStore.setLoadedByBus(volumeKeySuffix, {
-      volumeKeySuffix,
-      volumeKeyUID: loadOptions.volumeKeyUID || volumeKeySuffix,
-      ...loadOptions,
-    });
+    const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
 
-    const dataStore = useDatasetStore();
-
-    const onBeforeLoadedByBus = () => {
-      const { selection, layoutName, originalIndexToSortedIndex } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-      if (volumeKeySuffix && selection) {
-        const imageID = selection;
-        const imageStore = useImageStore();
-        const viewSliceStore = useViewSliceStore();
-        const { defaultSlices, slice } = loadOptions;
-        if (!defaultSlices && slice !== undefined) {
-          const viewID = imageStore.getPrimaryViewID(imageID) || layoutName && layoutName.includes(' Only') && layoutName.replace(' Only', '');
-          if (viewID) {
-            const s = originalIndexToSortedIndex?.get(slice) ?? slice;
-            viewSliceStore.updateConfig(viewID, imageID, {
-              slice: s,
-            });
+    const beforeLoadByBus = () => {
+      const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
+      if (volumeKeys?.length && volumes) {
+        if (typeof options.s === 'number') {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const s = options.s;
+            if (vol?.slices[options.s]) {
+              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              if (viewID) {
+                if (vol?.layoutName) {
+                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
+                  // useViewStore().setLayoutByName(vol.layoutName);
+                }
+                useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                useDatasetStore().setPrimarySelection(volumeKey);
+                // eslint-disable-next-line no-return-assign
+                return (loadDataStore.isLoadingByBus = false);
+              }
+            }
           }
-        } else if (defaultSlices) {
-          // eslint-disable-next-line @typescript-eslint/no-shadow
-          Object.entries(defaultSlices).forEach(([viewID, slice]) => {
-            const s = originalIndexToSortedIndex?.get(slice) ?? slice;
-            viewSliceStore.updateConfig(viewID, imageID, {
-              slice: s,
-            });
-          });
+        } else if (typeof options.n === 'number') {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const s = vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
+            if (s !== -1) {
+              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              if (viewID) {
+                if (vol?.layoutName) {
+                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
+                  // useViewStore().setLayoutByName(vol.layoutName);
+                }
+                useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                useDatasetStore().setPrimarySelection(volumeKey);
+                // eslint-disable-next-line no-return-assign
+                return (loadDataStore.isLoadingByBus = false);
+              }
+            }
+          }
+        } else if (typeof options.i === 'number') {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const s = vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
+            if (s !== -1) {
+              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              if (viewID) {
+                if (vol?.layoutName) {
+                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
+                  // useViewStore().setLayoutByName(vol.layoutName);
+                }
+                useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                useDatasetStore().setPrimarySelection(volumeKey);
+                // eslint-disable-next-line no-return-assign
+                return (loadDataStore.isLoadingByBus = false);
+              }
+            }
+          }
         }
-        dataStore.setPrimarySelection(selection);
-        loadDataStore.isLoadingByBus = false; // cache hit
-      } else {
-        loadDataStore.isLoadingByBus = true;
+        loadDataStore.isLoadingByBus = false;
       }
-      if (layoutName && loadDataStore.isLoadingByBus) {
-        const viewStore = useViewStore();
-        viewStore.setLayoutByName(layoutName);
-      }
-      return loadDataStore.isLoadingByBus;
-    };
-
-    const onAfterLoadedByBus = () => {
-      if (volumeKeySuffix && dataStore.primarySelection) {
-        const imageID = dataStore.primarySelection;
-        loadDataStore.imageIDToVolumeKeyUID[imageID] = volumeKeySuffix;
-      }
-      // loadDataStore.isLoadingByBus = false;
-      return loadDataStore.getLoadedByBus(volumeKeySuffix);
+      // eslint-disable-next-line no-return-assign
+      return (loadDataStore.isLoadingByBus = true);
     };
 
     const dicomWebURL = params.dicomWebURL?.toString();
@@ -433,9 +505,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           }
         }
       }
-      return onBeforeLoadedByBus() && loadFiles(dicomWebFiles, volumeKeySuffix).then(onAfterLoadedByBus);
+      return beforeLoadByBus() && loadFiles(dicomWebFiles, volumeKeySuffix);
     }
-    return onBeforeLoadedByBus() && loadDataSources(sources, volumeKeySuffix).then(onAfterLoadedByBus);
+    return beforeLoadByBus() && loadDataSources(sources, volumeKeySuffix);
   }
 
   return loadDataSources(sources);

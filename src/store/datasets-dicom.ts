@@ -4,11 +4,11 @@ import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import * as DICOM from '@/src/io/dicom';
 import { identity, pick, removeFromArray } from '../utils';
+import { getImage } from '../utils/dataSelection';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { useLoadDataStore } from './load-data';
 import { useViewStore } from './views';
-import { useViewSliceStore } from './view-configs/slicing';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { useMessageStore } from './messages';
@@ -267,17 +267,24 @@ export const useDICOMStore = defineStore('dicom', {
       );
       const allFiles = [...fileToDataSource.keys()];
 
+      const loadDataStore = useLoadDataStore();
+
       const volumeToFiles = await DICOM.splitAndSort(allFiles, identity, volumeKeySuffix);
       if (Object.keys(volumeToFiles).length === 0) {
         throw new Error('No volumes categorized from DICOM file(s)');
       } else if (volumeKeySuffix) {
-        if ('dicomParser' in window) {
-          // eslint-disable-next-line no-restricted-syntax
-          for (const [volumeKey, files] of Object.entries(volumeToFiles)) {
-            const filesSortedByInstanceNumber = []
-            const fileInstanceNumber = { map: new WeakMap() };
-            // eslint-disable-next-line no-restricted-syntax
-            for (const file of files) {
+        // eslint-disable-next-line no-restricted-syntax
+        for (const [volumeKey, files] of Object.entries(volumeToFiles)) {
+          if (!loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey]) {
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey] = {
+              layoutName: '',
+              slices: [],
+            };
+          }
+          if ('dicomParser' in window) {
+            const filesInOrder = [];
+            for (let s = 0; s < files.length; s++) {
+              const file = files[s];
               // eslint-disable-next-line no-await-in-loop
               const arrayBuffer = await file.arrayBuffer();
               const byteArray = new Uint8Array(arrayBuffer);
@@ -285,31 +292,33 @@ export const useDICOMStore = defineStore('dicom', {
               const dataSet = window.dicomParser.parseDicom(byteArray);
               const instanceNumber: string = dataSet.string('x00200013');
               // can get more tags here if needed...
-              fileInstanceNumber.map.set(file, parseInt(instanceNumber || '0', 10));
-              filesSortedByInstanceNumber.push(file);
+              filesInOrder.push({ file, n: parseInt(instanceNumber || '0', 10) });
             }
-            filesSortedByInstanceNumber.sort((a, b) => fileInstanceNumber.map.get(a) - fileInstanceNumber.map.get(b));
-            if (files.length > 1) {
-              const reversed = filesSortedByInstanceNumber[0] !== files[0] && filesSortedByInstanceNumber[0] === files[files.length - 1];
-              if (reversed) {
-                if (volumeKey.endsWith(volumeKeySuffix)) {
-                  const originalIndexToSortedIndex = new Map();
-                  const sortedIndexToOriginalIndex = new Map();
-                  files.forEach((file, i) => {
-                    originalIndexToSortedIndex.set(i, files.length - 1 - i);
-                    sortedIndexToOriginalIndex.set(files.length - 1 - i, i);
-                  });
-                  const loadDataStore = useLoadDataStore();
-                  loadDataStore.setLoadedByBus(volumeKeySuffix, {
-                    originalIndexToSortedIndex,
-                    sortedIndexToOriginalIndex,
-                  });
-                }
-                console.warn('Axial in reverse');
-              }
+            filesInOrder.sort((a, b) => a.n - b.n);
+            for (let s = 0; s < files.length; s++) {
+              const i = filesInOrder.findIndex(({ file }) => file === files[s]);
+              const n = filesInOrder[i].n;
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices.push({ n, i });
             }
           }
+          loadDataStore.dataIDToVolumeKeyUID[volumeKey] = volumeKeySuffix;
         }
+        Object.entries(loadDataStore.loadedByBus[volumeKeySuffix].volumes).map(([volumeKey, { slices }]) => ({ volumeKey, n0: slices[0]?.n })).sort((a, b) => a.n0 - b.n0).forEach(({ volumeKey }, i) => {
+          const volumeKeys = loadDataStore.loadedByBus[volumeKeySuffix].volumeKeys;
+          volumeKeys.push(volumeKey);
+          const prevVolumeKey = volumeKeys[i - 1];
+          const prevVol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[prevVolumeKey];
+          const prevVolSlices = prevVol?.slices;
+          if (prevVolSlices) {
+            const prevVolLastSlice = prevVolSlices[prevVolSlices.length - 1];
+            if (typeof prevVolLastSlice.i === 'number') {
+              const { slices } = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+              slices.forEach((slice, s) => {
+                slices[s].i += prevVolLastSlice.i + 1;
+              });
+            }
+          }
+        });
       }
 
       const fileStore = useFileStore();
@@ -373,6 +382,9 @@ export const useDICOMStore = defineStore('dicom', {
           if (volumeKey in useImageStore().dataIndex) {
             // buildVolume requestor uses this as a rebuild hint
             this.needsRebuild[volumeKey] = true;
+          } else {
+            // eager buildVolume
+            await getImage(volumeKey);
           }
         })
       );
@@ -554,40 +566,16 @@ export const useDICOMStore = defineStore('dicom', {
         const name = getDisplayName(info);
         imageStore.addVTKImageData(name, volumeBuildResults.image, volumeKey);
 
-        // set primary layout and slice (when loaded by bus)
-        const viewID = imageStore.getPrimaryViewID(volumeKey);
-        const volumeKeySuffix = this.volumeKeyGetSuffix(volumeKey);
-        if (volumeKeySuffix && viewID) {
-          const viewStore = useViewStore();
-          const viewSliceStore = useViewSliceStore();
-          const loadDataStore = useLoadDataStore();
-          const { layoutName, defaultSlices, slice } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-          if (layoutName === undefined) {
-            loadDataStore.setLoadedByBus(volumeKeySuffix, {
-              layoutName: viewStore.getLayoutByViewID(viewID),
-            });
-          }
-          if (slice !== undefined && (defaultSlices === undefined || defaultSlices[viewID] === undefined)) {
-            loadDataStore.setLoadedByBus(volumeKeySuffix, {
-              defaultSlices: {
-                ...(defaultSlices || {}),
-                [viewID]: slice,
-              },
-            });
-          }
-          if (loadDataStore.isLoadingByBus) {
-            setTimeout(() => {
-              // eslint-disable-next-line @typescript-eslint/no-shadow
-              const { selection, layoutName, slice, originalIndexToSortedIndex } = loadDataStore.getLoadedByBus(volumeKeySuffix);
-              if (selection && slice !== undefined) {
-                const s = originalIndexToSortedIndex?.get(slice) ?? slice;
-                viewSliceStore.updateConfig(viewID, selection, { slice: s });
-              }
-              if (layoutName) {
-                viewStore.setLayoutByName(layoutName);
-              }
-              loadDataStore.isLoadingByBus = false;
-            }, 100);
+        const loadDataStore = useLoadDataStore();
+        const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || this.volumeKeyGetSuffix(volumeKey);
+        if (volumeKeySuffix) {
+          const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          const viewID = imageStore.getPrimaryViewID(volumeKey);
+          if (viewID && !vol.layoutName) {
+            const layoutName = useViewStore().getLayoutByViewID(viewID);
+            if (layoutName) {
+              vol.layoutName = layoutName;
+            }
           }
         }
       }

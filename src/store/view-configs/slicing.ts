@@ -1,7 +1,6 @@
 import { clampValue } from '@/src/utils';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -26,20 +25,22 @@ export const defaultSliceConfig = (): SliceConfig => ({
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
   const loadDataStore = useLoadDataStore();
-  const handleConfigUpdate = useDebounceFn((viewID, dataID, config) => {
-    const volumeKeyUID = loadDataStore.imageIDToVolumeKeyUID[dataID];
-    const { layoutName, sortedIndexToOriginalIndex } = loadDataStore.getLoadedByBus(volumeKeyUID);
-    if (layoutName && layoutName.includes(viewID) || volumeKeyUID && useImageStore().getPrimaryViewID(dataID) === viewID) {
-      if (volumeKeyUID) {
-        const s = sortedIndexToOriginalIndex?.get(config.slice) ?? config.slice;
-        const emitter = loadDataStore.$bus.emitter;
-        emitter?.emit('slicing', {
-          uid: volumeKeyUID,
-          slice: s,
-        });
+  const handleConfigUpdate = ((viewID: string, dataID: string, config: any) => {
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+    if (volumeKeySuffix) {
+      const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+      if (vol?.layoutName && vol.layoutName.includes(viewID)) {
+        const slice = vol.slices[config.slice];
+        if (slice) {
+          const emitter = loadDataStore.$bus.emitter;
+          emitter?.emit('slicing', {
+            uid: volumeKeySuffix,
+            slice,
+          });
+        }
       }
     }
-  }, 1);
+  });
 
   const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
