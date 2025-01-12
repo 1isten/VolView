@@ -382,9 +382,15 @@ export const useDICOMStore = defineStore('dicom', {
           if (volumeKey in useImageStore().dataIndex) {
             // buildVolume requestor uses this as a rebuild hint
             this.needsRebuild[volumeKey] = true;
-          } else {
+          } else if (volumeKeySuffix) {
             // eager buildVolume
             await getImage(volumeKey);
+            const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+            if (!vol?.wlConfiged) {
+              loadDataStore.$bus.emitter?.emit('gotimage', {
+                imageID: volumeKey,
+              });
+            }
           }
         })
       );

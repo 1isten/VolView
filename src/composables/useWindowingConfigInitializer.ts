@@ -1,4 +1,4 @@
-import { MaybeRef, computed, unref, watch } from 'vue';
+import { MaybeRef, computed, unref, watch, onMounted, onUnmounted } from 'vue';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { watchImmediate } from '@vueuse/core';
@@ -7,6 +7,8 @@ import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
+import useLoadDataStore from '@/src/store/load-data';
+
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { isDicomImage } from '@/src/utils/dataSelection';
@@ -71,6 +73,8 @@ export function useWindowingConfigInitializer(
 ) {
   const { imageData } = useImage(imageID);
   const dicomStore = useDICOMStore();
+
+  const loadDataStore = useLoadDataStore();
 
   const store = useWindowingStore();
   const { config: windowConfig } = useWindowingConfig(viewID, imageID);
@@ -157,5 +161,36 @@ export function useWindowingConfigInitializer(
       return;
     }
     store.resetWindowLevel(viewIdVal, imageIdVal);
+  });
+
+  const useFirstTagVal = (payload: any) => {
+    const dataID = payload.imageID;
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+    const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+    if (vol && !vol.wlConfiged) {
+      const viewIdVal = unref(viewID);
+      if (viewIdVal && vol.layoutName?.includes(viewIdVal)) {
+        const volInfo = dicomStore.volumeInfo[dataID];
+        if (volInfo) {
+          const windowLevels = getWindowLevels(volInfo);
+          if (windowLevels[0]) {
+            store.updateConfig(viewIdVal, dataID, {
+              preset: {
+                width: windowLevels[0].width,
+                level: windowLevels[0].level,
+              },
+            });
+            store.resetWindowLevel(viewIdVal, dataID);
+            vol.wlConfiged = true;
+          }
+        }
+      }
+    }
+  };
+  onMounted(() => {
+    loadDataStore.$bus.emitter?.on('gotimage', useFirstTagVal);
+  });
+  onUnmounted(() => {
+    loadDataStore.$bus.emitter?.off('gotimage', useFirstTagVal);
   });
 }

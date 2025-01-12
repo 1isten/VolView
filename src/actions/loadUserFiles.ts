@@ -260,7 +260,6 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
       if (isVolumeResult(primaryDataSource)) {
         let selection = toDataSelection(primaryDataSource);
-
         if (volumeKeySuffix) {
           let dataID: string | null = null;
           let viewID: string | null = null;
@@ -317,7 +316,6 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             }
           });
         }
-
         dataStore.setPrimarySelection(selection || null);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
@@ -328,7 +326,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
       } // then must be primaryDataSource.type === 'model'
 
       if (loadDataStore.isLoadingByBus) {
-        loadDataStore.isLoadingByBus = false;
+        loadDataStore.setIsLoadingByBus(false);
       }
     }
 
@@ -423,8 +421,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                 }
                 useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 useDatasetStore().setPrimarySelection(volumeKey);
-                // eslint-disable-next-line no-return-assign
-                return (loadDataStore.isLoadingByBus = false);
+                return loadDataStore.setIsLoadingByBus(false);
               }
             }
           }
@@ -442,8 +439,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                 }
                 useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 useDatasetStore().setPrimarySelection(volumeKey);
-                // eslint-disable-next-line no-return-assign
-                return (loadDataStore.isLoadingByBus = false);
+                return loadDataStore.setIsLoadingByBus(false);
               }
             }
           }
@@ -461,16 +457,14 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                 }
                 useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 useDatasetStore().setPrimarySelection(volumeKey);
-                // eslint-disable-next-line no-return-assign
-                return (loadDataStore.isLoadingByBus = false);
+                return loadDataStore.setIsLoadingByBus(false);
               }
             }
           }
         }
-        loadDataStore.isLoadingByBus = false;
+        return loadDataStore.setIsLoadingByBus(false);
       }
-      // eslint-disable-next-line no-return-assign
-      return (loadDataStore.isLoadingByBus = true);
+      return loadDataStore.setIsLoadingByBus(true);
     };
 
     const dicomWebURL = params.dicomWebURL?.toString();

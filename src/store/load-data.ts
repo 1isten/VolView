@@ -24,6 +24,7 @@ export type LoadedByBusRecord = {
     string, // volumeKey
     {
       layoutName?: string;
+      wlConfiged?: boolean;
       slices: { n: number; i: number; }[];
     }
   >;
@@ -187,6 +188,10 @@ export const useLoadDataStore = defineStore('loadData', () => {
 
     dataIDToVolumeKeyUID,
     isLoadingByBus,
+    setIsLoadingByBus(value: boolean) {
+      isLoadingByBus.value = value;
+      return isLoadingByBus.value;
+    },
     loadedByBus,
     getLoadedByBusOptions,
     setLoadedByBusOptions,
