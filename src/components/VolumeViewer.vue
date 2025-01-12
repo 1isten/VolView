@@ -49,7 +49,7 @@
 
       <transition name="loading">
         <div v-if="isImageLoading" class="overlay-no-events loading">
-          <div>Loading the image</div>
+          <!-- <div>Loading the image</div> -->
           <div>
             <v-progress-circular indeterminate color="blue" />
           </div>

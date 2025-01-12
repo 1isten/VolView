@@ -155,7 +155,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="handleSave"
     />
     <div class="my-1 tool-separator" />
-    <v-menu location="right" :close-on-content-click="true">
+    <v-menu location="left" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
           <control-button
