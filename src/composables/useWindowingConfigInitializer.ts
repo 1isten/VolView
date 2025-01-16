@@ -188,9 +188,11 @@ export function useWindowingConfigInitializer(
     }
   };
   onMounted(() => {
-    loadDataStore.$bus.emitter?.on('gotimage', useFirstTagVal);
+    // @ts-ignore
+    (window.$bus.emitter || loadDataStore.$bus.emitter)?.on('gotimage', useFirstTagVal);
   });
   onUnmounted(() => {
-    loadDataStore.$bus.emitter?.off('gotimage', useFirstTagVal);
+    // @ts-ignore
+    (window.$bus.emitter || loadDataStore.$bus.emitter)?.off('gotimage', useFirstTagVal);
   });
 }

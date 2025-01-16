@@ -1,44 +1,15 @@
-import { inject, ref, watch, onMounted, onUnmounted } from 'vue';
-import { useUrlSearchParams, useWebSocket } from '@vueuse/core';
+import { inject, onMounted, onUnmounted } from 'vue';
+import { useUrlSearchParams } from '@vueuse/core';
 
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
   const { uid, datasetId, projectId, pipelineId, manualNodeId } = query;
-  const _wsId = `volview-${projectId || datasetId || uid || document.location.href}`;
-  const _ws = ref();
-  const ws = useWebSocket(_ws, { heartbeat: true });
-  watch(ws.data, async (data) => {
-    let message = typeof data === 'string' ? data : await data.text();
-    if (message.startsWith('{')) message = JSON.parse(message);
-    if (message?.type === 'open') {
-      return ws.send(JSON.stringify({
-        type: 'map',
-        payload: { peerUid: _wsId },
-        from: message.to,
-        to: message.from,
-      }));
-    }
-    if (message?.type === 'mapped') {
-      // ...
-    }
-    if (message?.to === _wsId) {
-      const { type, payload } = message;
-      if (type === 'load') {
-        return window.$bus.emitter.emit(type, payload);
-      }
-      if (type === 'unload') {
-        return window.$bus.emitter.emit(type);
-      }
-      if (type === 'unselect') {
-        return window.$bus.emitter.emit(type);
-      }
-    }
-    // console.log('[ws] message', message);
-    return _wsId;
-  });
+
+  const peerId = `volview-${projectId || datasetId || uid || window.btoa(document.location.href)}`;
+  const ports = Object.create(null);
 
   const emitter = inject('bus');
-  const bus = { emitter, ws: ws.ws };
+  const bus = { emitter };
 
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
@@ -51,7 +22,65 @@ export function useEventBus(handlers, loadDataStore) {
     if (handlers) {
       window.$bus = bus;
       if (window.parent === window) {
-        _ws.value = localStorage.getItem('_ws') || undefined;
+        // window['__ports__'] = ports;
+        window.addEventListener('message', (e) => {
+          if (e.source === window && e.data?.type === 'response-message-port') {
+            const { peer1, peer2 } = e.data.payload;
+            if (peerId === peer1) {
+              ports[peer2] = e.ports[0];
+              const port = ports[peer2];
+              port.onclose = () => {
+                delete ports[peer2];
+              };
+              port.onmessage = (event) => {
+                const { type, payload } = event.data;
+                switch (type) {
+                  // ...
+                  default:
+                    console.log(payload);
+                    break;
+                }
+              };
+            }
+            if (peerId === peer2) {
+              ports[peer1] = e.ports[0];
+              const port = ports[peer1];
+              port.onclose = () => {
+                delete ports[peer1];
+              };
+              port.onmessage = (event) => {
+                const { type, payload } = event.data;
+                switch (type) {
+                  case 'load': {
+                    window.$bus.emitter.emit(type, payload);
+                    break;
+                  }
+                  case 'unload': {
+                    window.$bus.emitter.emit(type);
+                    break;
+                  }
+                  case 'unselect': {
+                    window.$bus.emitter.emit(type);
+                    break;
+                  }
+                  // ...
+                  default:
+                    break;
+                }
+              };
+            }
+          }
+        })
+        while (!window.$electron) {
+          // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        if (window.$electron && projectId) {
+          window.$electron.requestMessagePort({
+            peer1: peerId.replace('volview-', 'tab-project-'),
+            peer2: peerId,
+          });
+        }
       }
     } else {
       return;
@@ -70,34 +99,40 @@ export function useEventBus(handlers, loadDataStore) {
       if (pipelineId && manualNodeId) {
         const labelmap = payload?.data?.path;
         if (labelmap) {
-          ws.send(JSON.stringify({
-            type: 'create-segmentation',
+          const msg = {
+            type: 'created-segmentation',
             payload: {
               pipelineId,
               manualNodeId,
               oid: uid,
               labelmap,
             },
-            from: _wsId,
-            to: `comfyui-${pipelineId}`,
-          }));
+          };
+          const port = ports[`comfyui-${pipelineId}`];
+          if (port) {
+            port.postMessage(msg);
+          } else if (window.parent !== window) {
+            window.parent.postMessage(msg, '*');
+          }
         }
       }
     };
     onslicing = payload => {
-      ws.send(JSON.stringify({
-        type: 'slicing',
-        payload,
-        from: _wsId,
-        to: _wsId.replace('volview-', 'tab-project-'),
-      }));
+      const port = ports[peerId.replace('volview-', 'tab-project-')];
+      if (port) {
+        port.postMessage({
+          type: 'slicing',
+          payload,
+        });
+      }
     };
     onclose = () => {
-      ws.send(JSON.stringify({
-        type: 'close',
-        from: _wsId,
-        to: _wsId.replace('volview-', 'tab-project-'),
-      }));
+      const port = ports[peerId.replace('volview-', 'tab-project-')];
+      if (port) {
+        port.postMessage({
+          type: 'close',
+        });
+      }
     };
     emitter.on('savesegmentation', onsavesegmentation);
     emitter.on('slicing', onslicing);
@@ -109,11 +144,7 @@ export function useEventBus(handlers, loadDataStore) {
     }
 
     if (window.parent !== window) {
-      window.addEventListener('message', e => {
-        if (!_ws.value && `${e.data}`.endsWith('/_ws')) {
-          _ws.value = e.data;
-        }
-      });
+      // window.addEventListener('message', e => // ...
       window.parent.postMessage('volview:LOAD', '*');
     } else {
       console.log('[volview]', 'mounted!');

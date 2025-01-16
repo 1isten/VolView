@@ -175,8 +175,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
     return loadedByBus.value[volumeKeyUID].options;
   };
   const $bus = {
-    emitter: null as any,
-    ws: null as any,
+    emitter: null as any
   };
 
   return {
@@ -195,9 +194,8 @@ export const useLoadDataStore = defineStore('loadData', () => {
     loadedByBus,
     getLoadedByBusOptions,
     setLoadedByBusOptions,
-    loadBus: (emitter?: any, ws?: any) => {
+    loadBus: (emitter?: any) => {
       $bus.emitter = emitter || null;
-      $bus.ws = ws || null;
     },
     $bus,
   };
