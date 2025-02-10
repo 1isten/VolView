@@ -81,6 +81,10 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import {
+  populateAuthorizationToken,
+  stripTokenFromUrl,
+} from '@/src/utils/token';
 
 export default defineComponent({
   name: 'App',
@@ -174,6 +178,9 @@ export default defineComponent({
     // --- parse URL -- //
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/ec780211-db457dfe-ca89dfa0-aae410f6-e5938432.zip]&uid=ec780211-db457dfe-ca89dfa0-aae410f6-e5938432&i=0
+
+    populateAuthorizationToken();
+    stripTokenFromUrl();
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
     const query = useUrlSearchParams();
