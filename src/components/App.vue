@@ -81,7 +81,6 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
-import { useEventBus } from '@/src/composables/useEventBus';
 
 export default defineComponent({
   name: 'App',
@@ -130,6 +129,7 @@ export default defineComponent({
     */
 
     const dataStore = useDatasetStore();
+    // eslint-disable-next-line no-undef
     const { emitter } = useEventBus(({
       onload(payload: LoadEvent) {
         const { urlParams, ...options } = payload;
