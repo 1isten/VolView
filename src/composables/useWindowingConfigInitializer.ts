@@ -1,4 +1,4 @@
-import { MaybeRef, computed, unref, watch, onMounted, onUnmounted } from 'vue';
+import { MaybeRef, computed, unref, watch } from 'vue';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { watchImmediate } from '@vueuse/core';
@@ -71,10 +71,10 @@ export function useWindowingConfigInitializer(
   viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>
 ) {
+  const loadDataStore = useLoadDataStore();
+
   const { imageData } = useImage(imageID);
   const dicomStore = useDICOMStore();
-
-  const loadDataStore = useLoadDataStore();
 
   const store = useWindowingStore();
   const { config: windowConfig } = useWindowingConfig(viewID, imageID);
@@ -110,6 +110,25 @@ export function useWindowingConfigInitializer(
     const imageIdVal = unref(imageID);
     const config = unref(windowConfig);
     const viewIdVal = unref(viewID);
+
+    if (config && image && imageIdVal && viewIdVal) {
+      const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageIdVal];
+      const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageIdVal];
+      if (vol && !vol.wlConfiged && vol.layoutName?.includes(viewIdVal)) {
+        const firstTagVal = unref(firstTag);
+        if (firstTagVal?.width) {
+          store.updateConfig(viewIdVal, imageIdVal, {
+            preset: {
+              width: firstTagVal.width,
+              level: firstTagVal.level,
+            },
+          });
+          store.resetWindowLevel(viewIdVal, imageIdVal);
+          vol.wlConfiged = true;
+        }
+      }
+    }
+
     if (imageIdVal == null || config != null || !image) {
       return;
     }
@@ -161,38 +180,5 @@ export function useWindowingConfigInitializer(
       return;
     }
     store.resetWindowLevel(viewIdVal, imageIdVal);
-  });
-
-  const useFirstTagVal = (payload: any) => {
-    const dataID = payload.imageID;
-    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
-    const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
-    if (vol && !vol.wlConfiged) {
-      const viewIdVal = unref(viewID);
-      if (viewIdVal && vol.layoutName?.includes(viewIdVal)) {
-        const volInfo = dicomStore.volumeInfo[dataID];
-        if (volInfo) {
-          const windowLevels = getWindowLevels(volInfo);
-          if (windowLevels[0]) {
-            store.updateConfig(viewIdVal, dataID, {
-              preset: {
-                width: windowLevels[0].width,
-                level: windowLevels[0].level,
-              },
-            });
-            store.resetWindowLevel(viewIdVal, dataID);
-            vol.wlConfiged = true;
-          }
-        }
-      }
-    }
-  };
-  onMounted(() => {
-    // @ts-ignore
-    (window.$bus.emitter || loadDataStore.$bus.emitter)?.on('gotimage', useFirstTagVal);
-  });
-  onUnmounted(() => {
-    // @ts-ignore
-    (window.$bus.emitter || loadDataStore.$bus.emitter)?.off('gotimage', useFirstTagVal);
   });
 }
