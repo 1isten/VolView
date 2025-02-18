@@ -40,7 +40,7 @@
 <script lang="ts">
 import { Component, defineComponent, ref, watch } from 'vue';
 
-// import DataBrowser from './DataBrowser.vue';
+import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 import { useToolStore } from '../store/tools';
@@ -53,11 +53,11 @@ interface Module {
 }
 
 const Modules: Module[] = [
-  // {
-  //   name: 'Data',
-  //   icon: 'database',
-  //   component: DataBrowser,
-  // },
+  {
+    name: 'Data',
+    icon: 'database',
+    component: DataBrowser,
+  },
   {
     name: 'Annotations',
     icon: 'pencil',
@@ -91,9 +91,8 @@ export default defineComponent({
     watch(
       () => toolStore.currentTool,
       (newTool) => {
-        if (autoSwitchToAnnotationsTools.includes(newTool)) {
-          selectedModuleIndex.value = Modules.findIndex(({ name}) => name === 'Annotations');
-        }
+        if (autoSwitchToAnnotationsTools.includes(newTool))
+          selectedModuleIndex.value = 1;
       }
     );
 
