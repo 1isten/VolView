@@ -63,6 +63,11 @@ export function useEventBus(handlers, loadDataStore) {
           type: 'slicing',
           payload,
         });
+      } else if (window.parent !== window) {
+        window.parent.postMessage({
+          type: 'volview:slicing',
+          payload,
+        }, '*');
       }
     };
     onclose = () => {
@@ -71,6 +76,10 @@ export function useEventBus(handlers, loadDataStore) {
         port.postMessage({
           type: 'close',
         });
+      } else if (window.parent !== window) {
+        window.parent.postMessage({
+          type: 'volview:close',
+        }, '*');
       }
     };
     emitter.on('savesegmentation', onsavesegmentation);
@@ -83,8 +92,34 @@ export function useEventBus(handlers, loadDataStore) {
     }
 
     if (window.parent !== window) {
-      // window.addEventListener('message', e => // ...
       window.parent.postMessage('volview:LOAD', '*');
+      window.addEventListener('message', (e) => {
+        if (e.source !== window && e.data?.type) {
+          if (e.data.type.startsWith('volview:')) {
+            const type = e.data.type.slice('volview:'.length);
+            if (type) {
+              const payload = e.data.payload;
+              switch (type) {
+                case 'load': {
+                  window.$bus.emitter.emit(type, payload);
+                  break;
+                }
+                case 'unload': {
+                  window.$bus.emitter.emit(type);
+                  break;
+                }
+                case 'unselect': {
+                  window.$bus.emitter.emit(type);
+                  break;
+                }
+                // ...
+                default:
+                  break;
+              }
+            }
+          }
+        }
+      });
     } else {
       // window['__ports__'] = ports;
       window.addEventListener('message', (e) => {

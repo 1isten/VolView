@@ -6,7 +6,7 @@ export function useGlobalErrorHook() {
   const messageStore = useMessageStore();
 
   const onError = (event: ErrorEvent) => {
-    console.error(event);
+    if (window.self !== window.top) console.error(event);
     const errorMessage = event.message ?? 'Unknown global error';
 
     captureException(event.error ?? errorMessage);
