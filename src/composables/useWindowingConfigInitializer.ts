@@ -113,7 +113,7 @@ export function useWindowingConfigInitializer(
 
     if (config && image && imageIdVal && viewIdVal) {
       const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageIdVal];
-      const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageIdVal];
+      const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageIdVal];
       if (vol && !vol.wlConfiged && vol.layoutName?.includes(viewIdVal)) {
         const firstTagVal = unref(firstTag);
         if (firstTagVal?.width) {
