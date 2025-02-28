@@ -524,4 +524,4 @@ export const CATEGORICAL_COLORS = [
   [228, 114, 126],
   [89, 38, 119],
   [105, 47, 61],
-];
+] as const;
