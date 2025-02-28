@@ -24,7 +24,7 @@ export type LoadedByBusRecord = {
     string, // volumeKey
     {
       layoutName?: string;
-      wlConfiged?: boolean;
+      wlConfiged?: Record<string, any>;
       slices: { n: number; i: number; }[];
     }
   >;
