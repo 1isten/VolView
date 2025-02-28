@@ -20,7 +20,7 @@
         </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar"></controls-strip>
+            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
@@ -90,6 +90,8 @@ import {
   stripTokenFromUrl,
 } from '@/src/utils/token';
 
+import { useEventBus } from '@/src/composables/useEventBus';
+
 export default defineComponent({
   name: 'App',
 
@@ -135,7 +137,58 @@ export default defineComponent({
         // wait until we get a real name, but if we never do, show default name
         (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
       ) {
-        document.title = `${newMetadata.name} - VolView`;
+        // document.title = `${newMetadata.name} - VolView`;
+      }
+    });
+
+    // --- event handling --- //
+    /*
+    $bus.emitter.emit('load', {
+      urlParams: { urls: ['./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip'], names: ['archive.zip'] },
+      uid: '8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3',
+      n: 1,
+    });
+    */
+
+    const dataStore = useDatasetStore();
+    const { emitter } = useEventBus(({
+      onload(payload: LoadEvent) {
+        const { urlParams, ...options } = payload;
+
+        if (!urlParams || !urlParams.urls) {
+          return;
+        }
+
+        // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
+        const volumeKeyUID = options.volumeKeyUID || options.uid;
+        if (volumeKeyUID) {
+          if (!('volumeKeySuffix' in options)) options.volumeKeySuffix = volumeKeyUID;
+          delete options.uid;
+        }
+
+        loadUrls(payload.urlParams, options);
+      },
+      onunload() {
+        // remove all data loaded by event bus
+        Object.keys(loadDataStore.dataIDToVolumeKeyUID).forEach(dataID => {
+          dataStore.remove(dataID);
+        });
+      },
+      onunselect() {
+        dataStore.setPrimarySelection(null);
+      },
+    } as unknown as EventHandlers), loadDataStore);
+
+    const { primarySelection } = storeToRefs(dataStore);
+    watch(primarySelection, async (volumeKey) => {
+      if (volumeKey) {
+        const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
+        if (volumeKeySuffix) {
+          const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          if (vol.layoutName) {
+            useViewStore().setLayoutByName(vol.layoutName);
+          }
+        }
       }
     });
 
@@ -205,8 +258,16 @@ export default defineComponent({
     }, { immediate: !display.mobile.value });
 
     return {
+      emitter,
+      closeApp: () => {
+        emitter.emit('unselect');
+        setTimeout(() => {
+          emitter.emit('close');
+        }, 100);
+      },
       temporaryDrawer,
       leftSideBar,
+
       loadUserPromptedFiles,
       loadFiles,
       hasData,

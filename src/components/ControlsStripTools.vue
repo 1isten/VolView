@@ -202,6 +202,17 @@ export default defineComponent({
       };
     });
 
+    onMounted(() => {
+      if (props.defaultTool) {
+        const tool = props.defaultTool as Tools;
+        if (tool in Tools) {
+          setTimeout(() => {
+            toolStore.setCurrentTool(tool);
+          }, 100);
+        }
+      }
+    });
+
     return {
       currentTool,
       setCurrentTool: toolStore.setCurrentTool,
