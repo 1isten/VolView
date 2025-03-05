@@ -78,10 +78,10 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   cvr: {
     enabled: true,
     lightFollowsCamera: true,
-    volumeQuality: 2,
+    volumeQuality: 1,
     useVolumetricScatteringBlending: false,
     volumetricScatteringBlending: 0.5,
-    useLocalAmbientOcclusion: true,
+    useLocalAmbientOcclusion: false,
     laoKernelRadius: 5,
     laoKernelSize: 15,
     ambient: DEFAULT_AMBIENT,
