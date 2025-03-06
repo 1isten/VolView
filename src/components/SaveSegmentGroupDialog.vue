@@ -56,7 +56,7 @@ const EXTENSIONS = [
   'mha',
   'vtk',
   'iwi.cbor',
-];
+].slice(1, 4);
 
 const props = defineProps<{
   id: string;
