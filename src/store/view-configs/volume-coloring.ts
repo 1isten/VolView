@@ -46,17 +46,17 @@ function getPresetFromImageModality(imageID: string) {
  * @param preset
  * @returns
  */
-function getColorAndOpacityFuncsFromPreset(preset: string) {
+function getColorAndOpacityFuncsFromPreset(preset: string, viewID?: string) {
   const ctFunc: Partial<ColorTransferFunction> = {
     preset,
   };
 
-  const ctRange = getColorFunctionRangeFromPreset(preset);
+  const ctRange = getColorFunctionRangeFromPreset(preset, viewID);
   if (ctRange) {
     ctFunc.mappingRange = ctRange;
   }
 
-  const opFunc = getOpacityFunctionFromPreset(preset);
+  const opFunc = getOpacityFunctionFromPreset(preset, viewID);
 
   return { colorFunc: ctFunc, opacityFunc: opFunc };
 }
@@ -145,7 +145,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
 
     const imageDataRange = image.getPointData().getScalars().getRange();
     const { colorFunc, opacityFunc } =
-      getColorAndOpacityFuncsFromPreset(preset);
+      getColorAndOpacityFuncsFromPreset(preset, viewID);
     colorFunc.mappingRange ||= imageDataRange;
     opacityFunc.mappingRange = imageDataRange;
 

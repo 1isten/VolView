@@ -67,6 +67,18 @@ export default defineComponent({
         currentImageID.value,
         name
       );
+      [
+        InitViewIDs.Axial,
+        InitViewIDs.Sagittal,
+        InitViewIDs.Coronal,
+      ].forEach(TARGET_VIEW_ID_2D => {
+        if (!currentImageID.value) return;
+        volumeColoringStore.setColorPreset(
+          TARGET_VIEW_ID_2D,
+          currentImageID.value,
+          name
+        );
+      });
     };
 
     const rgbPoints = computed(
