@@ -138,7 +138,7 @@ export default defineComponent({
         // wait until we get a real name, but if we never do, show default name
         (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
       ) {
-        prefix = `${newMetadata.name} -`;
+        prefix = `${newMetadata.name} - ` && prefix;
       }
       document.title = `${prefix}VolView`;
     });
