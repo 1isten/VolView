@@ -2,20 +2,25 @@
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
-        <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
+        <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
           app
           clipped
           touchless
-          width="450"
+          width="350"
           id="left-nav"
+          location="end"
+          mobile-breakpoint="0"
+          disable-resize-watcher
+          disable-route-watcher
+          :temporary="temporaryDrawer"
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData"></controls-strip>
+            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
@@ -51,10 +56,11 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams, watchOnce } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
-import useLoadDataStore from '@/src/store/load-data';
+import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
+import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
@@ -84,6 +90,8 @@ import {
   stripTokenFromUrl,
 } from '@/src/utils/token';
 
+import { useEventBus } from '@/src/composables/useEventBus';
+
 export default defineComponent({
   name: 'App',
 
@@ -110,6 +118,7 @@ export default defineComponent({
     const loadDataStore = useLoadDataStore();
     const hasData = computed(
       () =>
+        loadDataStore.isLoadingByBus ? false :
         imageStore.idList.length > 0 ||
         Object.keys(dicomStore.volumeInfo).length > 0
     );
@@ -117,7 +126,7 @@ export default defineComponent({
     // since the welcome screen shouldn't be visible when
     // a dataset is opened.
     const showLoading = computed(
-      () => loadDataStore.isLoading || hasData.value
+      () => loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
     );
 
     const { currentImageMetadata, isImageLoading } = useCurrentImage();
@@ -134,15 +143,82 @@ export default defineComponent({
       document.title = `${prefix}VolView`;
     });
 
+    // --- event handling --- //
+    /*
+    $bus.emitter.emit('load', {
+      urlParams: { urls: ['./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip'], names: ['archive.zip'] },
+      uid: '8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3',
+      n: 1,
+    });
+    */
+
+    const dataStore = useDatasetStore();
+    const { emitter } = useEventBus(({
+      onload(payload: LoadEvent) {
+        const { urlParams, ...options } = payload;
+
+        if (!urlParams || !urlParams.urls) {
+          return;
+        }
+
+        // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
+        const volumeKeyUID = options.volumeKeyUID || options.uid;
+        if (volumeKeyUID) {
+          if (!('volumeKeySuffix' in options)) options.volumeKeySuffix = volumeKeyUID;
+          delete options.uid;
+        }
+
+        loadUrls(payload.urlParams, options);
+      },
+      onunload() {
+        // remove all data loaded by event bus
+        Object.keys(loadDataStore.dataIDToVolumeKeyUID).forEach(dataID => {
+          dataStore.remove(dataID);
+        });
+      },
+      onunselect() {
+        dataStore.setPrimarySelection(null);
+      },
+    } as unknown as EventHandlers), loadDataStore);
+
+    const { primarySelection } = storeToRefs(dataStore);
+    watch(primarySelection, async (volumeKey) => {
+      if (volumeKey) {
+        const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
+        if (volumeKeySuffix) {
+          const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          if (vol.layoutName) {
+            useViewStore().setLayoutByName(vol.layoutName);
+          }
+        }
+      }
+    });
+
     // --- parse URL -- //
+    // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
+    // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/ec780211-db457dfe-ca89dfa0-aae410f6-e5938432.zip]&uid=ec780211-db457dfe-ca89dfa0-aae410f6-e5938432&i=0
 
     populateAuthorizationToken();
     stripTokenFromUrl();
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+    const query = useUrlSearchParams();
 
     onMounted(() => {
       if (!urlParams.urls) {
+        return;
+      }
+
+      const volumeKeyUID = urlParams.volumeKeyUID || urlParams.uid;
+      if (volumeKeyUID) {
+        const options = JSON.parse(JSON.stringify({
+          volumeKeySuffix: volumeKeyUID as string,
+          v: urlParams.v,
+          s: urlParams.s ?? undefined,
+          n: urlParams.n ?? undefined,
+          i: urlParams.i ?? undefined,
+        }));
+        loadUrls(urlParams, options);
         return;
       }
 
@@ -173,8 +249,27 @@ export default defineComponent({
 
     const display = useDisplay();
 
+    const permanentDrawer = computed(() => query.drawer === 'permanent');
+    const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
+    const leftSideBar = ref(false);
+
+    watchOnce(display.mobile, (isMobile) => {
+      if (!isMobile && !leftSideBar.value) {
+        leftSideBar.value = !temporaryDrawer.value;
+      }
+    }, { immediate: !display.mobile.value });
+
     return {
-      leftSideBar: ref(!display.mobile.value),
+      emitter,
+      closeApp: () => {
+        emitter.emit('unselect');
+        setTimeout(() => {
+          emitter.emit('close');
+        }, 100);
+      },
+      temporaryDrawer,
+      leftSideBar,
+
       loadUserPromptedFiles,
       loadFiles,
       hasData,
@@ -227,5 +322,6 @@ export default defineComponent({
   border-radius: 8px;
   box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.4);
   padding: 64px;
+  visibility: hidden;
 }
 </style>

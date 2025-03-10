@@ -165,7 +165,7 @@ export default defineConfig({
         {
           src: resolvePath(
             resolveNodeModulePath('@itk-wasm/image-io'),
-            'dist/pipelines/*{.wasm,.js,.zst}'
+            'dist/pipelines/{bmp,jpeg,meta,nifti,nrrd,png,tiff,vtk,wasm}*{.wasm,.js,.zst}'
           ),
           dest: 'itk/image-io',
         },
@@ -204,7 +204,7 @@ export default defineConfig({
     configureSentryPlugin(),
   ],
   server: {
-    port: 8080,
+    port: 8043,
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
       '/tmp': config.baseUrl!,

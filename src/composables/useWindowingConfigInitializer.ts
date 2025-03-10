@@ -7,6 +7,8 @@ import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
+import useLoadDataStore from '@/src/store/load-data';
+
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { isDicomImage } from '@/src/utils/dataSelection';
@@ -69,6 +71,8 @@ export function useWindowingConfigInitializer(
   viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>
 ) {
+  const loadDataStore = useLoadDataStore();
+
   const { imageData } = useImage(imageID);
   const dicomStore = useDICOMStore();
 
@@ -106,6 +110,25 @@ export function useWindowingConfigInitializer(
     const imageIdVal = unref(imageID);
     const config = unref(windowConfig);
     const viewIdVal = unref(viewID);
+
+    if (config && image && imageIdVal && viewIdVal) {
+      const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageIdVal];
+      const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageIdVal];
+      if (vol && !vol.wlConfiged?.[viewIdVal]) {
+        const firstTagVal = unref(firstTag);
+        if (firstTagVal?.width) {
+          store.updateConfig(viewIdVal, imageIdVal, {
+            preset: {
+              width: firstTagVal.width,
+              level: firstTagVal.level,
+            },
+          });
+          store.resetWindowLevel(viewIdVal, imageIdVal);
+          vol.wlConfiged = { ...(vol.wlConfiged || {}), [viewIdVal]: JSON.stringify(firstTagVal) };
+        }
+      }
+    }
+
     if (imageIdVal == null || config != null || !image) {
       return;
     }

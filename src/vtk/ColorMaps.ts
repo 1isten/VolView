@@ -16,6 +16,23 @@ const twoHotOpaque = {
 };
 vtkColorMaps.addPreset(twoHotOpaque);
 
+export const heatmapPresetRGBPoints = [
+  [0.0, 0, 0.0, 0.0],
+  [0.1, 0, 0.2, 1.0],
+  [0.4, 0.5, 1, 1.0],
+  [0.5, 1.0, 0.5, 0],
+  [0.6, 1.0, 0, 0.0],
+  [1.0, 1.0, 1, 0.0],
+];
+
+const heatmap = {
+  ...vtkColorMaps.getPresetByName('Cold and Hot'),
+  Name: 'Heatmap',
+  OpacityPoints: [0, 1],
+  RGBPoints: heatmapPresetRGBPoints.flat(),
+};
+vtkColorMaps.addPreset(heatmap);
+
 /* prettier-ignore */
 const GroupedPresets = [
   {
@@ -66,6 +83,12 @@ const GroupedPresets = [
       'US-Fetal',
     ],
   },
+  {
+    group: 'Others',
+    presets: [
+      heatmap.Name,
+    ],
+  }
 ];
 
 export const PresetNameList = GroupedPresets.flatMap((group) => group.presets);

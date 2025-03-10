@@ -126,7 +126,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import { computed, defineComponent, ref, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { onKeyDown } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
@@ -158,7 +158,12 @@ export default defineComponent({
     PolygonControls,
     WindowLevelControls,
   },
-  setup() {
+  props: {
+    defaultTool: {
+      type: String,
+    },
+  },
+  setup(props) {
     const dataStore = useDatasetStore();
     const toolStore = useToolStore();
     const viewStore = useViewStore();
@@ -195,6 +200,17 @@ export default defineComponent({
         Ruler: keyMap.ruler,
         Crop: keyMap.crop,
       };
+    });
+
+    onMounted(() => {
+      if (props.defaultTool) {
+        const tool = props.defaultTool as Tools;
+        if (tool in Tools) {
+          setTimeout(() => {
+            toolStore.setCurrentTool(tool);
+          }, 100);
+        }
+      }
     });
 
     return {

@@ -37,6 +37,24 @@ export const useImageStore = defineStore('images', {
     metadata: Object.create(null),
   }),
   actions: {
+    getPrimaryViewID(volumeKey: string) {
+      const imageID = volumeKey;
+      const lpsOrientation = this.metadata[imageID]?.lpsOrientation;
+      if (lpsOrientation) {
+        const { Axial, Sagittal, Coronal } = lpsOrientation;
+        let viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D' = 'Axial';
+        if (Axial === 2) {
+          viewID = 'Axial';
+        } else if (Sagittal === 2) {
+          viewID = 'Sagittal';
+        } else if (Coronal === 2) {
+          viewID = 'Coronal';
+        }
+        return viewID;
+      }
+      return null;
+    },
+
     addVTKImageData(name: string, imageData: vtkImageData, useId?: string) {
       if (useId && useId in this.dataIndex) {
         throw new Error('ID already exists');

@@ -5,11 +5,14 @@ import {
   DataSource,
   getDataSourceName,
 } from '@/src/io/import/dataSource';
-import useLoadDataStore from '@/src/store/load-data';
+import { useLoadDataStore, type LoadEventOptions } from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useViewStore } from '@/src/store/views';
+import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { wrapInArray, nonNullable } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -27,6 +30,10 @@ import {
   isLoadableResult,
   isVolumeResult,
 } from '@/src/io/import/common';
+import {
+  fetchSeries,
+  fetchInstance,
+} from '@/src/core/dicom-web-api';
 
 // higher value priority is preferred for picking a primary selection
 const BASE_MODALITY_TYPES = {
@@ -230,14 +237,14 @@ function loadSegmentations(
   });
 }
 
-function loadDataSources(sources: DataSource[]) {
+function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
   const load = async () => {
     const loadDataStore = useLoadDataStore();
     const dataStore = useDatasetStore();
 
     let results: ImportDataSourcesResult[];
     try {
-      results = await importDataSources(sources);
+      results = await importDataSources(sources, volumeKeySuffix);
     } catch (error) {
       loadDataStore.setError(error as Error);
       return;
@@ -245,15 +252,71 @@ function loadDataSources(sources: DataSource[]) {
 
     const [succeeded, errored] = partitionResults(results);
 
-    if (!dataStore.primarySelection && succeeded.length) {
+    if (!dataStore.primarySelection || succeeded.length) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
         loadDataStore.segmentGroupExtension
       );
 
       if (isVolumeResult(primaryDataSource)) {
-        const selection = toDataSelection(primaryDataSource);
-        dataStore.setPrimarySelection(selection);
+        let selection = toDataSelection(primaryDataSource);
+        if (volumeKeySuffix) {
+          let dataID: string | null = null;
+          let viewID: string | null = null;
+          let s = -1;
+
+          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
+
+          if (typeof options.s === 'number') {
+            const vol = volumes[selection];
+            if (vol?.layoutName) {
+              useViewStore().setLayoutByName(vol.layoutName);
+              s = options.s;
+              if (s !== -1) {
+                dataID = selection;
+                viewID = useImageStore().getPrimaryViewID(dataID);
+              }
+            }
+          } else if (typeof options.n === 'number') {
+            selection = '';
+            // eslint-disable-next-line no-restricted-syntax
+            for (const volumeKey of Object.keys(volumes)) {
+              const vol = volumes[volumeKey];
+              if (vol?.layoutName) {
+                useViewStore().setLayoutByName(vol.layoutName);
+                s = vol.slices.findIndex(({ n }) => n === options.n);
+                if (s !== -1) {
+                  selection = volumeKey;
+                  dataID = volumeKey;
+                  viewID = useImageStore().getPrimaryViewID(volumeKey);
+                  break;
+                }
+              }
+            }
+          } else if (typeof options.i === 'number') {
+            selection = '';
+            // eslint-disable-next-line no-restricted-syntax
+            for (const volumeKey of Object.keys(volumes)) {
+              const vol = volumes[volumeKey];
+              if (vol?.layoutName) {
+                useViewStore().setLayoutByName(vol.layoutName);
+                s = vol.slices.findIndex(({ i }) => i === options.i);
+                if (s !== -1) {
+                  selection = volumeKey;
+                  dataID = volumeKey;
+                  viewID = useImageStore().getPrimaryViewID(volumeKey);
+                  break;
+                }
+              }
+            }
+          }
+          requestAnimationFrame(() => {
+            if (viewID && dataID && s !== -1) {
+              useViewSliceStore().updateConfig(viewID, dataID, { slice: s });
+            }
+          });
+        }
+        dataStore.setPrimarySelection(selection || null);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
           primaryDataSource,
@@ -261,6 +324,10 @@ function loadDataSources(sources: DataSource[]) {
           loadDataStore.segmentGroupExtension
         );
       } // then must be primaryDataSource.type === 'model'
+
+      if (loadDataStore.isLoadingByBus) {
+        loadDataStore.setIsLoadingByBus(false);
+      }
     }
 
     if (errored.length) {
@@ -310,9 +377,9 @@ export function openFileDialog() {
   });
 }
 
-export async function loadFiles(files: File[]) {
+export async function loadFiles(files: File[], volumeKeySuffix?: string) {
   const dataSources = files.map(fileToDataSource);
-  return loadDataSources(dataSources);
+  return loadDataSources(dataSources, volumeKeySuffix);
 }
 
 export async function loadUserPromptedFiles() {
@@ -320,7 +387,7 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-export async function loadUrls(params: UrlParams) {
+export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
   const sources = urls.map((url, idx) =>
@@ -331,6 +398,117 @@ export async function loadUrls(params: UrlParams) {
         url
     )
   );
+
+  // intercept load event from bus emitter
+  if (options && options.volumeKeySuffix) {
+    const loadDataStore = useLoadDataStore();
+    const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
+
+    const beforeLoadByBus = () => {
+      const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
+      if (volumeKeys?.length && volumes) {
+        if (typeof options.s === 'number') {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const s = options.s;
+            if (vol?.slices[options.s]) {
+              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              if (viewID) {
+                if (vol?.layoutName) {
+                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
+                  // useViewStore().setLayoutByName(vol.layoutName);
+                }
+                useDatasetStore().setPrimarySelection(volumeKey);
+                requestAnimationFrame(() => {
+                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                });
+                return loadDataStore.setIsLoadingByBus(false);
+              }
+            }
+          }
+        } else if (typeof options.n === 'number') {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const s = vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
+            if (s !== -1) {
+              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              if (viewID) {
+                if (vol?.layoutName) {
+                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
+                  // useViewStore().setLayoutByName(vol.layoutName);
+                }
+                useDatasetStore().setPrimarySelection(volumeKey);
+                requestAnimationFrame(() => {
+                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                });
+                return loadDataStore.setIsLoadingByBus(false);
+              }
+            }
+          }
+        } else if (typeof options.i === 'number') {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const s = vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
+            if (s !== -1) {
+              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              if (viewID) {
+                if (vol?.layoutName) {
+                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
+                  // useViewStore().setLayoutByName(vol.layoutName);
+                }
+                useDatasetStore().setPrimarySelection(volumeKey);
+                requestAnimationFrame(() => {
+                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
+                });
+                return loadDataStore.setIsLoadingByBus(false);
+              }
+            }
+          }
+        }
+        return loadDataStore.setIsLoadingByBus(false);
+      }
+      return loadDataStore.setIsLoadingByBus(true);
+    };
+
+    const dicomWebURL = params.dicomWebURL?.toString();
+    if (dicomWebURL) {
+      const dicomWebFiles: File[] = [];
+      const studyInstanceUID = params.studyInstanceUID?.toString();
+      const seriesInstanceUID = params.seriesInstanceUID?.toString();
+      const sopInstanceUID = params.sopInstanceUID?.toString();
+      if (studyInstanceUID && seriesInstanceUID) {
+        if (sopInstanceUID) {
+          try {
+            const file = await fetchInstance(dicomWebURL, {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+            });
+            dicomWebFiles.push(file);
+          } catch (error) {
+            console.error(error);
+          }
+        } else {
+          try {
+            const files = await fetchSeries(dicomWebURL, {
+              studyInstanceUID,
+              seriesInstanceUID,
+            }, ({ loaded, total }: ProgressEvent) => {
+              console.info(`fetching series ${loaded} of ${total}`);
+            });
+            dicomWebFiles.push(...files);
+          } catch (error) {
+            console.error(error);
+          }
+        }
+      }
+      return beforeLoadByBus() && loadFiles(dicomWebFiles, volumeKeySuffix);
+    }
+    return beforeLoadByBus() && loadDataSources(sources, volumeKeySuffix);
+  }
 
   return loadDataSources(sources);
 }

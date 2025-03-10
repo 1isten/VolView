@@ -7,7 +7,7 @@
       <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
         <v-text-field
           v-model="fileName"
-          hint="Filename that will appear in downloads."
+          :hint="saveToRemote ? 'Filename to save.' : 'Filename that will appear in downloads.'"
           label="Filename"
           :rules="[validFileName]"
           required
@@ -18,6 +18,7 @@
           label="Format"
           v-model="fileFormat"
           :items="EXTENSIONS"
+          :readonly="saveToRemote"
         ></v-select>
       </v-form>
     </v-card-text>
@@ -37,12 +38,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { writeImage } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
+import { useLoadDataStore } from '@/src/store/load-data';
 
 const EXTENSIONS = [
   'nrrd',
@@ -54,7 +56,7 @@ const EXTENSIONS = [
   'mha',
   'vtk',
   'iwi.cbor',
-];
+].slice(1, 4);
 
 const props = defineProps<{
   id: string;
@@ -66,7 +68,9 @@ const fileName = ref('');
 const valid = ref(true);
 const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
+const saveToRemote = computed(() => fileFormat.value === 'nii.gz' || fileFormat.value === 'nii');
 
+const loadDataStore = useLoadDataStore();
 const segmentGroupStore = useSegmentGroupStore();
 
 async function saveSegmentGroup() {
@@ -78,6 +82,27 @@ async function saveSegmentGroup() {
   await useErrorMessage('Failed to save segment group', async () => {
     const image = segmentGroupStore.dataIndex[props.id];
     const serialized = await writeImage(fileFormat.value, image);
+    if (saveToRemote.value) {
+      const formData = new FormData();
+      const fileContent = new Blob([serialized], { type: 'application/vnd.unknown.nifti-1' });
+      formData.append('fileContent', fileContent);
+      formData.set('fileName', fileName.value);
+      formData.set('fileExtension', fileFormat.value);
+      formData.set('oid', 'test-oid');
+      formData.set('pipelineId', 'test-pipeline-id');
+      formData.set('projectId', 'test-project-id');
+      formData.set('datasetId', 'test-dataset-id');
+      const res = await fetch('connect://localhost/api/volview/create-segmentation', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        console.log(data);
+        const emitter = loadDataStore.$bus.emitter;
+        emitter?.emit('savesegmentation', data);
+      } else {
+        console.error(res.status, res.statusText);
+      }
+      return;
+    }
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
   });
   saving.value = false;
@@ -87,6 +112,7 @@ async function saveSegmentGroup() {
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
   fileName.value = segmentGroupStore.metadataByID[props.id].name;
+  fileFormat.value = 'nii.gz';
 });
 
 onKeyDown('Enter', () => {
