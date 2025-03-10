@@ -132,14 +132,18 @@ export default defineComponent({
     const { currentImageMetadata, isImageLoading } = useCurrentImage();
     const defaultImageMetadataName = defaultImageMetadata().name;
     watch(currentImageMetadata, (newMetadata) => {
+      let prefix = '';
       if (
         newMetadata?.name &&
         // wait until we get a real name, but if we never do, show default name
         (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
       ) {
-        // document.title = `${newMetadata.name} - VolView`;
+        prefix = `${newMetadata.name} -`;
       }
+      document.title = `${prefix}VolView`;
     });
+
+    // ---
 
     // --- event handling --- //
     /*
