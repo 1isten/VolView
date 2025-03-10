@@ -143,8 +143,6 @@ export default defineComponent({
       document.title = `${prefix}VolView`;
     });
 
-    // ---
-
     // --- event handling --- //
     /*
     $bus.emitter.emit('load', {
