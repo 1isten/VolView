@@ -188,7 +188,7 @@ export default defineComponent({
         if (volumeKeySuffix) {
           const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
           if (vol.layoutName) {
-            useViewStore().setLayoutByName(vol.layoutName);
+            // useViewStore().setLayoutByName(vol.layoutName);
           }
         }
       }

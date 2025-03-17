@@ -11,7 +11,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useViewStore } from '@/src/store/views';
+// import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { wrapInArray, nonNullable } from '@/src/utils';
 import { basename } from '@/src/utils/path';
@@ -270,7 +270,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           if (typeof options.s === 'number') {
             const vol = volumes[selection];
             if (vol?.layoutName) {
-              useViewStore().setLayoutByName(vol.layoutName);
+              // useViewStore().setLayoutByName(vol.layoutName);
               s = options.s;
               if (s !== -1) {
                 dataID = selection;
@@ -283,7 +283,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol?.layoutName) {
-                useViewStore().setLayoutByName(vol.layoutName);
+                // useViewStore().setLayoutByName(vol.layoutName);
                 s = vol.slices.findIndex(({ n }) => n === options.n);
                 if (s !== -1) {
                   selection = volumeKey;
@@ -299,7 +299,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol?.layoutName) {
-                useViewStore().setLayoutByName(vol.layoutName);
+                // useViewStore().setLayoutByName(vol.layoutName);
                 s = vol.slices.findIndex(({ i }) => i === options.i);
                 if (s !== -1) {
                   selection = volumeKey;
@@ -416,7 +416,6 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
               const viewID = useImageStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 if (vol?.layoutName) {
-                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
                   // useViewStore().setLayoutByName(vol.layoutName);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -436,7 +435,6 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
               const viewID = useImageStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 if (vol?.layoutName) {
-                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
                   // useViewStore().setLayoutByName(vol.layoutName);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -456,7 +454,6 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
               const viewID = useImageStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 if (vol?.layoutName) {
-                  // console.log('cache hit!', volumeKey, vol.layoutName, s);
                   // useViewStore().setLayoutByName(vol.layoutName);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
