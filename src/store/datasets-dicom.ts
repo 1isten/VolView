@@ -1,4 +1,5 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import { arrayRange } from '@kitware/vtk.js/Common/Core/Math';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
@@ -283,6 +284,8 @@ export const useDICOMStore = defineStore('dicom', {
           }
           if ('dicomParser' in window) {
             const filesInOrder = [];
+            const windowLevels = [];
+            const windowWidths = [];
             for (let s = 0; s < files.length; s++) {
               const file = files[s];
               // eslint-disable-next-line no-await-in-loop
@@ -290,16 +293,32 @@ export const useDICOMStore = defineStore('dicom', {
               const byteArray = new Uint8Array(arrayBuffer);
               // @ts-ignore
               const dataSet = window.dicomParser.parseDicom(byteArray);
-              const instanceNumber: string = dataSet.string('x00200013');
+              const InstanceNumber: string = dataSet.string('x00200013');
+              const WindowLevel: string = dataSet.string('x00281050');
+              const WindowWidth: string = dataSet.string('x00281051');
               // can get more tags here if needed...
-              filesInOrder.push({ file, n: parseInt(instanceNumber || '0', 10) });
+              filesInOrder.push({ file, n: parseInt(InstanceNumber || '0', 10) });
+              const [wl] = getWindowLevels({ WindowLevel, WindowWidth });
+              if (wl) {
+                windowLevels.push(wl.level);
+                windowWidths.push(wl.width);
+              }
             }
             filesInOrder.sort((a, b) => a.n - b.n);
             for (let s = 0; s < files.length; s++) {
               const i = filesInOrder.findIndex(({ file }) => file === files[s]);
               const n = filesInOrder[i].n;
-              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices.push({ n, i });
+              const width = windowWidths[i];
+              const level = windowLevels[i];
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices.push({
+                width,
+                level,
+                n,
+                i,
+              });
             }
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlDiffers = Math.max(...windowLevels) !== Math.min(...windowLevels) || Math.max(...windowWidths) !== Math.min(...windowWidths);
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfiged = false;
           }
           loadDataStore.dataIDToVolumeKeyUID[volumeKey] = volumeKeySuffix;
         }
@@ -378,7 +397,41 @@ export const useDICOMStore = defineStore('dicom', {
             this.needsRebuild[volumeKey] = true;
           } else if (volumeKeySuffix) {
             // eager buildVolume
-            await getImage(volumeKey);
+            const volume = await getImage(volumeKey);
+            const dataRange = volume?.getPointData().getScalars().getRange();
+            for (let i = 0; i < loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices.length; i++) {
+              const s = i + 1;
+              const sliceInfo = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices[i];
+              if (dataRange) {
+                const [min, max] = dataRange;
+                sliceInfo.min = min;
+                sliceInfo.max = max;
+              } else {
+                try {
+                  if (
+                    loadDataStore.loadedByBus[volumeKeySuffix].options?.i !== undefined
+                    ? i === loadDataStore.loadedByBus[volumeKeySuffix].options.i
+                    : i === 0
+                  ) {
+                    // eslint-disable-next-line no-await-in-loop
+                    const image = await this.getVolumeSlice(volumeKey, s);
+                    // @ts-ignore
+                    const [min, max] = arrayRange(image.data, 0, 1);
+                    sliceInfo.min = min;
+                    sliceInfo.max = max;
+                  } else {
+                    this.getVolumeSlice(volumeKey, s).then(image => {
+                      // @ts-ignore
+                      const [min, max] = arrayRange(image.data, 0, 1);
+                      sliceInfo.min = min;
+                      sliceInfo.max = max;
+                    });
+                  }
+                } catch (err) {
+                  console.error(err);
+                }
+              }
+            }
           }
         })
       );

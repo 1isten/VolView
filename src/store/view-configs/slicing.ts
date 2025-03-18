@@ -13,6 +13,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
+import { useWindowingStore } from './windowing';
 import { useImageStore } from '../datasets-images';
 import { useLoadDataStore } from '../load-data';
 
@@ -25,14 +26,28 @@ export const defaultSliceConfig = (): SliceConfig => ({
 });
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
+  const windowingStore = useWindowingStore();
   const loadDataStore = useLoadDataStore();
   const handleConfigUpdate = useDebounceFn((viewID: string, dataID: string, config: any) => {
     const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
     if (volumeKeySuffix) {
       const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
       if (vol?.layoutName && vol.layoutName.includes(viewID)) {
-        const slice = vol.slices[config.slice];
-        if (slice) {
+        const sliceInfo = vol.slices[config.slice];
+        if (sliceInfo) {
+          const { width, level, min, max, ...slice } = sliceInfo;
+          if (vol.wlDiffers && !vol.wlConfiged) {
+            try {
+              windowingStore.updateConfig(viewID, dataID, {
+                width,
+                level,
+                min,
+                max,
+              });
+            } catch (err) {
+              console.warn(err);
+            }
+          }
           const emitter = loadDataStore.$bus.emitter;
           emitter?.emit('slicing', {
             uid: volumeKeySuffix,
@@ -41,7 +56,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         }
       }
     }
-  }, 1);
+  }, 10);
 
   const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
