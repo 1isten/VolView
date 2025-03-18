@@ -36,7 +36,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         const sliceInfo = vol.slices[config.slice];
         if (sliceInfo) {
           const { width, level, min, max, ...slice } = sliceInfo;
-          if (vol.wlDiffers && !vol.wlConfiged) {
+          if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
             try {
               windowingStore.updateConfig(viewID, dataID, {
                 width,
@@ -56,7 +56,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         }
       }
     }
-  }, 10);
+  }, 0);
 
   const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});

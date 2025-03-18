@@ -11,7 +11,9 @@ import vtkMouseRangeManipulator, {
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { syncRef } from '@vueuse/core';
-import { inject, toRefs, computed } from 'vue';
+import { inject, toRefs, unref, computed } from 'vue';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useLoadDataStore } from '@/src/store/load-data';
 
 interface Props {
   viewId: string;
@@ -45,6 +47,7 @@ const { instance: rangeManipulator } = useVtkInteractionManipulator(
   vtkMouseRangeManipulator,
   config
 );
+const wlToolEnabled = computed(() => config.value.button !== -1);
 
 const wlConfig = useWindowingConfig(viewId, imageId);
 useWindowingConfigInitializer(viewId, imageId);
@@ -72,6 +75,46 @@ const vert = useMouseRangeManipulatorListener(
 
 syncRef(horiz, wlConfig.level, { immediate: true });
 syncRef(vert, wlConfig.width, { immediate: true });
+
+function handleUserMouseInteraction() {
+  const imageID = unref(imageId);
+  const viewID = unref(viewId);
+  if (imageID && viewID) {
+    const loadDataStore = useLoadDataStore();
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
+    const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID];
+    if (vol) {
+      vol.wlConfigedByUser = true;
+    }
+  }
+}
+let mouseDown = false;
+let mouseMoved = false;
+onVTKEvent(view.interactor, 'onLeftButtonPress', () => {
+  if (!wlToolEnabled.value) {
+    return;
+  }
+  mouseDown = true;
+  mouseMoved = false;
+});
+onVTKEvent(view.interactor, 'onMouseMove', () => {
+  if (!wlToolEnabled.value) {
+    return;
+  }
+  if (mouseDown) {
+    mouseMoved = true;
+  }
+});
+onVTKEvent(view.interactor, 'onLeftButtonRelease', () => {
+  if (!wlToolEnabled.value) {
+    return;
+  }
+  mouseDown = false;
+  if (mouseMoved) {
+    handleUserMouseInteraction();
+  }
+  mouseMoved = false;
+});
 </script>
 
 <template><slot></slot></template>

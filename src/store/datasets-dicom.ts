@@ -318,7 +318,8 @@ export const useDICOMStore = defineStore('dicom', {
               });
             }
             loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlDiffers = Math.max(...windowLevels) !== Math.min(...windowLevels) || Math.max(...windowWidths) !== Math.min(...windowWidths);
-            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfiged = false;
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfiged = {};
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfigedByUser = false;
           }
           loadDataStore.dataIDToVolumeKeyUID[volumeKey] = volumeKeySuffix;
         }

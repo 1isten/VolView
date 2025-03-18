@@ -114,7 +114,7 @@ export function useWindowingConfigInitializer(
     if (config && image && imageIdVal && viewIdVal) {
       const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageIdVal];
       const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageIdVal];
-      if (vol && !vol.wlConfiged && vol.slices.findIndex(sliceInfo => sliceInfo.width !== undefined && sliceInfo.level !== undefined) === -1) {
+      if (vol && !vol.wlConfiged?.[viewIdVal] && !vol.wlConfigedByUser) {
         const firstTagVal = unref(firstTag);
         if (firstTagVal?.width) {
           store.updateConfig(viewIdVal, imageIdVal, {
@@ -124,6 +124,7 @@ export function useWindowingConfigInitializer(
             },
           });
           store.resetWindowLevel(viewIdVal, imageIdVal);
+          vol.wlConfiged = { ...(vol.wlConfiged || {}), [viewIdVal]: JSON.stringify(firstTagVal) };
         }
       }
     }

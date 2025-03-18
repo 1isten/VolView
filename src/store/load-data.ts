@@ -33,7 +33,8 @@ export type LoadedByBusRecord = {
         i: number;
       }[];
       wlDiffers?: boolean;
-      wlConfiged?: boolean;
+      wlConfiged?: Record<string, any>;
+      wlConfigedByUser?: boolean;
     }
   >;
   volumeKeys: string[]; // ordered volumes

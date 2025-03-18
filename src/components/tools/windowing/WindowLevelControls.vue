@@ -7,11 +7,13 @@ import useWindowingStore, {
 import { useViewStore } from '@/src/store/views';
 import { WLAutoRanges, WLPresetsCT, WL_AUTO_DEFAULT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { isDicomImage } from '@/src/utils/dataSelection';
 
 export default defineComponent({
   setup() {
     const { currentImageID } = useCurrentImage();
+    const loadDataStore = useLoadDataStore();
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
@@ -87,6 +89,13 @@ export default defineComponent({
         // All views will be synchronized, just set the first
         const viewID = viewIDs.value[0];
         if (imageID && viewID) {
+          const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
+          const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID];
+          if (vol) {
+            // eslint-disable-next-line no-use-before-define
+            const usefirstTag = selection === tags.value?.[0];
+            vol.wlConfigedByUser = !usefirstTag;
+          }
           const useAuto = typeof selection !== 'object';
           const newValue = {
             preset: useAuto ? wlDefaults.value : selection,
