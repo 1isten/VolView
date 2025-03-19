@@ -13,6 +13,7 @@ import { StateFile } from '../io/state-file/schema';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { useLayersStore } from './datasets-layers';
 import { useModelStore } from './datasets-models';
+import { useLoadDataStore } from './load-data';
 
 export const DataType = {
   Image: 'Image',
@@ -25,6 +26,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   const fileStore = useFileStore();
   const layersStore = useLayersStore();
   const modelStore = useModelStore();
+  const loadDataStore = useLoadDataStore();
 
   // --- state --- //
 
@@ -83,6 +85,8 @@ export const useDatasetStore = defineStore('dataset', () => {
 
     fileStore.remove(id);
     layersStore.remove(id);
+
+    loadDataStore.removeLoadedByBus(id);
   };
 
   const removeAll = () => {

@@ -167,6 +167,9 @@ export const useLoadDataStore = defineStore('loadData', () => {
 
   const segmentGroupExtension = ref('');
 
+  const $bus = {
+    emitter: null as any
+  };
   const dataIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
   const loadedByBus = shallowRef<LoadedByBus>(Object.create(null));
   const isLoadingByBus = ref(false);
@@ -183,9 +186,6 @@ export const useLoadDataStore = defineStore('loadData', () => {
     loadedByBus.value[volumeKeyUID].options = options;
     return loadedByBus.value[volumeKeyUID].options;
   };
-  const $bus = {
-    emitter: null as any
-  };
 
   return {
     segmentGroupExtension,
@@ -194,15 +194,24 @@ export const useLoadDataStore = defineStore('loadData', () => {
     stopLoading,
     setError,
 
-    dataIDToVolumeKeyUID,
-    isLoadingByBus,
+    getLoadedByBusOptions,
+    setLoadedByBusOptions,
     setIsLoadingByBus(value: boolean) {
       isLoadingByBus.value = value;
       return isLoadingByBus.value;
     },
+    isLoadingByBus,
     loadedByBus,
-    getLoadedByBusOptions,
-    setLoadedByBusOptions,
+    dataIDToVolumeKeyUID,
+    removeLoadedByBus: (id: string | null) => {
+      if (id && id in dataIDToVolumeKeyUID.value) {
+        const volumeKeyUID = dataIDToVolumeKeyUID.value[id];
+        delete dataIDToVolumeKeyUID.value[id];
+        if (volumeKeyUID in loadedByBus.value) {
+          delete loadedByBus.value[volumeKeyUID];
+        }
+      }
+    },
     loadBus: (emitter?: any) => {
       $bus.emitter = emitter || null;
     },

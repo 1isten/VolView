@@ -152,7 +152,7 @@ export default defineComponent({
     });
     */
 
-    const dataStore = useDatasetStore();
+    const datasetStore = useDatasetStore();
     const { emitter } = useEventBus(({
       onload(payload: LoadEvent) {
         const { urlParams, ...options } = payload;
@@ -171,17 +171,14 @@ export default defineComponent({
         loadUrls(payload.urlParams, options);
       },
       onunload() {
-        // remove all data loaded by event bus
-        Object.keys(loadDataStore.dataIDToVolumeKeyUID).forEach(dataID => {
-          dataStore.remove(dataID);
-        });
+        datasetStore.removeAll();
       },
       onunselect() {
-        dataStore.setPrimarySelection(null);
+        datasetStore.setPrimarySelection(null);
       },
     } as unknown as EventHandlers), loadDataStore);
 
-    const { primarySelection } = storeToRefs(dataStore);
+    const { primarySelection } = storeToRefs(datasetStore);
     watch(primarySelection, async (volumeKey) => {
       if (volumeKey) {
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
