@@ -118,7 +118,7 @@ export default defineComponent({
     const loadDataStore = useLoadDataStore();
     const hasData = computed(
       () =>
-        loadDataStore.isLoadingByBus ? false :
+        loadDataStore.isBusUnselected || loadDataStore.isLoadingByBus ? false :
         imageStore.idList.length > 0 ||
         Object.keys(dicomStore.volumeInfo).length > 0
     );
@@ -154,6 +154,10 @@ export default defineComponent({
 
     const datasetStore = useDatasetStore();
     const { emitter } = useEventBus(({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      onloading(payload?: any) {
+        loadDataStore.setIsLoadingByBus(true);
+      },
       onload(payload: LoadEvent) {
         const { urlParams, ...options } = payload;
 
@@ -175,6 +179,7 @@ export default defineComponent({
       },
       onunselect() {
         datasetStore.setPrimarySelection(null);
+        loadDataStore.isBusUnselected = true;
       },
     } as unknown as EventHandlers), loadDataStore);
 

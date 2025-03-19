@@ -173,6 +173,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
   const dataIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
   const loadedByBus = shallowRef<LoadedByBus>(Object.create(null));
   const isLoadingByBus = ref(false);
+  const isBusUnselected = ref(false);
   const getLoadedByBusOptions = (volumeKeyUID?: string) => volumeKeyUID && loadedByBus.value[volumeKeyUID]?.options || {};
   const setLoadedByBusOptions = (volumeKeyUID: string | undefined, options: LoadEventOptions) => {
     if (!volumeKeyUID) {
@@ -198,9 +199,13 @@ export const useLoadDataStore = defineStore('loadData', () => {
     setLoadedByBusOptions,
     setIsLoadingByBus(value: boolean) {
       isLoadingByBus.value = value;
+      if (!isLoadingByBus.value && isBusUnselected.value) {
+        isBusUnselected.value = false;
+      }
       return isLoadingByBus.value;
     },
     isLoadingByBus,
+    isBusUnselected,
     loadedByBus,
     dataIDToVolumeKeyUID,
     removeLoadedByBus: (id: string | null) => {

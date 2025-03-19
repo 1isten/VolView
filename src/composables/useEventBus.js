@@ -11,6 +11,7 @@ export function useEventBus(handlers, loadDataStore) {
   const emitter = inject('bus');
   const bus = { emitter };
 
+  const onloading = handlers?.onloading;
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
   const onunselect = handlers?.onunselect;
@@ -25,6 +26,9 @@ export function useEventBus(handlers, loadDataStore) {
       return;
     }
 
+    if (onloading) {
+      emitter.on('loading', onloading);
+    }
     if (onload) {
       emitter.on('load', onload);
     }
@@ -100,6 +104,10 @@ export function useEventBus(handlers, loadDataStore) {
             if (type) {
               const payload = e.data.payload;
               switch (type) {
+                case 'loading': {
+                  window.$bus.emitter.emit(type, payload);
+                  break;
+                }
                 case 'load': {
                   window.$bus.emitter.emit(type, payload);
                   break;
@@ -150,6 +158,10 @@ export function useEventBus(handlers, loadDataStore) {
             port.onmessage = (event) => {
               const { type, payload } = event.data;
               switch (type) {
+                case 'loading': {
+                  window.$bus.emitter.emit(type, payload);
+                  break;
+                }
                 case 'load': {
                   window.$bus.emitter.emit(type, payload);
                   break;
@@ -190,6 +202,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     delete window.$bus;
 
+    if (onloading) {
+      emitter.off('loading', onloading);
+    }
     if (onload) {
       emitter.off('load', onload);
     }
