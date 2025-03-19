@@ -70,6 +70,11 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           ></vtk-slice-view-slicing-manipulator>
+          <vtk-slice-view-slicing-key-manipulator
+            :view-id="id"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          ></vtk-slice-view-slicing-key-manipulator>
           <vtk-slice-view-window-manipulator
             :view-id="id"
             :image-id="currentImageID"
@@ -80,6 +85,7 @@
             :image-id="currentImageID"
           ></slice-viewer-overlay>
           <vtk-base-slice-representation
+            ref="baseSliceRep"
             :view-id="id"
             :image-id="currentImageID"
             :axis="viewAxis"
@@ -90,11 +96,13 @@
             :view-id="id"
             :segmentation-id="segId"
             :axis="viewAxis"
+            ref="segSliceReps"
           ></vtk-segmentation-slice-representation>
           <template v-if="currentImageID">
             <vtk-layer-slice-representation
               v-for="layer in currentLayers"
               :key="`layer-${layer.id}`"
+              ref="layerSliceReps"
               :view-id="id"
               :layer-id="layer.id"
               :parent-id="currentImageID"
@@ -131,6 +139,11 @@
           <svg class="overlay-no-events">
             <bounding-rectangle :points="selectionPoints" />
           </svg>
+          <scalar-probe
+            :base-rep="baseSliceRep"
+            :layer-reps="layerSliceReps"
+            :segment-groups-reps="segSliceReps"
+          ></scalar-probe>
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -168,6 +181,7 @@ import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
 import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
+import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
@@ -179,6 +193,7 @@ import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
+import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceViewSlicingKeyManipulator.vue';
 import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
@@ -191,6 +206,9 @@ interface Props extends LayoutViewProps {
 }
 
 const vtkView = ref<VtkViewApi>();
+const baseSliceRep = ref();
+const layerSliceReps = ref([]);
+const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
 
@@ -232,7 +250,6 @@ whenever(
   }
 );
 
-// segmentations
 const segmentations = computed(() => {
   if (!currentImageID.value) return [];
   const store = useSegmentGroupStore();
