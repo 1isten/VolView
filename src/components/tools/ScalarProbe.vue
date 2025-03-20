@@ -36,7 +36,9 @@ const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
 const getBaseSlice = () => {
-  if (!currentImageData.value || !currentImageID.value) return null;
+  if (!currentImageData.value || !currentImageID.value || !baseRep.value) {
+    return null;
+  }
   return {
     type: 'layer',
     id: currentImageID.value,
@@ -95,7 +97,7 @@ watch(
   sampleSet,
   (samples) => {
     pointPicker.setPickList(
-      samples.length > 0 && samples[0] && samples[0].rep ? [samples[0].rep.actor] : []
+      samples.length > 0 && samples[0] ? [samples[0].rep.actor] : []
     );
   },
   { immediate: true }
