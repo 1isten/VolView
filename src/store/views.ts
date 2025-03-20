@@ -63,6 +63,9 @@ export const useViewStore = defineStore('view', {
         } else if (this.prevLayoutName && Layouts[this.prevLayoutName]) {
           this.setLayout(Layouts[this.prevLayoutName]);
           this.prevLayoutName = '';
+        } else if (layoutName.includes(' Only') && Layouts['Quad View']) {
+          this.prevLayoutName = layoutName;
+          this.setLayout(Layouts['Quad View']);
         }
       }
       return layoutName;
