@@ -83,6 +83,10 @@
           <slice-viewer-overlay
             :view-id="id"
             :image-id="currentImageID"
+            :current-image-data="currentImageData"
+            :slice-rep="baseSliceRep"
+            :slice-mode="sliceMode"
+            :hover="hover"
           ></slice-viewer-overlay>
           <vtk-base-slice-representation
             ref="baseSliceRep"
@@ -197,6 +201,7 @@ import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceView
 import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { whenever } from '@vueuse/core';
 
@@ -236,12 +241,22 @@ const windowingManipulatorProps = computed(() =>
 );
 
 // base image
-const { currentImageID, currentLayers, currentImageMetadata, isImageLoading } =
+const { currentImageID, currentLayers, currentImageMetadata, currentImageData, isImageLoading } =
   useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
+
+const sliceMode = computed(() => {
+  if (currentImageMetadata.value) {
+    const { lpsOrientation } = currentImageMetadata.value;
+    const ijkIndex = lpsOrientation[viewAxis.value];
+    const mode = [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkIndex];
+    return ['I', 'J', 'K'][mode] as 'I' | 'J' | 'K';
+  }
+  return undefined;
+});
 
 whenever(
   computed(() => !isImageLoading.value),
