@@ -10,6 +10,7 @@ import {
 } from '../io/state-file/schema';
 
 interface State {
+  prevLayoutName?: string;
   layout: Layout;
   viewSpecs: Record<string, ViewSpec>;
   activeViewID: string;
@@ -17,6 +18,7 @@ interface State {
 
 export const useViewStore = defineStore('view', {
   state: (): State => ({
+    prevLayoutName: undefined,
     layout: {
       direction: LayoutDirection.V,
       items: [],
@@ -54,7 +56,15 @@ export const useViewStore = defineStore('view', {
     },
     setLayoutByName(layoutName: string) {
       const layout = Layouts[layoutName];
-      if (layout) this.setLayout(layout);
+      if (layout) {
+        if (this.layout.name !== layoutName) {
+          this.prevLayoutName = this.layout.name;
+          this.setLayout(layout);
+        } else if (this.prevLayoutName && Layouts[this.prevLayoutName]) {
+          this.setLayout(Layouts[this.prevLayoutName]);
+          this.prevLayoutName = '';
+        }
+      }
       return layoutName;
     },
     setLayout(layout: Layout) {

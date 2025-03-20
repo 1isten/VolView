@@ -14,6 +14,7 @@
           :type="item.viewType"
           v-bind="item.props"
           @focus="onFocusView(item.id!, item.viewType!)"
+          @dblclick="onDblClick(item.id!, item.viewType!)"
         />
       </div>
     </div>
@@ -33,6 +34,16 @@ export default defineComponent({
     onFocusView(id: string, type: string) {
       if (type === '2D') {
         useViewStore().setActiveViewID(id);
+      }
+    },
+    onDblClick(id: string, type: string) {
+      if (type &&
+        id === 'Axial' ||
+        id === 'Sagittal' ||
+        id === 'Coronal' ||
+        id === '3D'
+      ) {
+        useViewStore().setLayoutByViewID(id);
       }
     },
   },
