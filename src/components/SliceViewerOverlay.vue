@@ -19,13 +19,13 @@ interface Props {
   viewId: string;
   imageId: Maybe<string>;
   currentImageData: vtkImageData | null;
-  sliceRep: ReturnType<typeof useSliceRepresentation>;
-  sliceMode?: 'I' | 'J' | 'K';
+  baseRep: ReturnType<typeof useSliceRepresentation>;
+  slicingMode?: 'I' | 'J' | 'K';
   hover: boolean;
 }
 
 const props = defineProps<Props>();
-const { viewId, imageId, currentImageData, sliceRep, sliceMode, hover } = toRefs(props);
+const { viewId, imageId, currentImageData, baseRep: sliceRep, slicingMode, hover } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -57,7 +57,7 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
   if (!hover.value) {
     return;
   }
-  if (!sliceMode?.value) {
+  if (!slicingMode?.value) {
     return;
   }
   if (!currentImageData.value || !sliceRep.value) {
@@ -70,7 +70,7 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
   const ijk = currentImageData.value.worldToIndex([xyz[0], xyz[1], xyz[2]]);
   const val = (probeStore.probeData?.samples || []).find(sample => sample.id === imageId.value)?.displayValues.map(v => typeof v === 'number' ? shortenNumber(v) : v).join(', ') || 0;
 
-  switch (sliceMode.value) {
+  switch (slicingMode.value) {
     case 'I': {
       const [, j, k] = ijk;
       pointValue.value = {

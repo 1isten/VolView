@@ -84,8 +84,8 @@
             :view-id="id"
             :image-id="currentImageID"
             :current-image-data="currentImageData"
-            :slice-rep="baseSliceRep"
-            :slice-mode="sliceMode"
+            :base-rep="baseSliceRep"
+            :slicing-mode="currentSlicingMode"
             :hover="hover"
           ></slice-viewer-overlay>
           <vtk-base-slice-representation
@@ -248,7 +248,7 @@ const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   currentImageID
 );
 
-const sliceMode = computed(() => {
+const currentSlicingMode = computed(() => {
   if (currentImageMetadata.value) {
     const { lpsOrientation } = currentImageMetadata.value;
     const ijkIndex = lpsOrientation[viewAxis.value];
