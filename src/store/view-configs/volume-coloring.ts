@@ -1,3 +1,4 @@
+import { useUrlSearchParams } from '@vueuse/core';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import {
@@ -7,7 +8,7 @@ import {
 import { DEFAULT_PRESET_BY_MODALITY, DEFAULT_PRESET } from '@/src/config';
 import { ColorTransferFunction } from '@/src/types/views';
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
+import { reactive, computed } from 'vue';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -23,6 +24,9 @@ import { VolumeColorConfig } from './types';
 import { useDICOMStore } from '../datasets-dicom';
 import { useImageStore } from '../datasets-images';
 
+const query = useUrlSearchParams();
+const useHeatmap = computed(() => query.heatmap === 'on' || query.heatmap === 'true' || query.heatmap === '1');
+
 export const DEFAULT_AMBIENT = 0.2;
 export const DEFAULT_DIFFUSE = 0.7;
 export const DEFAULT_SPECULAR = 0.3;
@@ -30,6 +34,9 @@ export const DEFAULT_EDGE_GRADIENT = 0.2;
 export const DEFAULT_SAMPLING_DISTANCE = 0.2;
 
 function getPresetFromImageModality(imageID: string) {
+  if (useHeatmap.value) {
+    return 'Heatmap';
+  }
   const dicomStore = useDICOMStore();
   if (isDicomImage(imageID)) {
     const volKey = imageID;
