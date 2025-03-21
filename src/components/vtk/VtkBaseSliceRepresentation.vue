@@ -70,12 +70,12 @@ const applyBaseColoring = () => {
   const config = coloringConfig.value;
   if (!config) return;
 
-  const isHeatmap = config.transferFunction.preset === 'Heatmap';
+  const useHeatmap = config.transferFunction.preset === 'Heatmap';
 
   const cfun = vtkColorTransferFunction.newInstance();
   const ofun = vtkPiecewiseFunction.newInstance();
-  sliceRep.property.setRGBTransferFunction(0, isHeatmap ? cfun : null);
-  sliceRep.property.setScalarOpacity(0, isHeatmap ? ofun : null);
+  sliceRep.property.setRGBTransferFunction(0, useHeatmap ? cfun : null);
+  sliceRep.property.setScalarOpacity(0, useHeatmap ? ofun : null);
   // sliceRep.property.setUseLookupTableScalarRange(false);
 
   applyColoring({
