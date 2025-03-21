@@ -11,18 +11,29 @@ export function getROIStats(segmentGroupData, parentImageData, metadata, viewID,
   }
 
   const a = getNdArrayData(parentImageData, metadata, viewID, slicingMode, slice);
-  const b = getNdArrayData(segmentGroupData, metadata, viewID, slicingMode, slice);
-  const c = a && a.selection && b && b.selection ? nj.multiply(a, b) : null;
-  if (!c) {
+  let b = getNdArrayData(segmentGroupData, metadata, viewID, slicingMode, slice);
+  if (b) {
+    const min = nj.min(b);
+    const max = nj.max(b);
+    if (min < 0 || max > 1) {  
+      b = nj.divide(nj.subtract(b, min), max - min);
+    }
+  } else {
+    return null;
+  }
+  let c = a && a.selection && b && b.selection ? nj.multiply(a, b) : null;
+  if (c) {
+    c = c.flatten().tolist().filter(v => v !== 0);
+  } else {
     return null;
   }
 
   const min = nj.min(c);
   const max = nj.max(c);
-  const mean = nj.sum(c) / nj.sum(b); // const mean = nj.mean(c);
+  const mean = nj.mean(c); // const mean = nj.sum(c) / nj.sum(b);
   const std = nj.std(c);
 
-  const data = Array.from(c.flatten().selection.data);
+  const data = c;
   const stat = jStat(data);
   const median = stat.median();
   const skewness = stat.skewness();

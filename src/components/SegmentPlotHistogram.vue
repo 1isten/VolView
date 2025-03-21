@@ -40,33 +40,31 @@ onMounted(() => {
 // Create histogram with normal distribution fit
 function createHistogramWithNormalFit(stats) {
   const data = stats.data;
-  const std = stats.std;
-  const mean = stats.mean || 0;
-  const skewness = stats.skewness || 0;
-  const kurtosis = stats.kurtosis || 0;
-  const similarity = stats.similarity;
+  const { mean, std, similarity, skewness, kurtosis } = stats;
 
   // Create points for normal distribution curve
   const normalX = [];
   const normalY = [];
   const min = stats.min - 2 * std;
   const max = stats.max + 2 * std;
-  const step = Math.max(1, (max - min) / 100);
+  const step = (max - min) / 100;
 
+  if (step === 0) {
+    return;
+  }
   for (let x = min; x <= max; x += step) {
     normalX.push(x);
     // Normal distribution formula: f(x) = (1 / (std * sqrt(2 * pi))) * e^(-(x - mean)^2 / (2 * std^2))
-    const normalPdf = (1 / (std * Math.sqrt(2 * Math.PI))) *
-      Math.exp(-(Math.pow(x - mean, 2) / (2 * Math.pow(std, 2))));
+    const normalPdf = (1 / (std * Math.sqrt(2 * Math.PI))) * Math.exp(-(Math.pow(x - mean, 2) / (2 * Math.pow(std, 2))));
     normalY.push(normalPdf);
   }
 
-  // Create histogram trace
+  // Create histogram trace - no name property for legend removal
   const histogramTrace = {
     x: data,
     type: 'histogram',
     histnorm: 'probability density',
-    name: 'Histogram',
+    showlegend: false,  // Hide from legend
     marker: {
       color: 'rgba(52, 152, 219, 0.7)',  // Blue color with transparency
       line: {
@@ -77,20 +75,20 @@ function createHistogramWithNormalFit(stats) {
     nbinsx: 30
   };
 
-  // Create normal distribution fit trace
+  // Create normal distribution fit trace - no name property for legend removal
   const normalFitTrace = {
     x: normalX,
     y: normalY,
     type: 'scatter',
     mode: 'lines',
-    name: 'Normal Distribution Fit',
+    showlegend: false,  // Hide from legend
     line: {
       color: 'rgba(231, 76, 60, 0.9)',  // Red color
       width: 2
     }
   };
 
-  // Create normality assessment text
+  // Choose normality color
   let normalityColor;
   switch (similarity) {
     case 'Excellent': normalityColor = 'rgba(46, 204, 113, 0.9)'; break; // Green
@@ -100,60 +98,42 @@ function createHistogramWithNormalFit(stats) {
     default: normalityColor = 'rgba(149, 165, 166, 0.9)'; // Gray
   }
 
-  // Maximum value for y-axis (used for vertical lines)
-  const yMax = Math.max(...normalY);
-
-  // Set layout with dark theme
+  // Set layout with dark theme - simplified but keeping the normality box
   const layout = {
-    // title: {
-    //   text: 'ROI Histogram',
-    //   font: {
-    //     color: '#e0e0e0'
-    //   }
-    // },
     paper_bgcolor: '#1e2030',  // Background color of the chart paper
     plot_bgcolor: '#1e2030',   // Background color of the plotting area
     xaxis: {
-      title: {
-        text: 'Intensity Value',
-        font: {
-          color: '#e0e0e0'
-        }
-      },
       range: [stats.min - std, stats.max + std],
       color: '#e0e0e0',         // Axis color
-      gridcolor: '#2c2e3e'      // Grid line color
+      gridcolor: '#2c2e3e',     // Grid line color
+      showticklabels: true
     },
     yaxis: {
-      title: {
-        text: 'Probability Density',
-        font: {
-          color: '#e0e0e0'
-        }
-      },
       color: '#e0e0e0',         // Axis color
-      gridcolor: '#2c2e3e'      // Grid line color
+      gridcolor: '#2c2e3e',     // Grid line color
+      showticklabels: true
     },
     bargap: 0.05,
-    legend: {
-      x: 0.74,
-      y: 1,
-      font: {
-        color: '#e0e0e0'
-      },
-      bgcolor: 'rgba(30, 32, 48, 0.7)'  // Semi-transparent dark background
+    // No legend configuration as we're removing the legend
+    margin: {
+      t: 30,  // Top margin
+      l: 50,  // Left margin
+      r: 20,  // Right margin
+      b: 40   // Bottom margin
     },
+    autosize: true,
+    showlegend: false,  // Hide the legend completely
     annotations: [
-      // Normality Assessment box with requested format
+      // Keep normality assessment box
       {
         x: 0.02,  // Position at left side
         y: 0.98,  // Position near top
         xref: 'paper',
         yref: 'paper',
-        text: `Normality: ${similarity}<br>Skewness: ${skewness.toFixed(3)}<br>Kurtosis: ${kurtosis.toFixed(3)}`,
+        text: `${similarity}<br>Skewness: ${skewness.toFixed(2)}<br>Kurtosis: ${kurtosis.toFixed(2)}`, // Normality
         showarrow: false,
         font: {
-          size: 12,
+          size: 10,
           color: 'white'
         },
         align: 'left',
@@ -161,116 +141,22 @@ function createHistogramWithNormalFit(stats) {
         bordercolor: 'rgba(0,0,0,0.3)',
         borderwidth: 1,
         borderpad: 4,
-        width: 170
-      },
-      // Mean label
-      {
-        x: mean,
-        y: 0.98,
-        xref: 'x',
-        yref: 'paper',
-        text: `Mean: ${mean.toFixed(2)}`,
-        showarrow: false,
-        font: {
-          size: 11,
-          color: '#3498db'  // Light blue
-        },
-        bgcolor: 'rgba(30, 32, 48, 0.8)',
-        bordercolor: 'rgba(52, 152, 219, 0.5)',
-        borderpad: 2
-      },
-      // Median label
-      {
-        x: stats.median,
-        y: 0.91,  // Position slightly below the mean label
-        xref: 'x',
-        yref: 'paper',
-        text: `Median: ${stats.median.toFixed(2)}`,
-        showarrow: false,
-        font: {
-          size: 11,
-          color: '#e0e0e0'  // Light gray
-        },
-        bgcolor: 'rgba(30, 32, 48, 0.8)',
-        bordercolor: 'rgba(224, 224, 224, 0.5)',
-        borderpad: 2
+        width: 90
       }
-    ],
-    shapes: [
-      // Standard deviation line (left)
-      {
-        type: 'line',
-        x0: mean - std,
-        y0: 0,
-        x1: mean - std,
-        y1: yMax,
-        line: {
-          color: 'rgba(231, 76, 60, 0.6)',  // Red with transparency
-          width: 2,
-          dash: 'dot'
-        }
-      },
-      // Standard deviation line (right)
-      {
-        type: 'line',
-        x0: mean + std,
-        y0: 0,
-        x1: mean + std,
-        y1: yMax,
-        line: {
-          color: 'rgba(231, 76, 60, 0.6)',  // Red with transparency
-          width: 2,
-          dash: 'dot'
-        }
-      },
-      // Mean line
-      {
-        type: 'line',
-        x0: mean,
-        y0: 0,
-        x1: mean,
-        y1: yMax,
-        line: {
-          color: '#3498db',  // Blue for mean
-          width: 2,
-          dash: 'solid'
-        }
-      },
-      // Median line
-      {
-        type: 'line',
-        x0: stats.median,
-        y0: 0,
-        x1: stats.median,
-        y1: yMax,
-        line: {
-          color: '#e0e0e0',  // Light gray for median
-          width: 2,
-          dash: 'solid'
-        }
-      }
-    ],
-    margin: {
-      // t: 80,  // Top margin
-      // l: 70,  // Left margin
-      // r: 70,  // Right margin
-      // b: 70   // Bottom margin
-    }
+    ]
   };
 
-  // eslint-disable-next-line no-undef
+  const Plotly = window.Plotly;
+  if (!Plotly) {
+    return;
+  }
+  // Plot chart with responsive setting and minimal mode bar
   Plotly.newPlot('roi-histogram', [histogramTrace, normalFitTrace], layout, {
     responsive: true,
     displaylogo: false,
-    displayModeBar: true,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-    toImageButtonOptions: {
-      format: 'png',
-      filename: 'roi_histogram',
-      height: 600,
-      width: 800,
-      scale: 2
-    }
+    displayModeBar: false,  // Hide the mode bar
+    scrollZoom: false,
+    // staticPlot: true,
   });
 }
 </script>
