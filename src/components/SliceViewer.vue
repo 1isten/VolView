@@ -148,6 +148,16 @@
             :layer-reps="layerSliceReps"
             :segment-groups-reps="segSliceReps"
           ></scalar-probe>
+          <segment-plot
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :base-rep="baseSliceRep"
+            :layer-reps="layerSliceReps"
+            :segment-groups-reps="segSliceReps"
+            :slicing-mode="currentSlicingMode"
+            :slice="currentSlice"
+            :hover="hover"
+          ></segment-plot>
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -186,6 +196,7 @@ import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
+import SegmentPlot from '@/src/components/SegmentPlot.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
