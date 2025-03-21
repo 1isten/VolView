@@ -36,10 +36,8 @@ const parentImageData = computed(() => parentImageID.value && imageStore.dataInd
 
 const newPointsCount = computed(() => paintStore.strokePoints.length);
 watchDebounced(newPointsCount, points => {
-  if (points) {
-    // eslint-disable-next-line no-use-before-define
-    handlePaint();
-  }
+  // eslint-disable-next-line no-use-before-define
+  return points ? handlePaint() : removePaint();
 }, {
   debounce: 500,
   immediate: true,
@@ -59,14 +57,18 @@ function handlePaint() {
   }
 }
 
+function removePaint() {
+  const roiHistogramEl = document.getElementById('roi-histogram');
+  if (roiHistogramEl && 'deleteHistogram' in roiHistogramEl && typeof roiHistogramEl.deleteHistogram === 'function') {
+    roiHistogramEl.deleteHistogram();
+  }
+}
+
 watch(hover, hovered => {
   if (hovered) {
     //
   } else {
-    // const roiHistogramEl = document.getElementById('roi-histogram');
-    // if (roiHistogramEl && 'deleteHistogram' in roiHistogramEl && typeof roiHistogramEl.deleteHistogram === 'function') {
-    //   roiHistogramEl.deleteHistogram();
-    // }
+    // removePaint();
   }
 });
 </script>

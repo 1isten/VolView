@@ -40,14 +40,18 @@ onMounted(() => {
 // Create histogram with normal distribution fit
 function createHistogramWithNormalFit(stats) {
   const data = stats.data;
-  const { mean, std, similarity, skewness, kurtosis } = stats;
+  const std = stats.std;
+  const mean = stats.mean || 0;
+  const skewness = stats.skewness || 0;
+  const kurtosis = stats.kurtosis || 0;
+  const similarity = stats.similarity;
 
   // Create points for normal distribution curve
   const normalX = [];
   const normalY = [];
   const min = stats.min - 2 * std;
   const max = stats.max + 2 * std;
-  const step = (max - min) / 100;
+  const step = Math.max(1, (max - min) / 100);
 
   for (let x = min; x <= max; x += step) {
     normalX.push(x);
