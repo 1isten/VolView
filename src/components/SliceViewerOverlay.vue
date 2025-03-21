@@ -18,10 +18,10 @@ import vtkCoordinate from '@kitware/vtk.js/Rendering/Core/Coordinate';
 interface Props {
   viewId: string;
   imageId: Maybe<string>;
-  currentImageData: vtkImageData | null;
-  baseRep: ReturnType<typeof useSliceRepresentation>;
+  currentImageData?: vtkImageData | null;
+  baseRep?: ReturnType<typeof useSliceRepresentation>;
   slicingMode?: 'I' | 'J' | 'K';
-  hover: boolean;
+  hover?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -60,7 +60,7 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
   if (!slicingMode?.value) {
     return;
   }
-  if (!currentImageData.value || !sliceRep.value) {
+  if (!currentImageData?.value || !sliceRep?.value) {
     return;
   }
 
