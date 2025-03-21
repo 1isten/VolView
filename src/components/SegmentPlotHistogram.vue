@@ -100,8 +100,8 @@ function createHistogramWithNormalFit(stats) {
 
   // Set layout with dark theme - simplified but keeping the normality box
   const layout = {
-    paper_bgcolor: '#1e2030',  // Background color of the chart paper
-    plot_bgcolor: '#1e2030',   // Background color of the plotting area
+    paper_bgcolor: '#161c2f',  // Background color of the chart paper
+    plot_bgcolor: '#161c2f',   // Background color of the plotting area
     xaxis: {
       range: [stats.min - std, stats.max + std],
       color: '#e0e0e0',         // Axis color
@@ -166,8 +166,8 @@ function createHistogramWithNormalFit(stats) {
   width: 100%;
   height: 300px;
   overflow: hidden;
-  background-color: #1e2030;
-  border: 1px solid #3e4059;
+  background-color: rgb(var(--v-theme-background));
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 4px;
   margin-top: 4px;
   margin-bottom: 12px;
