@@ -1,4 +1,4 @@
-import { UrlParams } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams } from '@vueuse/core';
 import {
   fileToDataSource,
   uriToDataSource,
@@ -11,7 +11,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-// import { useViewStore } from '@/src/store/views';
+import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { wrapInArray, nonNullable } from '@/src/utils';
 import { basename } from '@/src/utils/path';
@@ -270,7 +270,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           if (typeof options.s === 'number') {
             const vol = volumes[selection];
             if (vol?.layoutName) {
-              // useViewStore().setLayoutByName(vol.layoutName);
+              if (!useUrlSearchParams().layoutName) {
+                useViewStore().setLayoutByName(vol.layoutName, true);
+              }
               s = options.s;
               if (s !== -1) {
                 dataID = selection;
@@ -283,7 +285,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol?.layoutName) {
-                // useViewStore().setLayoutByName(vol.layoutName);
+                if (!useUrlSearchParams().layoutName) {
+                  useViewStore().setLayoutByName(vol.layoutName, true);
+                }
                 s = vol.slices.findIndex(({ n }) => n === options.n);
                 if (s !== -1) {
                   selection = volumeKey;
@@ -299,7 +303,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol?.layoutName) {
-                // useViewStore().setLayoutByName(vol.layoutName);
+                if (!useUrlSearchParams().layoutName) {
+                  useViewStore().setLayoutByName(vol.layoutName, true);
+                }
                 s = vol.slices.findIndex(({ i }) => i === options.i);
                 if (s !== -1) {
                   selection = volumeKey;
@@ -415,8 +421,8 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             if (vol?.slices[options.s]) {
               const viewID = useImageStore().getPrimaryViewID(volumeKey);
               if (viewID) {
-                if (vol?.layoutName) {
-                  // useViewStore().setLayoutByName(vol.layoutName);
+                if (vol?.layoutName && !useUrlSearchParams().layoutName) {
+                  // useViewStore().setLayoutByName(vol.layoutName, true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
                 requestAnimationFrame(() => {
@@ -434,8 +440,8 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             if (s !== -1) {
               const viewID = useImageStore().getPrimaryViewID(volumeKey);
               if (viewID) {
-                if (vol?.layoutName) {
-                  // useViewStore().setLayoutByName(vol.layoutName);
+                if (vol?.layoutName && !useUrlSearchParams().layoutName) {
+                  // useViewStore().setLayoutByName(vol.layoutName, true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
                 requestAnimationFrame(() => {
@@ -453,8 +459,8 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             if (s !== -1) {
               const viewID = useImageStore().getPrimaryViewID(volumeKey);
               if (viewID) {
-                if (vol?.layoutName) {
-                  // useViewStore().setLayoutByName(vol.layoutName);
+                if (vol?.layoutName && !useUrlSearchParams().layoutName) {
+                  // useViewStore().setLayoutByName(vol.layoutName, true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
                 requestAnimationFrame(() => {

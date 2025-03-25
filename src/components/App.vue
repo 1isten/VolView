@@ -189,8 +189,9 @@ export default defineComponent({
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
         if (volumeKeySuffix) {
           const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
-          if (vol.layoutName) {
-            // useViewStore().setLayoutByName(vol.layoutName);
+          // eslint-disable-next-line no-use-before-define
+          if (vol.layoutName && !layoutNameSettled.value) {
+            useViewStore().setLayoutByName(vol.layoutName, true);
           }
         }
       }
@@ -205,6 +206,7 @@ export default defineComponent({
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
     const query = useUrlSearchParams();
+    const layoutNameSettled = computed(() => !!query.layoutName);
 
     onMounted(() => {
       if (!urlParams.urls) {

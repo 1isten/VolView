@@ -54,10 +54,12 @@ export const useViewStore = defineStore('view', {
       this.setLayoutByName(layoutName);
       return layoutName;
     },
-    setLayoutByName(layoutName: string) {
+    setLayoutByName(layoutName: string, justSet = false) {
       const layout = Layouts[layoutName];
       if (layout) {
-        if (this.layout.name !== layoutName) {
+        if (justSet) {
+          this.setLayout(layout);
+        } else if (this.layout.name !== layoutName) {
           this.prevLayoutName = this.layout.name;
           this.setLayout(layout);
         } else if (this.prevLayoutName && Layouts[this.prevLayoutName]) {
