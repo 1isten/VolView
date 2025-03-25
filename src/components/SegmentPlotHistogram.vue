@@ -164,7 +164,7 @@ function createHistogramWithNormalFit(stats) {
 <style scoped>
 #roi-histogram {
   width: 100%;
-  height: 300px;
+  height: 280px;
   overflow: hidden;
   background-color: rgb(var(--v-theme-background));
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
