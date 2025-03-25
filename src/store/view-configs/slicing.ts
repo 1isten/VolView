@@ -36,16 +36,18 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         const sliceInfo = vol.slices[config.slice];
         if (sliceInfo) {
           const { width, level, min, max, ...slice } = sliceInfo;
-          if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
-            try {
-              windowingStore.updateConfig(viewID, dataID, {
-                width,
-                level,
-                min,
-                max,
-              });
-            } catch (err) {
-              console.warn(err);
+          if (width !== undefined && level !== undefined) {
+            if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
+              try {
+                windowingStore.updateConfig(viewID, dataID, {
+                  width,
+                  level,
+                  min,
+                  max,
+                });
+              } catch (err) {
+                console.warn(err);
+              }
             }
           }
           const emitter = loadDataStore.$bus.emitter;
