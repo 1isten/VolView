@@ -68,14 +68,14 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
   coordinate.setValue([x, y, z]);
   const xyz = probeStore.probeData ? probeStore.probeData.pos : coordinate.getComputedWorldValue(view.renderer);
   const ijk = currentImageData.value.worldToIndex([xyz[0], xyz[1], xyz[2]]);
-  const val = (probeStore.probeData?.samples || []).find(sample => sample.id === imageId.value)?.displayValues.map(v => typeof v === 'number' ? shortenNumber(v) : v).join(', ') || 0;
+  const val = (probeStore.probeData?.samples || []).find(sample => sample.id === imageId.value)?.displayValues.map(v => typeof v === 'number' ? shortenNumber(v).split('.')[0] : v).join(', ') || 0;
 
   switch (slicingMode.value) {
     case 'I': {
       const [, j, k] = ijk;
       pointValue.value = {
-        x: `Y: ${j.toFixed(2)} px`,
-        y: `Z: ${k.toFixed(2)} px`,
+        x: `Y: ${j.toFixed(2).split('.')[0]} px`,
+        y: `Z: ${k.toFixed(2).split('.')[0]} px`,
         value: `Value: ${val}`,
       };
       break;
@@ -83,8 +83,8 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
     case 'J': {
       const [i, , k] = ijk;
       pointValue.value = {
-        x: `X: ${i.toFixed(2)} px`,
-        y: `Z: ${k.toFixed(2)} px`,
+        x: `X: ${i.toFixed(2).split('.')[0]} px`,
+        y: `Z: ${k.toFixed(2).split('.')[0]} px`,
         value: `Value: ${val}`,
       };
       break;
@@ -92,8 +92,8 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
     case 'K': {
       const [i, j] = ijk;
       pointValue.value = {
-        x: `X: ${i.toFixed(2)} px`,
-        y: `Y: ${j.toFixed(2)} px`,
+        x: `X: ${i.toFixed(2).split('.')[0]} px`,
+        y: `Y: ${j.toFixed(2).split('.')[0]} px`,
         value: `Value: ${val}`,
       };
       break;
