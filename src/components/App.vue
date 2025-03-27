@@ -253,12 +253,15 @@ export default defineComponent({
 
     const display = useDisplay();
 
-    const permanentDrawer = computed(() => query.drawer === 'permanent');
+    const noDrawer = computed(() => query.drawer === 'none' || query.drawer === 'hidden');
+    const permanentDrawer = computed(() => noDrawer.value || query.drawer === 'permanent');
     const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
     const leftSideBar = ref(false);
 
     watchOnce(display.mobile, (isMobile) => {
-      if (!isMobile && !leftSideBar.value) {
+      if (noDrawer.value) {
+        leftSideBar.value = false;
+      } else if (!isMobile && !leftSideBar.value) {
         leftSideBar.value = !temporaryDrawer.value;
       }
     }, { immediate: !display.mobile.value });
