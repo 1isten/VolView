@@ -15,6 +15,7 @@ export function useEventBus(handlers, loadDataStore) {
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
   const onunselect = handlers?.onunselect;
+  let onsavesession;
   let onsavesegmentation;
   let onslicing;
   let onclose;
@@ -38,6 +39,24 @@ export function useEventBus(handlers, loadDataStore) {
     if (onunselect) {
       emitter.on('unselect', onunselect);
     }
+    onsavesession = payload => {
+      if (projectId && datasetId) {
+        const session = payload?.data;
+        if (session) {
+          const msg = {
+            type: 'saved-session',
+            payload: {
+              session,
+              toReport: true,
+            },
+          };
+          const port = ports[peerId.replace('volview-', 'tab-project-')];
+          if (port) {
+            port.postMessage(msg);
+          }
+        }
+      }
+    };
     onsavesegmentation = payload => {
       if (pipelineId && manualNodeId) {
         const labelmap = payload?.data?.path;
@@ -86,6 +105,7 @@ export function useEventBus(handlers, loadDataStore) {
         }, '*');
       }
     };
+    emitter.on('savesession', onsavesession);
     emitter.on('savesegmentation', onsavesegmentation);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
@@ -180,6 +200,10 @@ export function useEventBus(handlers, loadDataStore) {
               }
             };
           }
+          if (loadDataStore) {
+            // eslint-disable-next-line no-param-reassign
+            loadDataStore.hasProjectPort = true;
+          }
         }
       })
       while (!window.$electron) {
@@ -213,6 +237,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onunselect) {
       emitter.off('unselect', onunselect);
+    }
+    if (onsavesession) {
+      emitter.off('savesession', onsavesession);
     }
     if (onsavesegmentation) {
       emitter.off('savesegmentation', onsavesegmentation);

@@ -195,6 +195,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
     stopLoading,
     setError,
 
+    hasProjectPort: ref(false),
     getLoadedByBusOptions,
     setLoadedByBusOptions,
     setIsLoadingByBus(value: boolean) {
