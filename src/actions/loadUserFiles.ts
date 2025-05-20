@@ -258,7 +258,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
         loadDataStore.segmentGroupExtension
       );
 
-      if (isVolumeResult(primaryDataSource)) {
+      if (primaryDataSource && isVolumeResult(primaryDataSource)) {
         let selection = toDataSelection(primaryDataSource);
         if (volumeKeySuffix) {
           let dataID: string | null = null;

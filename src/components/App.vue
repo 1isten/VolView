@@ -209,7 +209,11 @@ export default defineComponent({
     const layoutNameSettled = computed(() => !!query.layoutName);
 
     onMounted(() => {
-      if (!urlParams.urls) {
+      if (urlParams.urls) {
+        if (urlParams.atob && urlParams.uid) {
+          urlParams.urls = [`connect://localhost/file/${window.atob(urlParams.uid.toString())}`];
+        }
+      } else {
         return;
       }
 
