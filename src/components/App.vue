@@ -83,7 +83,7 @@ import {
 } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
-import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+// import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   populateAuthorizationToken,
@@ -111,7 +111,7 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
 
     useGlobalErrorHook();
-    useKeyboardShortcuts();
+    // useKeyboardShortcuts();
 
     // --- file handling --- //
 
