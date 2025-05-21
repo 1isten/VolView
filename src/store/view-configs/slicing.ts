@@ -86,6 +86,23 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     const config = getConfig(viewID, dataID);
     if (!config) return;
 
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+    if (volumeKeySuffix) {
+      const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+      if (vol?.layoutName && vol.layoutName.includes(viewID)) {
+        const options = loadDataStore.getLoadedByBusOptions(volumeKeySuffix);
+        if (options.i !== undefined) {
+          const sliceInfo = vol.slices[options.i];
+          if (sliceInfo?.i !== undefined) {
+            updateConfig(viewID, dataID, {
+              slice: sliceInfo.i,
+            });
+            return;
+          }
+        }
+      }
+    }
+
     // Setting this to floor() will affect images where the
     // middle slice is fractional.
     // This is consistent with vtkImageMapper and SliceRepresentationProxy.
