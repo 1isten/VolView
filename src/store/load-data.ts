@@ -195,6 +195,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
     stopLoading,
     setError,
 
+    volumeRendered: ref(Object.create(null)),
     hasProjectPort: ref(false),
     getLoadedByBusOptions,
     setLoadedByBusOptions,

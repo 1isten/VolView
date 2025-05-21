@@ -1,6 +1,6 @@
 <template>
   <div class="vtk-container-wrapper volume-viewer-container" tabindex="0">
-    <div class="vtk-container" data-testid="two-view-container">
+    <div class="vtk-container" data-testid="two-view-container" v-if="volumeRendered">
       <div class="vtk-sub-container">
         <vtk-volume-view
           class="vtk-view"
@@ -56,6 +56,14 @@
         </div>
       </transition>
     </div>
+    <div v-else-if="currentImageID" class="d-flex align-center justify-center">
+      <v-btn slim size="x-large" variant="plain" @click="render">
+        Render
+        <template v-slot:append>
+          <v-icon icon="mdi-video-3d" size="2rem" class="ms-n1"></v-icon>
+        </template>
+      </v-btn>
+    </div>
   </div>
 </template>
 
@@ -75,6 +83,8 @@ import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { whenever } from '@vueuse/core';
+
+import { useLoadDataStore } from '@/src/store/load-data';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -100,6 +110,15 @@ useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
 const { currentImageID, isImageLoading } = useCurrentImage();
+
+// lazy render 3D
+const loadDataStore = useLoadDataStore();
+const volumeRendered = computed(() => !!(currentImageID.value && loadDataStore.volumeRendered[currentImageID.value]));
+const render = () => {
+  if (currentImageID.value) {
+    loadDataStore.volumeRendered[currentImageID.value] = true;
+  }
+};
 
 whenever(
   computed(() => !isImageLoading.value),
