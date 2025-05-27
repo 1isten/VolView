@@ -330,10 +330,6 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           loadDataStore.segmentGroupExtension
         );
       } // then must be primaryDataSource.type === 'model'
-
-      if (loadDataStore.isLoadingByBus) {
-        loadDataStore.setIsLoadingByBus(false);
-      }
     }
 
     if (errored.length) {
@@ -351,6 +347,8 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
       );
 
       loadDataStore.setError(failedError);
+    } else if (loadDataStore.isLoadingByBus) {
+      loadDataStore.setIsLoadingByBus(false);
     }
   };
 

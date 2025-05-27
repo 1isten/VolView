@@ -19,6 +19,7 @@ import { pipe } from '@/src/utils/functional';
 import Pipeline, { PipelineContext } from '@/src/core/pipeline';
 import { Awaitable } from '@vueuse/core';
 import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useViewStore } from '@/src/store/views';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -302,8 +303,9 @@ async function restoreDatasets(
       );
 
       if (dicomSources.length) {
+        const volumeKeySuffix = Object.keys(useLoadDataStore().loadedByBus).find(suffix => dataset.id?.endsWith(`#${suffix}`)) || undefined;
         const dicomStore = useDICOMStore();
-        const volumeKeys = await dicomStore.importFiles(dicomSources);
+        const volumeKeys = await dicomStore.importFiles(dicomSources, volumeKeySuffix);
         if (volumeKeys.length !== 1) {
           throw new Error('Obtained more than one volume from DICOM import');
         }
