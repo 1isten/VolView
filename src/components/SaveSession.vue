@@ -42,10 +42,11 @@
 <script lang="ts">
 import { defineComponent, onMounted, ref, computed } from 'vue';
 import { saveAs } from 'file-saver';
-import { onKeyDown, useUrlSearchParams } from '@vueuse/core';
+import { onKeyDown } from '@vueuse/core';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useLoadDataStore } from '@/src/store/load-data';
 import { serialize } from '../io/state-file';
+import { Manifest } from '../io/state-file/schema';
 
 const DEFAULT_FILENAME = 'session.volview.zip';
 
@@ -61,66 +62,61 @@ export default defineComponent({
     const valid = ref(true);
     const saving = ref(false);
 
-    const query = useUrlSearchParams();
     const datasetStore = useDatasetStore();
     const loadDataStore = useLoadDataStore();
     const hasProjectPort = computed(() => loadDataStore.hasProjectPort);
     const saveAsHyperLink = ref(false);
 
-    // eslint-disable-next-line consistent-return
     async function saveSession() {
       if (fileName.value.trim().length >= 0) {
         saving.value = true;
         if (hasProjectPort.value) {
-          let sid = '';
-          let oid = '';
+          let uid = '';
           if (datasetStore.primarySelection) {
             const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[datasetStore.primarySelection]
             if (volumeKeySuffix && volumeKeySuffix.split('-').length === 5) {
               if (volumeKeySuffix.length === 36) {
-                sid = volumeKeySuffix; // uuid
+                uid = volumeKeySuffix; // uuid
               } else {
-                oid = volumeKeySuffix; // orthanc uid
+                uid = volumeKeySuffix; // orthanc uid
               }
             }
           }
-          const blob = await serialize();
-          const formData = new FormData();
-          formData.append('fileContent', blob);
-          formData.set('fileName', fileName.value);
-          formData.set('fileType', 'zip');
-          formData.set('type', 'session');
-          if (oid) {
-            formData.set('oid', oid);
-          }
-          if (sid) {
-            formData.set('seriesId', sid);
-          }
-          if (query.projectId) {
-            formData.set('projectId', query.projectId.toString());
-          }
-          if (query.datasetId) {
-            formData.set('datasetId', query.datasetId.toString());
-          }
-          return fetch('connect://localhost/api/volview/sessions', { method: 'POST', body: formData }).then(async res => {
-            if (res.ok) {
-              const data = await res.json();
-              if (data && data.id && data.filePath) {
-                if (saveAsHyperLink.value) {
-                  const emitter = loadDataStore.$bus.emitter;
-                  emitter?.emit('savesession', { data });
-                }
-                saving.value = false;
-                props.close();
-              }
+          // @ts-ignore
+          const [blob, manifest]: [Blob, Manifest] = await serialize(true);
+          let mesurement = '';
+          if (manifest) {
+            switch (manifest.tools.current) {
+              case 'Rectangle':
+                // mesurement = `${'??.??'}mm × ${'??.??'}mm`;
+                break;
+              case 'Polygon':
+                // mesurement = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }].map(({ x, y }) => `(${'??.??'},${'??.??'})`).join(' ');
+                break;
+              case 'Ruler':
+                // mesurement = `${'??.??'}mm`;
+                break;
+              default:
+                mesurement = '';
+                break;
             }
-          }).catch(err => {
-            console.error(err);
+          }
+          const emitter = loadDataStore.$bus.emitter;
+          emitter?.emit('savesession', {
+            uid,
+            mesurement,
+            fileContent: blob,
+            fileName: fileName.value,
+            fileType: 'zip',
+            toReport: saveAsHyperLink.value,
           });
+          props.close();
+          saving.value = false;
+          return;
         }
         try {
           const blob = await serialize();
-          saveAs(blob, fileName.value);
+          saveAs(blob as Blob, fileName.value);
           props.close();
         } finally {
           saving.value = false;

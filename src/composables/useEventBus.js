@@ -41,19 +41,12 @@ export function useEventBus(handlers, loadDataStore) {
     }
     onsavesession = payload => {
       if (projectId && datasetId) {
-        const session = payload?.data;
-        if (session) {
-          const msg = {
-            type: 'saved-session',
-            payload: {
-              session,
-              toReport: true,
-            },
-          };
-          const port = ports[peerId.replace('volview-', 'tab-project-')];
-          if (port) {
-            port.postMessage(msg);
-          }
+        const port = ports[peerId.replace('volview-', 'tab-project-')];
+        if (port) {
+          port.postMessage({
+            type: 'save-session',
+            payload,
+          });
         }
       }
     };
