@@ -1,6 +1,7 @@
 import { clampValue } from '@/src/utils';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -12,7 +13,9 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
+import { useWindowingStore } from './windowing';
 import { useImageStore } from '../datasets-images';
+import { useLoadDataStore } from '../load-data';
 
 export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
@@ -23,6 +26,40 @@ export const defaultSliceConfig = (): SliceConfig => ({
 });
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
+  const windowingStore = useWindowingStore();
+  const loadDataStore = useLoadDataStore();
+  const handleConfigUpdate = useDebounceFn((viewID: string, dataID: string, config: any) => {
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+    if (volumeKeySuffix) {
+      const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+      if (vol?.layoutName && vol.layoutName.includes(viewID)) {
+        const sliceInfo = vol.slices[config.slice];
+        if (sliceInfo) {
+          const { width, level, min, max, ...slice } = sliceInfo;
+          if (width !== undefined && level !== undefined) {
+            if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
+              try {
+                windowingStore.updateConfig(viewID, dataID, {
+                  width,
+                  level,
+                  min,
+                  max,
+                });
+              } catch (err) {
+                console.warn(err);
+              }
+            }
+          }
+          const emitter = loadDataStore.$bus.emitter;
+          emitter?.emit('slicing', {
+            uid: volumeKeySuffix,
+            slice,
+          });
+        }
+      }
+    }
+  }, 0);
+
   const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
 
@@ -42,11 +79,29 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
 
     config.slice = clampValue(config.slice, config.min, config.max);
     patchDoubleKeyRecord(configs, viewID, dataID, config);
+    handleConfigUpdate(viewID, dataID, config);
   };
 
   const resetSlice = (viewID: string, dataID: string) => {
     const config = getConfig(viewID, dataID);
     if (!config) return;
+
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+    if (volumeKeySuffix) {
+      const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+      if (vol?.layoutName && vol.layoutName.includes(viewID)) {
+        const options = loadDataStore.getLoadedByBusOptions(volumeKeySuffix);
+        if (options.i !== undefined) {
+          const sliceInfo = vol.slices[options.i];
+          if (sliceInfo?.i !== undefined) {
+            updateConfig(viewID, dataID, {
+              slice: sliceInfo.i,
+            });
+            return;
+          }
+        }
+      }
+    }
 
     // Setting this to floor() will affect images where the
     // middle slice is fractional.

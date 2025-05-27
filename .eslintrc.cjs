@@ -18,6 +18,7 @@ module.exports = {
   plugins: ['@typescript-eslint', 'import'],
 
   ignorePatterns: [
+    'public/**',
     'src/io/itk-dicom/emscripten-build/**',
     'src/io/resample/emscripten-build/**',
     '**/*.d.ts',
@@ -30,6 +31,7 @@ module.exports = {
   rules: {
     'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'off',
     'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
+    'import/no-cycle': 'off',
     'import/no-named-as-default-member': 'off',
     'import/no-named-as-default': 'off',
     'import/prefer-default-export': 'off',

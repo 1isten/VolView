@@ -8,11 +8,13 @@ import {
 import { useViewStore } from '@/src/store/views';
 import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { isDicomImage } from '@/src/utils/dataSelection';
 
 export default defineComponent({
   setup() {
     const { currentImageID } = useCurrentImage();
+    const loadDataStore = useLoadDataStore();
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();

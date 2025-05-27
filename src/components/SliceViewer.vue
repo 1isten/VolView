@@ -89,6 +89,10 @@
           <slice-viewer-overlay
             :view-id="id"
             :image-id="currentImageID"
+            :current-image-data="currentImageData"
+            :base-rep="baseSliceRep"
+            :slicing-mode="currentSlicingMode"
+            :hover="hover"
           ></slice-viewer-overlay>
           <vtk-base-slice-representation
             ref="baseSliceRep"
@@ -150,6 +154,16 @@
             :layer-reps="layerSliceReps"
             :segment-groups-reps="segSliceReps"
           ></scalar-probe>
+          <segment-plot
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :base-rep="baseSliceRep"
+            :layer-reps="layerSliceReps"
+            :segment-groups-reps="segSliceReps"
+            :slicing-mode="currentSlicingMode"
+            :slice="currentSlice"
+            :hover="hover"
+          ></segment-plot>
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -180,6 +194,7 @@ import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
+import SegmentPlot from '@/src/components/SegmentPlot.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
@@ -194,6 +209,7 @@ import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceView
 import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
@@ -241,6 +257,16 @@ const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
+
+const currentSlicingMode = computed(() => {
+  if (currentImageMetadata.value) {
+    const { lpsOrientation } = currentImageMetadata.value;
+    const ijkIndex = lpsOrientation[viewAxis.value];
+    const mode = [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkIndex];
+    return ['I', 'J', 'K'][mode] as 'I' | 'J' | 'K';
+  }
+  return undefined;
+});
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();

@@ -20,7 +20,7 @@ const dataSecurityDialog = ref(false);
 </script>
 
 <template>
-  <v-container class="page-container bg-grey-darken-3" v-bind="$attrs">
+  <v-container v-bind="$attrs" class="page-container bg-black" style="pointer-events: none">
     <v-col>
       <v-row justify="center">
         <v-card
@@ -30,7 +30,7 @@ const dataSecurityDialog = ref(false);
           color="transparent"
           class="text-center headline"
         >
-          <template v-if="!loading">
+          <template v-if="false && !loading">
             <div>
               <v-icon size="64">mdi-folder-open</v-icon>
             </div>
@@ -57,9 +57,12 @@ const dataSecurityDialog = ref(false);
               </v-btn>
             </div>
           </template>
-          <template v-else>
+          <template v-else-if="false">
             <div class="text-h6 my-4">Loading data...</div>
             <v-progress-linear indeterminate />
+          </template>
+          <template v-else-if="loading">
+            <v-progress-circular indeterminate color="blue" />
           </template>
         </v-card>
       </v-row>

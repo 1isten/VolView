@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { DefaultViewSpec, InitViewSpecs } from '../config';
+import { Layouts, DefaultViewSpec, InitViewSpecs } from '../config';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewConfigStore } from './view-configs';
 import { ViewSpec } from '../types/views';
@@ -10,6 +10,7 @@ import {
 } from '../io/state-file/schema';
 
 interface State {
+  prevLayoutName?: string;
   layout: Layout;
   viewSpecs: Record<string, ViewSpec>;
   activeViewID: string;
@@ -17,6 +18,7 @@ interface State {
 
 export const useViewStore = defineStore('view', {
   state: (): State => ({
+    prevLayoutName: undefined,
     layout: {
       direction: LayoutDirection.V,
       items: [],
@@ -42,6 +44,33 @@ export const useViewStore = defineStore('view', {
       if (id in this.viewSpecs) {
         delete this.viewSpecs[id];
       }
+    },
+    getLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = `${viewID} Only`;
+      return layoutName;
+    },
+    setLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = this.getLayoutByViewID(viewID);
+      this.setLayoutByName(layoutName);
+      return layoutName;
+    },
+    setLayoutByName(layoutName: string, justSet = false) {
+      const layout = Layouts[layoutName];
+      if (layout) {
+        if (justSet) {
+          this.setLayout(layout);
+        } else if (this.layout.name !== layoutName) {
+          this.prevLayoutName = this.layout.name;
+          this.setLayout(layout);
+        } else if (this.prevLayoutName && Layouts[this.prevLayoutName]) {
+          this.setLayout(Layouts[this.prevLayoutName]);
+          this.prevLayoutName = '';
+        } else if (layoutName.includes(' Only') && Layouts['Quad View']) {
+          this.prevLayoutName = layoutName;
+          this.setLayout(Layouts['Quad View']);
+        }
+      }
+      return layoutName;
     },
     setLayout(layout: Layout) {
       this.layout = layout;

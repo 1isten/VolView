@@ -148,10 +148,18 @@ export function getShiftedOpacityFromPreset(
  * Retrieves an OpacityFunction from a preset.
  */
 export function getOpacityFunctionFromPreset(
-  presetName: string
+  presetName: string,
+  viewID?: string
 ): Partial<OpacityFunction> {
-  const preset = vtkColorMaps.getPresetByName(presetName);
-
+  const preset = JSON.parse(
+    JSON.stringify(vtkColorMaps.getPresetByName(presetName))
+  );
+  if (preset.Name === 'Heatmap') {
+    if (viewID && viewID.includes('3D')) {
+      // use gaussians for 3D heatmap
+      delete preset.OpacityPoints;
+    }
+  }
   if (preset.OpacityPoints) {
     return {
       mode: vtkPiecewiseFunctionProxy.Mode.Points,
@@ -191,11 +199,16 @@ export function inflateAxisBounds(bounds: number[], delta: number) {
  * @returns
  */
 export function getColorFunctionRangeFromPreset(
-  presetName: string
+  presetName: string,
+  viewID?: string
 ): [number, number] | null {
   const preset = vtkColorMaps.getPresetByName(presetName);
   if (!preset) return null;
-
+  if (preset.Name === 'Heatmap') {
+    if (viewID) {
+      // ...
+    }
+  }
   const { AbsoluteRange, RGBPoints } = preset;
   if (AbsoluteRange && RGBPoints) {
     let min = Infinity;

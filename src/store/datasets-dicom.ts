@@ -1,4 +1,5 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import { arrayRange } from '@kitware/vtk.js/Common/Core/Math';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import * as DICOM from '@/src/io/dicom';
@@ -27,26 +28,52 @@ export interface PatientInfo {
   PatientName: string;
   PatientBirthDate: string;
   PatientSex: string;
+  PatientAge?: string;
+  PatientWeight?: string;
+  PatientAddress?: string;
 }
 
 export interface StudyInfo {
   StudyID: string;
   StudyInstanceUID: string;
+  StudyDescription: string;
+  StudyName?: string;
   StudyDate: string;
   StudyTime: string;
   AccessionNumber: string;
-  StudyDescription: string;
+  InstitutionName?: string;
+  ReferringPhysicianName?: string;
+  ManufacturerModelName?: string;
 }
 
-export interface VolumeInfo {
-  NumberOfSlices: number;
-  VolumeID: string;
-  Modality: string;
+export interface WindowingInfo {
+  WindowLevel: string;
+  WindowWidth: string;
+}
+
+export interface VolumeInfo extends WindowingInfo {
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
-  WindowLevel: string;
-  WindowWidth: string;
+  SeriesDate?: string;
+  SeriesTime?: string;
+  Modality: string;
+  BodyPartExamined?: string;
+  RepetitionTime?: string;
+  EchoTime?: string;
+  MagneticFieldStrength?: string;
+  TransferSyntaxUID?: string;
+
+  PixelSpacing?: string;
+  Rows?: number | string;
+  Columns?: number | string;
+  SliceThickness?: string;
+  SliceLocation?: string;
+  ImagePositionPatient?: string;
+  ImageOrientationPatient?: string;
+
+  NumberOfSlices: number;
+  VolumeID: string;
 }
 
 const buildImage = async (seriesFiles: File[], modality: string) => {
@@ -130,7 +157,7 @@ export const getDisplayName = (info: VolumeInfo) => {
   );
 };
 
-export const getWindowLevels = (info: VolumeInfo) => {
+export const getWindowLevels = (info: VolumeInfo | WindowingInfo) => {
   const { WindowWidth, WindowLevel } = info;
   if (
     WindowWidth == null ||

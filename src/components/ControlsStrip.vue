@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { ref, computed, watch } from 'vue';
+import { useUrlSearchParams } from '@vueuse/core';
 import { loadUserPromptedFiles } from '@/src/actions/loadUserFiles';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
@@ -17,13 +18,16 @@ import { Layouts, DefaultLayoutName } from '@/src/config';
 
 interface Props {
   hasData: boolean;
+  leftMenu: boolean;
 }
 
 defineProps<Props>();
 
-function useViewLayout() {
+const emit = defineEmits(['click:left-menu', 'click:close']);
+
+function useViewLayout(defaultLayoutName?: string) {
   const viewStore = useViewStore();
-  const layoutName = ref(DefaultLayoutName);
+  const layoutName = ref(defaultLayoutName || DefaultLayoutName);
   const { layout: currentLayout } = storeToRefs(viewStore);
 
   watch(
@@ -111,10 +115,16 @@ function useServerConnection() {
   return { icon, url };
 }
 
+const query = useUrlSearchParams();
+const liteMode = computed(() => query.uiMode === 'lite');
+const closeable = computed(() => query.closeable === 'true' || query.closeable === '1');
+const defaultTool = computed(() => query.defaultTool ? query.defaultTool.toString() : '');
+
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
-const layoutName = useViewLayout();
+const layoutName = useViewLayout((query.layoutName || '').toString());
+const onManuallySetLayoutName = (value: string) => { if (value) { useViewStore().prevLayoutName = '' } };
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </script>
@@ -122,9 +132,17 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <template>
   <div
     id="tools-strip"
-    class="bg-grey-darken-4 d-flex flex-column align-center"
+    class="bg-neutral-darken-4 flex-column align-center hide-scrollbar"
+    :class="liteMode ? 'd-none' : 'd-flex'"
   >
     <control-button
+      size="40"
+      icon="mdi-menu"
+      name="Module panel"
+      @click="emit('click:left-menu')"
+    />
+    <control-button
+      v-if="false"
       size="40"
       icon="mdi-folder-open"
       name="Open files"
@@ -138,7 +156,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="handleSave"
     />
     <div class="my-1 tool-separator" />
-    <v-menu location="right" :close-on-content-click="true">
+    <v-menu location="left" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
           <control-button
@@ -151,7 +169,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       </template>
       <v-card>
         <v-card-text>
-          <v-radio-group v-model="layoutName" class="mt-0" hide-details>
+          <v-radio-group v-model="layoutName" class="mt-0" hide-details @update:model-value="onManuallySetLayoutName">
             <v-radio
               v-for="(value, key) in Layouts"
               :key="key"
@@ -162,7 +180,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
         </v-card-text>
       </v-card>
     </v-menu>
-    <controls-strip-tools v-if="hasData" />
+    <controls-strip-tools v-if="hasData" :default-tool="defaultTool" />
     <v-spacer />
     <control-button
       v-if="serverUrl"
@@ -172,6 +190,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="settingsDialog = true"
     />
     <v-badge
+      v-if="false"
       offset-x="10"
       offset-y="10"
       :content="msgCount"
@@ -187,13 +206,23 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       />
     </v-badge>
     <control-button
+      v-if="false"
       size="40"
       icon="mdi-cog"
       name="Settings"
       @click="settingsDialog = true"
     />
+    <template v-if="closeable">
+      <div class="my-1 tool-separator" />
+      <control-button
+        size="40"
+        icon="mdi-exit-to-app"
+        name="Close"
+        @click="emit('click:close')"
+      />
+    </template>
   </div>
-  <closeable-dialog v-model="saveDialog" max-width="30%">
+  <closeable-dialog v-model="saveDialog" width="350" max-width="30%">
     <template v-slot="{ close }">
       <save-session :close="close" />
     </template>
@@ -214,6 +243,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 #tools-strip {
   border-left: 1px solid #212121;
   flex: 0 0 40px;
+  order: 1;
+  overflow: auto;
 }
 
 .tool-separator {

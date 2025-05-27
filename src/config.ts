@@ -115,11 +115,25 @@ export const DefaultLayoutName = 'Quad View';
  * Defines the default layouts.
  */
 export const Layouts: Record<string, Layout> = [
+  // Z
   {
     name: 'Axial Only',
     direction: LayoutDirection.H,
     items: [InitViewIDs.Axial],
   },
+  // X
+  {
+    name: 'Sagittal Only',
+    direction: LayoutDirection.H,
+    items: [InitViewIDs.Sagittal],
+  },
+  // Y
+  {
+    name: 'Coronal Only',
+    direction: LayoutDirection.H,
+    items: [InitViewIDs.Coronal],
+  },
+  /*
   {
     name: 'Axial Primary',
     direction: LayoutDirection.V,
@@ -127,10 +141,12 @@ export const Layouts: Record<string, Layout> = [
       InitViewIDs.Axial,
       {
         direction: LayoutDirection.H,
-        items: [InitViewIDs.Three, InitViewIDs.Coronal, InitViewIDs.Sagittal],
+        items: [InitViewIDs.Three, InitViewIDs.Sagittal, InitViewIDs.Coronal],
       },
     ],
   },
+  */
+  /*
   {
     name: '3D Primary',
     direction: LayoutDirection.V,
@@ -138,38 +154,41 @@ export const Layouts: Record<string, Layout> = [
       InitViewIDs.Three,
       {
         direction: LayoutDirection.H,
-        items: [InitViewIDs.Coronal, InitViewIDs.Sagittal, InitViewIDs.Axial],
+        items: [InitViewIDs.Axial, InitViewIDs.Sagittal, InitViewIDs.Coronal],
       },
     ],
   },
+  */
   {
     name: 'Quad View',
     direction: LayoutDirection.H,
     items: [
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.Coronal, InitViewIDs.Three],
+        items: [InitViewIDs.Axial, InitViewIDs.Three],
       },
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.Sagittal, InitViewIDs.Axial],
+        items: [InitViewIDs.Sagittal, InitViewIDs.Coronal],
       },
     ],
   },
+  /*
   {
     name: 'Oblique View',
     direction: LayoutDirection.H,
     items: [
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
+        items: [InitViewIDs.ObliqueAxial, InitViewIDs.ObliqueThree],
       },
       {
         direction: LayoutDirection.V,
-        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueAxial],
+        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueCoronal],
       },
     ],
   },
+  */
   {
     name: '3D Only',
     direction: LayoutDirection.H,
@@ -223,7 +242,7 @@ export const SAMPLE_DATA: SampleDataset[] = [
       colorPreset: 'US-Fetal',
     },
   },
-];
+].slice(0, 0);
 
 export const TOOL_COLORS = [
   '#58f24c',
