@@ -1,6 +1,13 @@
 <template>
   <div class="vtk-container-wrapper volume-viewer-container" tabindex="0">
     <div class="vtk-container" data-testid="two-view-container" v-if="volumeRendered">
+      <v-progress-linear
+        v-if="isImageLoading"
+        indeterminate
+        class="loading-indicator"
+        height="2"
+        color="grey"
+      />
       <div class="vtk-sub-container">
         <vtk-volume-view
           class="vtk-view"
@@ -46,15 +53,6 @@
           </div>
         </template>
       </view-overlay-grid>
-
-      <transition name="loading">
-        <div v-if="isImageLoading" class="overlay-no-events loading">
-          <!-- <div>Loading the image</div> -->
-          <div>
-            <v-progress-circular indeterminate color="blue" />
-          </div>
-        </div>
-      </transition>
     </div>
     <div v-else-if="currentImageID" class="d-flex align-center justify-center">
       <v-btn slim size="x-large" variant="plain" @click="render">
@@ -82,7 +80,7 @@ import VtkOrientationMarker from '@/src/components/vtk/VtkOrientationMarker.vue'
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import { whenever } from '@vueuse/core';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 import { useLoadDataStore } from '@/src/store/load-data';
 
@@ -109,7 +107,7 @@ useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID, isImageLoading } = useCurrentImage();
+const { currentImageID, currentImageData, isImageLoading } = useCurrentImage();
 
 // lazy render 3D
 const loadDataStore = useLoadDataStore();
@@ -120,12 +118,9 @@ const render = () => {
   }
 };
 
-whenever(
-  computed(() => !isImageLoading.value),
-  () => {
-    resetCamera();
-  }
-);
+onVTKEvent(currentImageData, 'onModified', () => {
+  vtkView.value?.requestRender();
+});
 
 // color preset
 const coloringStore = useVolumeColoringStore();

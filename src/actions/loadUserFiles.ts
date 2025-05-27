@@ -13,23 +13,24 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
-import { wrapInArray, nonNullable } from '@/src/utils';
+import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
-import { PipelineResultSuccess, partitionResults } from '@/src/core/pipeline';
 import {
-  ImportDataSourcesResult,
   importDataSources,
   toDataSelection,
 } from '@/src/io/import/importDataSources';
 import {
+  ErrorResult,
   ImportResult,
   LoadableResult,
-  VolumeResult,
+  LoadableVolumeResult,
   isLoadableResult,
   isVolumeResult,
+  ImportDataSourcesResult,
 } from '@/src/io/import/common';
+import { isDicomImage } from '@/src/utils/dataSelection';
 import {
   fetchSeries,
   fetchInstance,
@@ -45,8 +46,8 @@ const BASE_MODALITY_TYPES = {
 
 function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
   // find dicom dataset for primary selection if available
-  const dicoms = loadableDataSources.filter(
-    ({ dataType }) => dataType === 'dicom'
+  const dicoms = loadableDataSources.filter(({ dataID }) =>
+    isDicomImage(dataID)
   );
   // prefer some modalities as base
   const dicomStore = useDICOMStore();
@@ -104,26 +105,21 @@ function findBaseImage(
 }
 
 // returns image and dicom sources, no config files
-function filterLoadableDataSources(
-  succeeded: Array<PipelineResultSuccess<ImportResult>>
-) {
-  return succeeded.flatMap((result) => {
-    return result.data.filter(isLoadableResult);
-  });
+function filterLoadableDataSources(succeeded: Array<ImportResult>) {
+  return succeeded.filter(isLoadableResult);
 }
 
 // Returns list of dataSources with file names where the name has the extension argument
 // and the start of the file name matches the primary file name.
 function filterMatchingNames(
-  primaryDataSource: VolumeResult,
-  succeeded: Array<PipelineResultSuccess<ImportResult>>,
+  primaryDataSource: LoadableVolumeResult,
+  succeeded: Array<ImportResult>,
   extension: string
 ) {
   const dicomStore = useDICOMStore();
-  const primaryName =
-    primaryDataSource.dataType === 'dicom'
-      ? dicomStore.volumeInfo[primaryDataSource.dataID].SeriesNumber
-      : getDataSourceName(primaryDataSource.dataSource);
+  const primaryName = isDicomImage(primaryDataSource.dataID)
+    ? dicomStore.volumeInfo[primaryDataSource.dataID].SeriesNumber
+    : getDataSourceName(primaryDataSource.dataSource);
   if (!primaryName) return [];
   const primaryNamePrefix = primaryName.split('.').slice(0, 1).join();
   return filterLoadableDataSources(succeeded)
@@ -148,7 +144,7 @@ function getStudyUID(volumeID: string) {
 }
 
 function findBaseDataSource(
-  succeeded: Array<PipelineResultSuccess<ImportResult>>,
+  succeeded: Array<ImportResult>,
   segmentGroupExtension: string
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
@@ -162,24 +158,24 @@ function findBaseDataSource(
 
 function filterOtherVolumesInStudy(
   volumeID: string,
-  succeeded: Array<PipelineResultSuccess<ImportResult>>
+  succeeded: Array<ImportResult>
 ) {
   const targetStudyUID = getStudyUID(volumeID);
   const dicomDataSources = filterLoadableDataSources(succeeded).filter(
-    ({ dataType }) => dataType === 'dicom'
+    ({ dataID }) => isDicomImage(dataID)
   );
   return dicomDataSources.filter((ds) => {
     const sourceStudyUID = getStudyUID(ds.dataID);
     return sourceStudyUID === targetStudyUID && ds.dataID !== volumeID;
-  }) as Array<VolumeResult>;
+  }) as Array<LoadableVolumeResult>;
 }
 
 // Layers a DICOM PET on a CT if found
 function loadLayers(
-  primaryDataSource: VolumeResult,
-  succeeded: Array<PipelineResultSuccess<ImportResult>>
+  primaryDataSource: LoadableVolumeResult,
+  succeeded: Array<ImportResult>
 ) {
-  if (primaryDataSource.dataType !== 'dicom') return;
+  if (!isDicomImage(primaryDataSource.dataID)) return;
   const otherVolumesInStudy = filterOtherVolumesInStudy(
     primaryDataSource.dataID,
     succeeded
@@ -205,8 +201,8 @@ function loadLayers(
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(
-  primaryDataSource: VolumeResult,
-  succeeded: Array<PipelineResultSuccess<ImportResult>>,
+  primaryDataSource: LoadableVolumeResult,
+  succeeded: Array<ImportResult>,
   segmentGroupExtension: string
 ) {
   const matchingNames = filterMatchingNames(
@@ -244,13 +240,19 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
     let results: ImportDataSourcesResult[];
     try {
-      results = await importDataSources(sources, volumeKeySuffix);
+      results = (await importDataSources(sources, volumeKeySuffix)).filter((result) =>
+        // only look at data and error results
+        ['data', 'error'].includes(result.type)
+      );
     } catch (error) {
       loadDataStore.setError(error as Error);
       return;
     }
 
-    const [succeeded, errored] = partitionResults(results);
+    const [succeeded, errored] = partition(
+      (result) => result.type !== 'error',
+      results
+    );
 
     if (!dataStore.primarySelection || succeeded.length) {
       const primaryDataSource = findBaseDataSource(
@@ -333,14 +335,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
     }
 
     if (errored.length) {
-      const errorMessages = errored.map((errResult) => {
-        // pick first error
-        const [firstError] = errResult.errors;
-        // pick innermost dataset that errored
-        const name = getDataSourceName(firstError.inputDataStackTrace[0]);
+      const errorMessages = (errored as ErrorResult[]).map((errResult) => {
+        const { dataSource, error } = errResult;
+        const name = getDataSourceName(dataSource);
         // log error for debugging
-        logError(firstError.cause);
-        return `- ${name}: ${firstError.message}`;
+        logError(error);
+        return error.message ? `- ${name}: ${error.message}` : `- ${name}`;
       });
       const failedError = new Error(
         `These files failed to load:\n${errorMessages.join('\n')}`

@@ -28,12 +28,18 @@
       />
     </div>
     <div class="vtk-container" data-testid="two-view-container">
+      <v-progress-linear
+        v-if="isImageLoading"
+        indeterminate
+        class="loading-indicator"
+        height="2"
+        color="grey"
+      />
       <div class="vtk-sub-container">
         <vtk-slice-view
           class="vtk-view"
           ref="vtkView"
           data-testid="vtk-view vtk-two-view"
-          :disable-auto-reset-camera="disableCameraAutoReset"
           :view-id="id"
           :image-id="currentImageID"
           :view-direction="viewDirection"
@@ -161,14 +167,6 @@
           <slot></slot>
         </vtk-slice-view>
       </div>
-      <transition name="loading">
-        <div v-if="isImageLoading" class="overlay-no-events loading">
-          <!-- <div>Loading the image</div> -->
-          <div>
-            <v-progress-circular indeterminate color="blue" />
-          </div>
-        </div>
-      </transition>
     </div>
   </div>
 </template>
@@ -202,7 +200,6 @@ import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
-import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
@@ -214,7 +211,7 @@ import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/M
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import { whenever } from '@vueuse/core';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -228,16 +225,13 @@ const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
 
-const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
-
 const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
 const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 const hover = ref(false);
 
 function resetCamera() {
-  if (!vtkView.value) return;
-  vtkView.value.resetCamera();
+  vtkView.value?.resetCamera();
 }
 
 useResetViewsEvents().onClick(resetCamera);
@@ -252,8 +246,13 @@ const windowingManipulatorProps = computed(() =>
 );
 
 // base image
-const { currentImageID, currentLayers, currentImageMetadata, currentImageData, isImageLoading } =
-  useCurrentImage();
+const {
+  currentImageID,
+  currentLayers,
+  currentImageMetadata,
+  currentImageData,
+  isImageLoading,
+} = useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
@@ -269,12 +268,9 @@ const currentSlicingMode = computed(() => {
   return undefined;
 });
 
-whenever(
-  computed(() => !isImageLoading.value),
-  () => {
-    resetCamera();
-  }
-);
+onVTKEvent(currentImageData, 'onModified', () => {
+  vtkView.value?.requestRender();
+});
 
 const segmentations = computed(() => {
   if (!currentImageID.value) return [];

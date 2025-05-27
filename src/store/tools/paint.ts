@@ -208,7 +208,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function deactivateTool() {
-    activeSegmentGroupID.value = null;
     isActive.value = false;
   }
 
@@ -238,7 +237,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   return {
-    // state
     activeMode,
     activeSegmentGroupID,
     activeSegment,
@@ -253,7 +251,6 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     setMode,
     setActiveSegmentGroup,
-    ensureActiveSegmentGroupForImage,
     setActiveSegment,
     setBrushSize,
     setSliceAxis,
