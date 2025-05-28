@@ -32,6 +32,8 @@ import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
 
+import { useLoadDataStore } from '@/src/store/load-data';
+
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
     value: 1,
@@ -327,9 +329,10 @@ async function restoreDatasets(
 
   await Promise.all(
     [...leaves].map(async (leafId) => {
+      const volumeKeySuffix = Object.keys(useLoadDataStore().loadedByBus).find(suffix => dataSourceIDToStateID[leafId]?.endsWith(`#${suffix}`)) || undefined;
       const dataSource = dataSourceCache[leafId];
       const importResult =
-        (await context?.importDataSources?.([dataSource])) ?? [];
+        (await context?.importDataSources?.([dataSource], volumeKeySuffix)) ?? [];
       const [result] = importResult;
       if (result?.type !== 'data' || importResult.length !== 1)
         throw new Error('Expected a single dataset');

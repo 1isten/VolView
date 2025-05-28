@@ -11,7 +11,7 @@
           width="350"
           id="left-nav"
           location="end"
-          mobile-breakpoint="0"
+          :mobile-breakpoint="0"
           disable-resize-watcher
           disable-route-watcher
           :temporary="temporaryDrawer"

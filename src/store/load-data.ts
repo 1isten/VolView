@@ -27,8 +27,6 @@ export type LoadedByBusRecord = {
       slices: {
         width?: number;
         level?: number;
-        min?: number;
-        max?: number;
         n: number;
         i: number;
       }[];

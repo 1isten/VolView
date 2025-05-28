@@ -1,5 +1,4 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
-import { arrayRange } from '@kitware/vtk.js/Common/Core/Math';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import * as DICOM from '@/src/io/dicom';
@@ -9,6 +8,8 @@ import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
 import { useFileStore } from './datasets-files';
+import { useLoadDataStore } from './load-data';
+import { useViewStore } from './views';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -198,14 +199,75 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importChunks(chunks: Chunk[]) {
+    volumeKeyGetSuffix: DICOM.volumeKeyGetSuffix,
+    // readDicomTags,
+
+    async importChunks(chunks: Chunk[], volumeKeySuffix?: string) {
       const imageCacheStore = useImageCacheStore();
 
       // split into groups
       const chunksByVolume = await DICOM.splitAndSort(
         chunks,
-        (chunk) => chunk.metaBlob!
+        (chunk) => chunk.metaBlob!,
+        volumeKeySuffix
       );
+
+      if (volumeKeySuffix) {
+        const loadDataStore = useLoadDataStore();
+        Object.entries(chunksByVolume).forEach(([volumeKey, sortedChunks]) => {
+          if (!loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey]) {
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey] = {
+              layoutName: '',
+              slices: [],
+            };
+          }
+          if (sortedChunks[0]?.metadata) {
+            const filesInOrder = [];
+            const windowLevels = [];
+            const windowWidths = [];
+            for (let s = 0; s < sortedChunks.length; s++) {
+              const chunk = sortedChunks[s];
+              const InstanceNumber: string = chunk.metadata?.find(meta => meta[0] === '0020|0013')?.[1] || '';
+              const WindowLevel: string = chunk.metadata?.find(meta => meta[0] === '0028|1050')?.[1] || '';
+              const WindowWidth: string = chunk.metadata?.find(meta => meta[0] === '0028|1051')?.[1] || '';
+              // can get more tags here if needed...
+              filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10) });
+              const [wl] = getWindowLevels({ WindowLevel, WindowWidth });
+              if (wl) {
+                windowLevels.push(wl.level);
+                windowWidths.push(wl.width);
+              }
+            }
+            filesInOrder.sort((a, b) => a.n - b.n);
+            for (let s = 0; s < sortedChunks.length; s++) {
+              const i = filesInOrder.findIndex(({ chunk }) => chunk === sortedChunks[s]);
+              const n = filesInOrder[i].n;
+              const width = windowWidths[i];
+              const level = windowLevels[i];
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices.push({
+                width,
+                level,
+                n,
+                i,
+              });
+            }
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlDiffers = Math.max(...windowLevels) !== Math.min(...windowLevels) || Math.max(...windowWidths) !== Math.min(...windowWidths);
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfiged = {};
+            loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfigedByUser = false;
+          }
+          loadDataStore.dataIDToVolumeKeyUID[volumeKey] = volumeKeySuffix;
+        });
+        let offset = 0;
+        Object.entries(loadDataStore.loadedByBus[volumeKeySuffix].volumes).map(([volumeKey, { slices }]) => ({ volumeKey, n0: slices[0]?.n })).sort((a, b) => a.n0 - b.n0).forEach(({ volumeKey }) => {
+          const volumeKeys = loadDataStore.loadedByBus[volumeKeySuffix].volumeKeys;
+          volumeKeys.push(volumeKey);
+          const { slices } = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          slices.forEach((slice, s) => {
+            slices[s].i += offset;
+          });
+          offset += slices.length;
+        });
+      }
 
       await Promise.all(
         Object.entries(chunksByVolume).map(async ([id, sortedChunks]) => {
@@ -253,6 +315,22 @@ export const useDICOMStore = defineStore('dicom', {
 
           // save the image name
           image.setName(getDisplayName(volumeInfo));
+
+          if (image.imageMetadata.value.lpsOrientation) {
+            if (volumeKeySuffix) {
+              const loadDataStore = useLoadDataStore();
+              const viewStore = useViewStore();
+              const volumeKey = id;
+              const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+              const viewID = viewStore.getPrimaryViewID(volumeKey);
+              if (viewID && !vol.layoutName) {
+                const layoutName = viewStore.getLayoutByViewID(viewID);
+                if (layoutName) {
+                  vol.layoutName = layoutName;
+                }
+              }
+            }
+          }
         })
       );
 

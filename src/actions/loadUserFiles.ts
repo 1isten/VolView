@@ -7,7 +7,6 @@ import {
 } from '@/src/io/import/dataSource';
 import { useLoadDataStore, type LoadEventOptions } from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -269,51 +268,67 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
           const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
 
-          if (typeof options.s === 'number') {
+          if (
+            options.s === undefined &&
+            options.n === undefined &&
+            options.i === undefined
+          ) {
+            //
+          } else if (typeof options.s === 'number') {
             const vol = volumes[selection];
-            if (vol?.layoutName) {
-              if (!useUrlSearchParams().layoutName) {
-                useViewStore().setLayoutByName(vol.layoutName, true);
+            if (vol) {
+              if (vol.layoutName) {
+                if (!useUrlSearchParams().layoutName) {
+                  useViewStore().setLayoutByName(vol.layoutName, true);
+                }
               }
               s = options.s;
               if (s !== -1) {
                 dataID = selection;
-                viewID = useImageStore().getPrimaryViewID(dataID);
+                viewID = useViewStore().getPrimaryViewID(dataID);
+              } else {
+                selection = '';
               }
             }
           } else if (typeof options.n === 'number') {
-            selection = '';
             // eslint-disable-next-line no-restricted-syntax
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
-              if (vol?.layoutName) {
-                if (!useUrlSearchParams().layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName, true);
+              if (vol) {
+                if (vol.layoutName) {
+                  if (!useUrlSearchParams().layoutName) {
+                    useViewStore().setLayoutByName(vol.layoutName, true);
+                  }
                 }
                 s = vol.slices.findIndex(({ n }) => n === options.n);
                 if (s !== -1) {
                   selection = volumeKey;
                   dataID = volumeKey;
-                  viewID = useImageStore().getPrimaryViewID(volumeKey);
+                  viewID = useViewStore().getPrimaryViewID(volumeKey);
                   break;
+                } else {
+                  selection = '';
                 }
               }
             }
           } else if (typeof options.i === 'number') {
-            selection = '';
             // eslint-disable-next-line no-restricted-syntax
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
-              if (vol?.layoutName) {
-                if (!useUrlSearchParams().layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName, true);
+              if (vol) {
+                if (vol.layoutName) {
+                  if (!useUrlSearchParams().layoutName) {
+                    useViewStore().setLayoutByName(vol.layoutName, true);
+                  }
                 }
                 s = vol.slices.findIndex(({ i }) => i === options.i);
                 if (s !== -1) {
                   selection = volumeKey;
                   dataID = volumeKey;
-                  viewID = useImageStore().getPrimaryViewID(volumeKey);
+                  viewID = useViewStore().getPrimaryViewID(volumeKey);
                   break;
+                } else {
+                  selection = '';
                 }
               }
             }
@@ -411,13 +426,24 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
     const beforeLoadByBus = () => {
       const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
       if (volumeKeys?.length && volumes) {
-        if (typeof options.s === 'number') {
+        if (
+          options.s === undefined &&
+          options.n === undefined &&
+          options.i === undefined
+        ) {
+          if (names.some(name => name.toLowerCase().endsWith('.zip'))) {
+            const datasetStore = useDatasetStore();
+            volumeKeys.forEach(imageID => datasetStore.remove(imageID));
+            loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options);
+            return loadDataStore.setIsLoadingByBus(true);
+          }
+        } else if (typeof options.s === 'number') {
           // eslint-disable-next-line no-restricted-syntax
           for (const volumeKey of Object.keys(volumes)) {
             const vol = volumes[volumeKey];
             const s = options.s;
             if (vol?.slices[options.s]) {
-              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 if (vol?.layoutName && !useUrlSearchParams().layoutName) {
                   // useViewStore().setLayoutByName(vol.layoutName, true);
@@ -436,7 +462,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             const vol = volumes[volumeKey];
             const s = vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
             if (s !== -1) {
-              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 if (vol?.layoutName && !useUrlSearchParams().layoutName) {
                   // useViewStore().setLayoutByName(vol.layoutName, true);
@@ -455,7 +481,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             const vol = volumes[volumeKey];
             const s = vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
             if (s !== -1) {
-              const viewID = useImageStore().getPrimaryViewID(volumeKey);
+              const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 if (vol?.layoutName && !useUrlSearchParams().layoutName) {
                   // useViewStore().setLayoutByName(vol.layoutName, true);

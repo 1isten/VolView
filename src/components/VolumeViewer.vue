@@ -55,7 +55,7 @@
       </view-overlay-grid>
     </div>
     <div v-else-if="currentImageID" class="d-flex align-center justify-center">
-      <v-btn slim size="x-large" variant="plain" @click="render">
+      <v-btn size="x-large" variant="plain" @click="render">
         Render
         <template v-slot:append>
           <v-icon icon="mdi-video-3d" size="2rem" class="ms-n1"></v-icon>

@@ -9,6 +9,8 @@ import {
   View,
 } from '../io/state-file/schema';
 
+import { useImageCacheStore } from './image-cache';
+
 interface State {
   prevLayoutName?: string;
   layout: Layout;
@@ -44,6 +46,26 @@ export const useViewStore = defineStore('view', {
       if (id in this.viewSpecs) {
         delete this.viewSpecs[id];
       }
+    },
+    getPrimaryViewID(volumeKey: string) {
+      const imageID = volumeKey;
+      const image = useImageCacheStore().imageById[imageID];
+      if (image && image.imageMetadata) {
+        const lpsOrientation = image.imageMetadata.value.lpsOrientation;
+        if (lpsOrientation) {
+          const { Axial, Sagittal, Coronal } = lpsOrientation;
+          let viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D' = 'Axial';
+          if (Axial === 2) {
+            viewID = 'Axial';
+          } else if (Sagittal === 2) {
+            viewID = 'Sagittal';
+          } else if (Coronal === 2) {
+            viewID = 'Coronal';
+          }
+          return viewID;
+        }
+      }
+      return null;
     },
     getLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
       const layoutName = `${viewID} Only`;

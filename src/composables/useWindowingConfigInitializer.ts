@@ -3,7 +3,6 @@ import { watchImmediate } from '@vueuse/core';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
-import { useLoadDataStore } from '@/src/store/load-data';
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { isDicomImage } from '@/src/utils/dataSelection';
@@ -13,8 +12,6 @@ export function useWindowingConfigInitializer(
   viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>
 ) {
-  const loadDataStore = useLoadDataStore();
-
   const { imageData } = useImage(imageID);
   const dicomStore = useDICOMStore();
 
