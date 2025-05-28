@@ -124,7 +124,7 @@ const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
 const layoutName = useViewLayout((query.layoutName || '').toString());
-const onManuallySetLayoutName = (value: string) => { if (value) { useViewStore().prevLayoutName = '' } };
+const onManuallySetLayoutName = (value: string | null) => { if (value) { useViewStore().prevLayoutName = '' } };
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </script>
