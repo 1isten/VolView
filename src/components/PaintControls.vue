@@ -12,6 +12,7 @@
           v-slot="{ selectedClass, toggle }"
         >
           <v-btn
+            size="small"
             variant="tonal"
             rounded="8"
             stacked
@@ -24,6 +25,7 @@
         </v-item>
         <v-item :value="PaintMode.Erase" v-slot="{ selectedClass, toggle }">
           <v-btn
+            size="small"
             variant="tonal"
             rounded="8"
             stacked
@@ -39,6 +41,7 @@
           v-slot="{ selectedClass, toggle }"
         >
           <v-btn
+            size="small"
             variant="tonal"
             rounded="8"
             stacked
@@ -130,8 +133,12 @@ export default defineComponent({
 
 .mode-button {
   min-height: 56px;
-  min-width: 110px;
+  min-width: 99px;
   height: 56px;
-  width: 110px;
+  width: 99px;
+}
+.mode-button:not(:last-child) {
+  min-width: 88px;
+  width: 88px;
 }
 </style>
