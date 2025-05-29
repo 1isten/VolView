@@ -31,6 +31,8 @@ import {
   ImportDataSourcesResult,
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
+
+import JSZip from 'jszip';
 import {
   fetchSeries,
   fetchInstance,
@@ -337,15 +339,19 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           requestAnimationFrame(() => {
             if (viewID && dataID && s !== -1) {
               useViewSliceStore().updateConfig(viewID, dataID, { slice: s });
-              const wlConfig = useWindowingStore().getConfig(viewID, dataID)?.value;
-              if ((!wlConfig?.width || !wlConfig?.level) && wlConfig?.auto) {
-                useWindowingStore().updateConfig(viewID, dataID, {
-                  auto: wlConfig.auto,
-                }, true);
-              }
             }
           });
         }
+        setTimeout(() => {
+          if (dataStore.primarySelection) {
+            const wlConfig = useWindowingStore().getConfig('Axial', dataStore.primarySelection)?.value;
+            if ((!wlConfig?.width || !wlConfig?.level) && wlConfig?.auto) {
+              useWindowingStore().updateConfig('Axial', dataStore.primarySelection, {
+                auto: wlConfig.auto,
+              }, true);
+            }
+          }
+        }, 1);
         dataStore.setPrimarySelection(selection || null);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
@@ -370,7 +376,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
       loadDataStore.setError(failedError);
     } else if (loadDataStore.isLoadingByBus) {
-      loadDataStore.setIsLoadingByBus(false);
+      loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
     }
   };
 
@@ -414,9 +420,9 @@ export async function loadUserPromptedFiles() {
 }
 
 export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
-  const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const sources = urls.map((url, idx) =>
+  let urls = wrapInArray(params.urls);
+  let names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
+  let sources = urls.map((url, idx) =>
     uriToDataSource(
       url,
       names[idx] ||
@@ -430,7 +436,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
     const loadDataStore = useLoadDataStore();
     const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
 
-    const beforeLoadByBus = () => {
+    const beforeLoadByBus = async () => {
       const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
       if (volumeKeys?.length && volumes) {
         if (
@@ -438,7 +444,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           options.n === undefined &&
           options.i === undefined
         ) {
-          if (names.some(name => name.toLowerCase().endsWith('.zip'))) {
+          if (names.some(name => name.toLowerCase().endsWith('.zip') && name !== 'archive.zip')) {
             const datasetStore = useDatasetStore();
             volumeKeys.forEach(imageID => datasetStore.remove(imageID));
             loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options);
@@ -459,7 +465,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                 requestAnimationFrame(() => {
                   useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 });
-                return loadDataStore.setIsLoadingByBus(false);
+                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
               }
             }
           }
@@ -478,7 +484,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                 requestAnimationFrame(() => {
                   useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 });
-                return loadDataStore.setIsLoadingByBus(false);
+                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
               }
             }
           }
@@ -497,12 +503,38 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
                 requestAnimationFrame(() => {
                   useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
                 });
-                return loadDataStore.setIsLoadingByBus(false);
+                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
               }
             }
           }
         }
-        return loadDataStore.setIsLoadingByBus(false);
+        return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+      }
+      if (options.zip && urls.length > 0) {
+        if (loadDataStore.getLoadedByBusOptions(volumeKeySuffix)?.loading) {
+          return false;
+        }
+        loadDataStore.setIsLoadingByBus(true);
+        // eslint-disable-next-line no-param-reassign
+        options.loading = true;
+        const zip = new JSZip();
+        const zipBlob = await Promise.all(urls.map((url, i) => {
+          return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => blob && zip.file(`file${i + 1}.dcm`, blob)).catch(console.error);
+        })).then(() => zip.generateAsync({ type: 'blob' })).catch(console.error);
+        if (zipBlob) {
+          // eslint-disable-next-line no-param-reassign
+          options.zipObjectUrl = URL.createObjectURL(zipBlob);
+          urls = [options.zipObjectUrl];
+          names = ['archive.zip'];
+          sources = urls.map((url, idx) =>
+            uriToDataSource(
+              url,
+              names[idx] ||
+                basename(parseUrl(url, window.location.href).pathname) ||
+                url
+            )
+          );
+        }     
       }
       return loadDataStore.setIsLoadingByBus(true);
     };
@@ -539,9 +571,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           }
         }
       }
-      return beforeLoadByBus() && loadFiles(dicomWebFiles, volumeKeySuffix);
+      return (await beforeLoadByBus()) && loadFiles(dicomWebFiles, volumeKeySuffix);
     }
-    return beforeLoadByBus() && loadDataSources(sources, volumeKeySuffix);
+    return (await beforeLoadByBus()) && loadDataSources(sources, volumeKeySuffix);
   }
 
   return loadDataSources(sources);

@@ -61,7 +61,11 @@ interface URLHandler {
  */
 const HTTPHandler: URLHandler = {
   testURL: (url) => {
-    if (url.startsWith('connect:') || url.startsWith('connect-file:')) {
+    if (
+      url.startsWith('blob:') ||
+      url.startsWith('connect:') ||
+      url.startsWith('connect-file:')
+    ) {
       return true;
     }
     const { protocol } = parseUrl(url, window.location.href);

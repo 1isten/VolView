@@ -16,6 +16,10 @@ export interface LoadEventOptions {
   s?: number; // slice
   n?: number; // instance number (x00200013)
   i?: number; // index (from parsed data list)
+  // ...
+  loading?: boolean;
+  zip?: boolean;
+  zipObjectUrl?: string | null;
 }
 
 export type LoadedByBusRecord = {
@@ -197,10 +201,18 @@ export const useLoadDataStore = defineStore('loadData', () => {
     hasProjectPort: ref(false),
     getLoadedByBusOptions,
     setLoadedByBusOptions,
-    setIsLoadingByBus(value: boolean) {
+    setIsLoadingByBus(value: boolean, uid?: string) {
       isLoadingByBus.value = value;
       if (!isLoadingByBus.value && isBusUnselected.value) {
         isBusUnselected.value = false;
+      }
+      if (!isLoadingByBus.value && uid) {
+        const options = getLoadedByBusOptions(uid);
+        if (options && options.zip && options.zipObjectUrl) {
+          URL.revokeObjectURL(options.zipObjectUrl);
+          options.zipObjectUrl = null;
+        }
+        delete options.loading;
       }
       return isLoadingByBus.value;
     },
