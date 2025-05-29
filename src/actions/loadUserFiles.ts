@@ -12,6 +12,7 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -336,6 +337,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           requestAnimationFrame(() => {
             if (viewID && dataID && s !== -1) {
               useViewSliceStore().updateConfig(viewID, dataID, { slice: s });
+              const wlConfig = useWindowingStore().getConfig(viewID, dataID)?.value;
+              if ((!wlConfig?.width || !wlConfig?.level) && wlConfig?.auto) {
+                useWindowingStore().updateConfig(viewID, dataID, {
+                  auto: wlConfig.auto,
+                }, true);
+              }
             }
           });
         }
