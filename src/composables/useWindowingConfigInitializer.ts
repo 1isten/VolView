@@ -2,7 +2,7 @@ import { MaybeRef, computed, unref } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
-import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import { useWindowingStore, defaultWindowLevelConfig } from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { isDicomImage } from '@/src/utils/dataSelection';
@@ -43,6 +43,12 @@ export function useWindowingConfigInitializer(
       store.updateConfig(viewIdVal, imageIdVal, {
         width: firstTagVal.width,
         level: firstTagVal.level,
+      });
+    } else {
+      const { width, level } = defaultWindowLevelConfig();
+      store.updateConfig(viewIdVal, imageIdVal, {
+        width,
+        level,
       });
     }
 
