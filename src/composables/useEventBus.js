@@ -52,7 +52,7 @@ export function useEventBus(handlers, loadDataStore) {
     };
     onsavesegmentation = payload => {
       if (pipelineId && manualNodeId) {
-        const labelmap = payload?.data?.path;
+        const labelmap = payload?.data?.path || payload?.data?.filePath;
         if (labelmap) {
           const msg = {
             type: 'created-segmentation',

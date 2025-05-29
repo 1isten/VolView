@@ -90,18 +90,19 @@ async function saveSegmentGroup() {
       const formData = new FormData();
       const fileContent = new Blob([serialized], { type: FILE_EXT_TO_MIME[fileFormat.value] });
       formData.append('fileContent', fileContent);
-      formData.set('fileName', fileName.value);
-      formData.set('fileExtension', fileFormat.value);
-      formData.set('oid', 'test-oid');
-      formData.set('pipelineId', 'test-pipeline-id');
-      formData.set('projectId', 'test-project-id');
-      formData.set('datasetId', 'test-dataset-id');
-      const res = await fetch('connect://localhost/api/volview/create-segmentation', { method: 'POST', body: formData });
+      formData.set('fileName', `${fileName.value.replaceAll(' ', '_')}.${fileFormat.value}`);
+      formData.set('fileType', fileFormat.value);
+      formData.set('pipelineId', query.pipelineId?.toString() || '');
+      if (query.manualNodeId) {
+        formData.set('meta', JSON.stringify({ manualNodeId: query.manualNodeId }));
+      }
+      formData.set('type', 'segmentation');
+      const res = await fetch('connect://localhost/api/volview/sessions', { method: 'POST', body: formData });
       if (res.ok) {
         const data = await res.json();
         console.log(data);
         const emitter = loadDataStore.$bus.emitter;
-        emitter?.emit('savesegmentation', data);
+        emitter?.emit('savesegmentation', { data });
       } else {
         console.error(res.status, res.statusText);
       }
