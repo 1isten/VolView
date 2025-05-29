@@ -18,6 +18,7 @@ export interface LoadEventOptions {
   i?: number; // index (from parsed data list)
   // ...
   loading?: boolean;
+  prefetchFiles?: boolean;
   zip?: boolean;
   zipObjectUrl?: string | null;
 }

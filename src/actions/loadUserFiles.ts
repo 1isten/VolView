@@ -536,6 +536,13 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
           );
         }     
       }
+      if (options.prefetchFiles && urls.length > 0) {
+        loadDataStore.setIsLoadingByBus(true);
+        const files = await Promise.all(urls.map((url, i) => fetch(url).then(res => res.blob()).then(blob => new File([blob], `file${i + 1}.dcm`, { type: 'application/dicom' }))));
+        const dataSources = files.map(fileToDataSource);
+        loadDataSources(dataSources, volumeKeySuffix);
+        return false;
+      }
       return loadDataStore.setIsLoadingByBus(true);
     };
 
