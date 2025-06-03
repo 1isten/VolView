@@ -342,16 +342,22 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             }
           });
         }
-        setTimeout(() => {
-          if (dataStore.primarySelection) {
-            const wlConfig = useWindowingStore().getConfig('Axial', dataStore.primarySelection)?.value;
-            if ((!wlConfig?.width || !wlConfig?.level) && wlConfig?.auto) {
-              useWindowingStore().updateConfig('Axial', dataStore.primarySelection, {
-                auto: wlConfig.auto,
-              }, true);
+        requestAnimationFrame(() => {
+          [
+            'Axial',
+            // 'Sagittal',
+            // 'Coronal',
+          ].forEach(viewID => {
+            if (dataStore.primarySelection) {
+              const wlConfig = useWindowingStore().getConfig(viewID, dataStore.primarySelection)?.value;
+              if ((!wlConfig?.width || !wlConfig?.level) && wlConfig?.auto) {
+                useWindowingStore().updateConfig(viewID, dataStore.primarySelection, {
+                  auto: wlConfig.auto,
+                }, true);
+              }
             }
-          }
-        }, 1);
+          });
+        });
         dataStore.setPrimarySelection(selection || null);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
