@@ -3,7 +3,7 @@ import { useUrlSearchParams } from '@vueuse/core';
 
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
-  const { uid, datasetId, projectId, pipelineId, manualNodeId } = query;
+  const { uid, datasetId, projectId, pipelineId, pipelineEmbedded, manualNodeId } = query;
 
   const peerId = `volview-${projectId || datasetId || uid || window.btoa(document.location.href)}`;
   const ports = Object.create(null);
@@ -66,8 +66,8 @@ export function useEventBus(handlers, loadDataStore) {
           const port = ports[`comfyui-${pipelineId}`];
           if (port) {
             port.postMessage(msg);
-          } else if (window.parent !== window) {
-            window.parent.postMessage(msg, '*');
+          } else if (window.parent !== window || pipelineEmbedded === 'embedded') {
+            window.parent.postMessage(msg, '*'); // `comfyui-${pipelineId}` + (pipelineEmbedded ? '-embedded' : '')
           }
         }
       }

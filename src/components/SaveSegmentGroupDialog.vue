@@ -94,7 +94,10 @@ async function saveSegmentGroup() {
       formData.set('fileType', fileFormat.value);
       formData.set('pipelineId', query.pipelineId?.toString() || '');
       if (query.manualNodeId) {
-        formData.set('meta', JSON.stringify({ manualNodeId: query.manualNodeId }));
+        formData.set('meta', JSON.stringify({
+          manualNodeId: query.manualNodeId,
+          batch: query.pipelineEmbedded === 'embedded' ? true : undefined,
+        }));
       }
       formData.set('type', 'segmentation');
       const res = await fetch('connect://localhost/api/volview/sessions', { method: 'POST', body: formData });
