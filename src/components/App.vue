@@ -224,6 +224,9 @@ export default defineComponent({
           n: urlParams.n ?? undefined,
           i: urlParams.i ?? undefined,
         }));
+        if (urlParams.prefetch) {
+          options.prefetchFiles = true;
+        }
         loadUrls(urlParams, options);
         return;
       }
