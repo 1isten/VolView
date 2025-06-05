@@ -350,7 +350,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           ].forEach(viewID => {
             if (dataStore.primarySelection) {
               const wlConfig = useWindowingStore().getConfig(viewID, dataStore.primarySelection)?.value;
-              if ((!wlConfig?.width || !wlConfig?.level) && wlConfig?.auto) {
+              if ((!wlConfig?.width || !wlConfig?.level || wlConfig?.level === 2 ** 32 - 1) && wlConfig?.auto) {
                 useWindowingStore().updateConfig(viewID, dataStore.primarySelection, {
                   auto: wlConfig.auto,
                 }, true);
