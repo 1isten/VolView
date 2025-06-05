@@ -35,7 +35,7 @@ function getRangesWithCache(scalars: vtkDataArray) {
 }
 
 function getAllComponentRange(scalars: vtkDataArray) {
-  const ranges = scalars.getRanges(false).slice(0, scalars.getNumberOfComponents()) || getRangesWithCache(scalars);
+  const ranges = getRangesWithCache(scalars);
 
   const min = ranges
     .map((range) => range.min)
