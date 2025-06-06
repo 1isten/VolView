@@ -456,6 +456,18 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options);
             return loadDataStore.setIsLoadingByBus(true);
           }
+          // eslint-disable-next-line no-restricted-syntax
+          for (const volumeKey of Object.keys(volumes)) {
+            const vol = volumes[volumeKey];
+            const viewID = useViewStore().getPrimaryViewID(volumeKey);
+            if (viewID) {
+              if (vol?.layoutName && !(options.layoutName || useUrlSearchParams().layoutName)) {
+                // useViewStore().setLayoutByName(vol.layoutName, true);
+              }
+              useDatasetStore().setPrimarySelection(volumeKey);
+              return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+            }
+          }
         } else if (typeof options.s === 'number') {
           // eslint-disable-next-line no-restricted-syntax
           for (const volumeKey of Object.keys(volumes)) {
