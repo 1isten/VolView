@@ -324,7 +324,7 @@ export const useDICOMStore = defineStore('dicom', {
               const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
               const viewID = viewStore.getPrimaryViewID(volumeKey);
               if (viewID && !vol.layoutName) {
-                const layoutName = viewStore.getLayoutByViewID(viewID);
+                const layoutName = loadDataStore.loadedByBus[volumeKeySuffix].options.layoutName || viewStore.getLayoutByViewID(viewID);
                 if (layoutName) {
                   vol.layoutName = layoutName;
                 }

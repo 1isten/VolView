@@ -11,6 +11,7 @@ export interface LoadEventOptions {
   uid?: string; // shortcut for volumeKeyUID
   volumeKeyUID?: string; // alias for volumeKeySuffix
   volumeKeySuffix?: string; // make use of volumeKeySuffix as UID
+  layoutName?: string; // Quad View | Axial | Sagittal | Coronal | 3D
   // ...
   v?: string; // viewID
   s?: number; // slice
@@ -18,6 +19,7 @@ export interface LoadEventOptions {
   i?: number; // index (from parsed data list)
   // ...
   loading?: boolean;
+  atob?: boolean;
   prefetchFiles?: boolean;
   zip?: boolean;
   zipObjectUrl?: string | null;

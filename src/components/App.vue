@@ -162,6 +162,11 @@ export default defineComponent({
         if (!urlParams || !urlParams.urls) {
           return;
         }
+        if (options.atob && options.uid) {
+          const decodedPath = window.atob(options.uid.toString());
+          // console.warn('[atob]', options.uid, '->', decodedPath);
+          urlParams.urls = [`connect://localhost/file/${decodedPath}`];
+        }
 
         // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
         const volumeKeyUID = options.volumeKeyUID || options.uid;
@@ -209,7 +214,9 @@ export default defineComponent({
     onMounted(() => {
       if (urlParams.urls) {
         if (urlParams.atob && urlParams.uid) {
-          urlParams.urls = [`connect://localhost/file/${window.atob(urlParams.uid.toString())}`];
+          const decodedPath = window.atob(urlParams.uid.toString());
+          // console.warn('[atob]', urlParams.uid, '->', decodedPath);
+          urlParams.urls = [`connect://localhost/file/${decodedPath}`];
         }
       } else {
         return;

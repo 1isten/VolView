@@ -281,7 +281,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             const vol = volumes[selection];
             if (vol) {
               if (vol.layoutName) {
-                if (!useUrlSearchParams().layoutName) {
+                if (!(options.layoutName || useUrlSearchParams().layoutName)) {
                   useViewStore().setLayoutByName(vol.layoutName, true);
                 }
               }
@@ -299,7 +299,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               const vol = volumes[volumeKey];
               if (vol) {
                 if (vol.layoutName) {
-                  if (!useUrlSearchParams().layoutName) {
+                  if (!(options.layoutName || useUrlSearchParams().layoutName)) {
                     useViewStore().setLayoutByName(vol.layoutName, true);
                   }
                 }
@@ -320,7 +320,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               const vol = volumes[volumeKey];
               if (vol) {
                 if (vol.layoutName) {
-                  if (!useUrlSearchParams().layoutName) {
+                  if (!(options.layoutName || useUrlSearchParams().layoutName)) {
                     useViewStore().setLayoutByName(vol.layoutName, true);
                   }
                 }
@@ -464,7 +464,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             if (vol?.slices[options.s]) {
               const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
-                if (vol?.layoutName && !useUrlSearchParams().layoutName) {
+                if (vol?.layoutName && !(options.layoutName || useUrlSearchParams().layoutName)) {
                   // useViewStore().setLayoutByName(vol.layoutName, true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -483,7 +483,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             if (s !== -1) {
               const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
-                if (vol?.layoutName && !useUrlSearchParams().layoutName) {
+                if (vol?.layoutName && !(options.layoutName || useUrlSearchParams().layoutName)) {
                   // useViewStore().setLayoutByName(vol.layoutName, true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -502,7 +502,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             if (s !== -1) {
               const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
-                if (vol?.layoutName && !useUrlSearchParams().layoutName) {
+                if (vol?.layoutName && !(options.layoutName || useUrlSearchParams().layoutName)) {
                   // useViewStore().setLayoutByName(vol.layoutName, true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -543,6 +543,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         }     
       }
       if (options.prefetchFiles && urls.length > 0) {
+        // console.warn('[prefetch]', urls);
         loadDataStore.setIsLoadingByBus(true);
         const files = await Promise.all(urls.map((url, i) => fetch(url).then(res => res.blob()).then(blob => new File([blob], `file${i + 1}.dcm`, { type: 'application/dicom' }))));
         const dataSources = files.map(fileToDataSource);
