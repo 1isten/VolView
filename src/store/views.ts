@@ -11,22 +11,36 @@ import {
 
 import { useImageCacheStore } from './image-cache';
 
+function cloneLayout(layout: Layout): Layout {
+  return {
+    direction: layout.direction,
+    items: layout.items.map((item) =>
+      typeof item === 'string' ? item : cloneLayout(item)
+    ),
+    ...(layout.name && { name: layout.name }),
+  };
+}
+
 interface State {
-  prevLayoutName?: string;
   layout: Layout;
   viewSpecs: Record<string, ViewSpec>;
   activeViewID: string;
+  maximizedViewID: string | null;
+  originalLayout: Layout | null;
+  prevLayoutName?: string;
 }
 
 export const useViewStore = defineStore('view', {
   state: (): State => ({
-    prevLayoutName: undefined,
     layout: {
       direction: LayoutDirection.V,
       items: [],
     },
     viewSpecs: structuredClone(InitViewSpecs),
     activeViewID: '',
+    maximizedViewID: null,
+    originalLayout: null,
+    // prevLayoutName: undefined,
   }),
   getters: {
     viewIDs(state) {
@@ -95,6 +109,7 @@ export const useViewStore = defineStore('view', {
       return layoutName;
     },
     setLayout(layout: Layout) {
+      this.restoreLayout();
       this.layout = layout;
 
       const layoutsToProcess = [layout];
@@ -108,6 +123,33 @@ export const useViewStore = defineStore('view', {
             layoutsToProcess.push(item);
           }
         });
+      }
+    },
+    maximizeView(viewID: string) {
+      if (this.maximizedViewID) {
+        this.restoreLayout();
+      }
+
+      this.originalLayout = cloneLayout(this.layout);
+      this.maximizedViewID = viewID;
+
+      this.layout = {
+        direction: LayoutDirection.H,
+        items: [viewID],
+      };
+    },
+    restoreLayout() {
+      if (this.originalLayout) {
+        this.layout = this.originalLayout;
+        this.originalLayout = null;
+        this.maximizedViewID = null;
+      }
+    },
+    toggleMaximizeView(viewID: string) {
+      if (this.maximizedViewID === viewID) {
+        this.restoreLayout();
+      } else {
+        this.maximizeView(viewID);
       }
     },
     serialize(stateFile: StateFile) {

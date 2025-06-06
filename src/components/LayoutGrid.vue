@@ -6,7 +6,7 @@
   >
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
       <layout-grid v-if="item.type === 'layout'" :layout="(item as Layout)" />
-      <div v-else class="layout-item">
+      <div v-else class="layout-item" @dblclick="maximize(item.id!)">
         <component
           :is="item.component"
           :key="item.id"
@@ -14,7 +14,6 @@
           :type="item.viewType"
           v-bind="item.props"
           @focus="onFocusView(item.id!, item.viewType!)"
-          @dblclick="onDblClick(item.id!, item.viewType!)"
         />
       </div>
     </div>
@@ -27,6 +26,8 @@ import { storeToRefs } from 'pinia';
 import { ViewTypeToComponent } from '@/src/core/viewTypes';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewStore } from '../store/views';
+import { useToolStore } from '../store/tools';
+import { ALLOW_MAXIMIZE_TOOLS } from '../config';
 
 export default defineComponent({
   name: 'LayoutGrid',
@@ -36,14 +37,19 @@ export default defineComponent({
         useViewStore().setActiveViewID(id);
       }
     },
-    onDblClick(id: string, type: string) {
-      if (type &&
-        id === 'Axial' ||
-        id === 'Sagittal' ||
-        id === 'Coronal' ||
-        id === '3D'
-      ) {
-        useViewStore().setLayoutByViewID(id);
+    maximize(viewId: string) {
+      const currentTool = useToolStore().currentTool;
+      if (ALLOW_MAXIMIZE_TOOLS.includes(currentTool)) {
+        if (
+          viewId === 'Axial' ||
+          viewId === 'Sagittal' ||
+          viewId === 'Coronal' ||
+          viewId === '3D'
+        ) {
+          useViewStore().setLayoutByViewID(viewId);
+          return;
+        }
+        useViewStore().toggleMaximizeView(viewId);
       }
     },
   },
