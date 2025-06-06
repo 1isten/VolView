@@ -5,7 +5,7 @@ import { Maybe } from '@/src/types';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useImageStore } from '@/src/store/datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { getROIStats } from '@/src/utils/roi';
 
 type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
@@ -29,10 +29,10 @@ const segmentGroupID = computed(() => paintStore.activeSegmentGroupID);
 const segmentGroupStore = useSegmentGroupStore();
 const segmentGroupData = computed(() => segmentGroupID.value ? segmentGroupStore.dataIndex[segmentGroupID.value] : null);
 
-const imageStore = useImageStore();
+const imageCacheStore = useImageCacheStore();
 const parentImageID = computed(() => segmentGroupID.value && segmentGroupStore.metadataByID[segmentGroupID.value]?.parentImage || imageID.value || null);
-const parentImageMetaData = computed(() => parentImageID.value && imageStore.metadata[parentImageID.value] || null);
-const parentImageData = computed(() => parentImageID.value && imageStore.dataIndex[parentImageID.value] || null);
+const parentImageMetaData = computed(() => parentImageID.value && imageCacheStore.getImageMetadata(parentImageID.value) || null);
+const parentImageData = computed(() => parentImageID.value && imageCacheStore.getVtkImageData(parentImageID.value) || null);
 
 const newPointsCount = computed(() => paintStore.strokePoints.length);
 watchDebounced(newPointsCount, points => {
@@ -44,9 +44,7 @@ watchDebounced(newPointsCount, points => {
 });
 
 function handlePaint() {
-  if (!hover.value) {
-    return;
-  }
+  // if (!hover.value) return;
   if (!parentImageData.value || !segmentGroupData.value) {
     return;
   }

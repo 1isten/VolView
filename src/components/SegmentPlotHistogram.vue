@@ -1,5 +1,5 @@
 <template>
-  <div v-if="roiMode">
+  <div v-if="roiMode && plotlyLoaded">
     <span class="px-4 text-body2">ROI Histogram:</span>
     <div id="roi-histogram"></div>
   </div>
@@ -7,7 +7,7 @@
 
 <script setup>
 /* eslint-disable prefer-exponentiation-operator, no-restricted-properties */
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useUrlSearchParams } from '@vueuse/core';
 
 defineProps({
@@ -24,17 +24,23 @@ defineProps({
 const query = useUrlSearchParams();
 const roiMode = computed(() => query.roi === 'true' || query.roi === '1');
 
+const plotlyLoaded = ref(false);
+
 onMounted(() => {
   const Plotly = window.Plotly;
-  if (!Plotly) {
+  if (Plotly) {
+    plotlyLoaded.value = true;
+  } else {
     return;
   }
-  const roiHistogramEl = document.getElementById('roi-histogram');
-  if (roiHistogramEl) {
-    // eslint-disable-next-line no-use-before-define
-    roiHistogramEl.createHistogramWithNormalFit = createHistogramWithNormalFit;
-    roiHistogramEl.deleteHistogram = () => Plotly.purge(roiHistogramEl);
-  }
+  nextTick(() => {
+    const roiHistogramEl = document.getElementById('roi-histogram');
+    if (roiHistogramEl) {
+      // eslint-disable-next-line no-use-before-define
+      roiHistogramEl.createHistogramWithNormalFit = createHistogramWithNormalFit;
+      roiHistogramEl.deleteHistogram = () => Plotly.purge(roiHistogramEl);
+    }
+  })
 });
 
 // Create histogram with normal distribution fit
