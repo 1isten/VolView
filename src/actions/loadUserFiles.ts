@@ -17,6 +17,7 @@ import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import {
   importDataSources,
   toDataSelection,
@@ -426,7 +427,7 @@ export async function loadUserPromptedFiles() {
 }
 
 export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
-  let urls = wrapInArray(params.urls);
+  let urls = wrapInArray(params.urls && Array.isArray(params.urls) ? params.urls.map(url => decodeURIComponent(url)) : []);
   let names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
   let sources = urls.map((url, idx) =>
     uriToDataSource(
@@ -536,9 +537,20 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         // eslint-disable-next-line no-param-reassign
         options.loading = true;
         const zip = new JSZip();
-        const zipBlob = await Promise.all(urls.map((url, i) => {
-          return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => blob && zip.file(`file${i + 1}.dcm`, blob)).catch(console.error);
-        })).then(() => zip.generateAsync({ type: 'blob' })).catch(console.error);
+        const zipBlob = await Promise.all(urls.map((url, i, arr) => {
+          return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => {
+            if (blob) {
+              const file = url?.split('/')?.pop()?.split('\\')?.pop()
+              const name = file?.split('.')?.[0]
+              const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
+              // eslint-disable-next-line prefer-template
+              const fileName = arr.length === 1 && file ? file : `${name ? (name + ('_' + (i + 1))) : ('file_' + (i + 1))}${ext}`.replaceAll(' ', '_');
+              zip.file(fileName, blob);
+            }
+          }).catch(console.error);
+        })).then(() => {
+          return zip.generateAsync({ type: 'blob' });
+        }).catch(console.error);
         if (zipBlob) {
           // eslint-disable-next-line no-param-reassign
           options.zipObjectUrl = URL.createObjectURL(zipBlob);
@@ -557,7 +569,15 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
       if (options.prefetchFiles && urls.length > 0) {
         // console.warn('[prefetch]', urls);
         loadDataStore.setIsLoadingByBus(true);
-        const files = await Promise.all(urls.map((url, i) => fetch(url).then(res => res.blob()).then(blob => new File([blob], `file${i + 1}.dcm`, { type: 'application/dicom' }))));
+        const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
+          const file = url?.split('/')?.pop()?.split('\\')?.pop()
+          const name = file?.split('.')?.[0]
+          const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
+          // eslint-disable-next-line prefer-template
+          const fileName = arr.length === 1 && file ? file : `${name ? (name + ('_' + (i + 1))) : ('file_' + (i + 1))}${ext}`.replaceAll(' ', '_');
+          const mimeType = FILE_EXT_TO_MIME[ext.slice(1)];
+          return new File([blob], fileName, { type: mimeType });
+        })));
         const dataSources = files.map(fileToDataSource);
         loadDataSources(dataSources, volumeKeySuffix);
         return false;
