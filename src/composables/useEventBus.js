@@ -53,13 +53,13 @@ export function useEventBus(handlers, loadDataStore) {
     onsavesegmentation = payload => {
       if (pipelineId && manualNodeId) {
         const labelmap = payload?.data?.path || payload?.data?.filePath;
-        if (labelmap) {
+        if (labelmap && payload?.uid) {
           const msg = {
             type: 'created-segmentation',
             payload: {
               pipelineId,
               manualNodeId,
-              oid: uid,
+              oid: payload.uid,
               labelmap,
             },
           };

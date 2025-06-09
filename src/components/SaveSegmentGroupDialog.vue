@@ -84,6 +84,7 @@ async function saveSegmentGroup() {
 
   saving.value = true;
   await useErrorMessage('Failed to save segment group', async () => {
+    const parentImageID = segmentGroupStore.metadataByID[props.id].parentImage;
     const image = segmentGroupStore.dataIndex[props.id];
     const serialized = await writeImage(fileFormat.value, image);
     if (roiMode.value && (fileFormat.value in FILE_EXT_TO_MIME)) {
@@ -105,7 +106,10 @@ async function saveSegmentGroup() {
         const data = await res.json();
         console.log(data);
         const emitter = loadDataStore.$bus.emitter;
-        emitter?.emit('savesegmentation', { data });
+        emitter?.emit('savesegmentation', {
+          uid: loadDataStore.dataIDToVolumeKeyUID[parentImageID],
+          data,
+        });
       } else {
         console.error(res.status, res.statusText);
       }
