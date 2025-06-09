@@ -13,6 +13,7 @@ import { useImageStore } from './datasets-images';
 import * as Schema from '../io/state-file/schema';
 import { useLayersStore } from './datasets-layers';
 import { useModelStore } from './datasets-models';
+import { useLoadDataStore } from './load-data';
 
 export const DataType = {
   Image: 'Image',
@@ -133,6 +134,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   const dicomStore = useDICOMStore();
   const layersStore = useLayersStore();
   const modelStore = useModelStore();
+  const loadDataStore = useLoadDataStore();
 
   // --- state --- //
 
@@ -202,6 +204,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     imageStore.deleteData(id);
 
     layersStore.remove(id);
+
+    loadDataStore.removeLoadedByBus(id);
   };
 
   const removeAll = () => {

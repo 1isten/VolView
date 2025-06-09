@@ -32,7 +32,7 @@ const setEnabled = (enabled: boolean) => {
 };
 
 export const useErrorReporting = defineStore('error-reporting', () => {
-  const disableReportingStorage = useLocalStorage(LOCAL_STORAGE_KEY, 'false');
+  const disableReportingStorage = useLocalStorage(LOCAL_STORAGE_KEY, 'true');
 
   const disableReporting = ref(disableReportingStorage.value === 'true');
 

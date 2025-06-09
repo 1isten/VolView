@@ -102,6 +102,8 @@ export default defineConfig({
       'vtk.js': pkgInfo.versions['vtk.js'],
       'itk-wasm': pkgInfo.versions['itk-wasm'],
     },
+    __VUE_PROD_DEVTOOLS__: false,
+    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
   },
   resolve: {
     alias: [
@@ -165,7 +167,7 @@ export default defineConfig({
         {
           src: resolvePath(
             resolveNodeModulePath('@itk-wasm/image-io'),
-            'dist/pipelines/*{.wasm,.js,.zst}'
+            'dist/pipelines/{bmp,gdcm,jpeg,meta,nifti,nrrd,png,tiff,vtk,wasm}*{.wasm,.js,.zst}'
           ),
           dest: 'itk/image-io',
         },
@@ -213,7 +215,7 @@ export default defineConfig({
     configureSentryPlugin(),
   ],
   server: {
-    port: 8080,
+    port: 8043,
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
       '/tmp': config.baseUrl!,

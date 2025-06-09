@@ -40,6 +40,15 @@ export default defineComponent({
     maximize(viewId: string) {
       const currentTool = useToolStore().currentTool;
       if (ALLOW_MAXIMIZE_TOOLS.includes(currentTool)) {
+        if (
+          viewId === 'Axial' ||
+          viewId === 'Sagittal' ||
+          viewId === 'Coronal' ||
+          viewId === '3D'
+        ) {
+          useViewStore().setLayoutByViewID(viewId);
+          return;
+        }
         useViewStore().toggleMaximizeView(viewId);
       }
     },

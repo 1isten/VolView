@@ -1,3 +1,4 @@
+import { useUrlSearchParams } from '@vueuse/core';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import {
@@ -7,7 +8,7 @@ import {
 import { DEFAULT_PRESET_BY_MODALITY, DEFAULT_PRESET } from '@/src/config';
 import { ColorTransferFunction } from '@/src/types/views';
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
+import { reactive, computed } from 'vue';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -23,6 +24,9 @@ import { ViewConfig } from '../../io/state-file/schema';
 import { VolumeColorConfig } from './types';
 import { useDICOMStore } from '../datasets-dicom';
 
+const query = useUrlSearchParams();
+const useHeatmap = computed(() => query.heatmap === 'on' || query.heatmap === 'true' || query.heatmap === '1');
+
 export const DEFAULT_AMBIENT = 0.2;
 export const DEFAULT_DIFFUSE = 0.7;
 export const DEFAULT_SPECULAR = 0.3;
@@ -30,6 +34,9 @@ export const DEFAULT_EDGE_GRADIENT = 0.2;
 export const DEFAULT_SAMPLING_DISTANCE = 0.2;
 
 function getPresetFromImageModality(imageID: string) {
+  if (useHeatmap.value) {
+    return 'Heatmap';
+  }
   const dicomStore = useDICOMStore();
   if (isDicomImage(imageID)) {
     const volKey = imageID;
@@ -46,17 +53,17 @@ function getPresetFromImageModality(imageID: string) {
  * @param preset
  * @returns
  */
-function getColorAndOpacityFuncsFromPreset(preset: string) {
+function getColorAndOpacityFuncsFromPreset(preset: string, viewID?: string) {
   const ctFunc: Partial<ColorTransferFunction> = {
     preset,
   };
 
-  const ctRange = getColorFunctionRangeFromPreset(preset);
+  const ctRange = getColorFunctionRangeFromPreset(preset, viewID);
   if (ctRange) {
     ctFunc.mappingRange = ctRange;
   }
 
-  const opFunc = getOpacityFunctionFromPreset(preset);
+  const opFunc = getOpacityFunctionFromPreset(preset, viewID);
 
   return { colorFunc: ctFunc, opacityFunc: opFunc };
 }
@@ -78,10 +85,10 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   cvr: {
     enabled: true,
     lightFollowsCamera: true,
-    volumeQuality: 2,
+    volumeQuality: 1,
     useVolumetricScatteringBlending: false,
     volumetricScatteringBlending: 0.5,
-    useLocalAmbientOcclusion: true,
+    useLocalAmbientOcclusion: false,
     laoKernelRadius: 5,
     laoKernelSize: 15,
     ambient: DEFAULT_AMBIENT,
@@ -145,7 +152,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
 
     const imageDataRange = image.getPointData().getScalars().getRange();
     const { colorFunc, opacityFunc } =
-      getColorAndOpacityFuncsFromPreset(preset);
+      getColorAndOpacityFuncsFromPreset(preset, viewID);
     colorFunc.mappingRange ||= imageDataRange;
     opacityFunc.mappingRange = imageDataRange;
 

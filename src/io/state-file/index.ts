@@ -14,7 +14,7 @@ import { ARCHIVE_FILE_TYPES } from '../mimeTypes';
 export const MANIFEST = 'manifest.json';
 export const MANIFEST_VERSION = '5.0.1';
 
-export async function serialize() {
+export async function serialize(returnManifest = false) {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
   const labelStore = useSegmentGroupStore();
@@ -61,6 +61,9 @@ export async function serialize() {
 
   zip.file(MANIFEST, JSON.stringify(manifest));
 
+  if (returnManifest) {
+    return [await zip.generateAsync({ type: 'blob' }), manifest];
+  }
   return zip.generateAsync({ type: 'blob' });
 }
 
