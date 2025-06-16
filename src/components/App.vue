@@ -132,11 +132,13 @@ export default defineComponent({
     watch(currentImageMetadata, (newMetadata) => {
       let prefix = '';
       if (
+        // eslint-disable-next-line no-use-before-define
+        newMetadataNameTitle.value &&
         newMetadata?.name &&
         // wait until we get a real name, but if we never do, show default name
         (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
       ) {
-        prefix = `${newMetadata.name} - ` && prefix;
+        prefix = `${newMetadata.name} - `;
       }
       document.title = `${prefix}VolView`;
     });
@@ -209,6 +211,7 @@ export default defineComponent({
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
     const query = useUrlSearchParams();
+    const newMetadataNameTitle = computed(() => !!query.changeTitle);
     const layoutNameSettled = computed(() => !!query.layoutName);
 
     onMounted(() => {
