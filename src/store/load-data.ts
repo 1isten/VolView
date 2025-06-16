@@ -12,6 +12,7 @@ export interface LoadEventOptions {
   volumeKeyUID?: string; // alias for volumeKeySuffix
   volumeKeySuffix?: string; // make use of volumeKeySuffix as UID
   layoutName?: string; // Quad View | Axial | Sagittal | Coronal | 3D
+  changeLayout?: boolean | 'auto';
   // ...
   v?: string; // viewID
   s?: number; // slice
