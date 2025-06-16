@@ -140,6 +140,12 @@ export default defineComponent({
       ) {
         prefix = `${newMetadata.name} - `;
       }
+      if (window.parent !== window) {
+        window.parent.postMessage({
+          type: 'volview:changetitle',
+          payload: { title: `${prefix}VolView` },
+        }, '*');
+      }
       document.title = `${prefix}VolView`;
     });
 
