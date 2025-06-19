@@ -1,12 +1,12 @@
 <template>
-  <div>
-    <div class="d-flex align-center justify-space-between">
+  <div class="text-body-2">
+    <div class="d-flex flex-wrap align-center justify-space-between">
       <div class="d-flex">
         <slot name="title"> </slot>
       </div>
       <v-btn
-        variant="text"
-        class="py-0 px-1"
+        variant="plain"
+        class="py-0 px-0"
         style="font-size: 0.8rem"
         @click="toggleInstructions"
       >

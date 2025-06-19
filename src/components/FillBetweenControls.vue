@@ -21,8 +21,10 @@
       </ul>
     </mini-expansion-panel>
   </div>
-  <v-row justify="space-between" no-gutters>
+  <v-row justify="space-between" dense>
+    <v-col :cols="12">
     <v-btn
+      class="w-100"
       variant="tonal"
       :prepend-icon="fillStep === 'computing' ? '' : 'mdi-cogs'"
       @click="startCompute"
@@ -31,7 +33,10 @@
     >
       Preview
     </v-btn>
+    </v-col>
+    <v-col :cols="6">
     <v-btn
+      class="w-100"
       variant="tonal"
       prepend-icon="mdi-check"
       :disabled="fillStep !== 'previewing'"
@@ -39,7 +44,10 @@
     >
       Confirm
     </v-btn>
+    </v-col>
+    <v-col :cols="6">
     <v-btn
+      class="w-100"
       variant="tonal"
       prepend-icon="mdi-cancel"
       :disabled="fillStep !== 'previewing'"
@@ -47,6 +55,7 @@
     >
       Cancel
     </v-btn>
+    </v-col>
   </v-row>
 </template>
 
