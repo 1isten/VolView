@@ -173,7 +173,9 @@ export default defineComponent({
         if (options.atob && options.uid) {
           const decodedPath = window.atob(options.uid.toString());
           // console.warn('[atob]', options.uid, '->', decodedPath);
-          urlParams.urls = [`connect://localhost/file/${decodedPath}`];
+          const qs = urlParams.urls[0]?.split('?')[1];
+          // eslint-disable-next-line prefer-template
+          urlParams.urls = [`connect://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
         }
 
         // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
@@ -225,7 +227,9 @@ export default defineComponent({
         if (urlParams.atob && urlParams.uid) {
           const decodedPath = window.atob(urlParams.uid.toString());
           // console.warn('[atob]', urlParams.uid, '->', decodedPath);
-          urlParams.urls = [`connect://localhost/file/${decodedPath}`];
+          const qs = urlParams.urls[0]?.split('?')[1];
+          // eslint-disable-next-line prefer-template
+          urlParams.urls = [`connect://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
         }
       } else {
         return;
