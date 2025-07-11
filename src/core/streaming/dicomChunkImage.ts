@@ -1,4 +1,5 @@
 import {
+  buildImage,
   buildSegmentGroups,
   ReadOverlappingSegmentationMeta,
   readVolumeSlice,
@@ -7,10 +8,9 @@ import {
 import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
 import { Image, JsonCompatible, readImage } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
-// eslint-disable-next-line import/no-cycle
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags, NAME_TO_TAG } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
 import {
@@ -85,6 +85,27 @@ export default class DicomChunkImage
   public segBuildInfo:
     | (JsonCompatible & ReadOverlappingSegmentationMeta)
     | null;
+
+  static async buildImage(seriesFiles: File[], modality: string) {
+    const messages: string[] = [];
+    if (modality === 'SEG') {
+      const segFile = seriesFiles[0];
+      const results = await buildSegmentGroups(segFile);
+      if (seriesFiles.length > 1)
+        messages.push(
+          'Tried to make one volume from 2 SEG modality files. Using only the first file!'
+        );
+      return {
+        modality: 'SEG',
+        builtImageResults: results,
+        messages,
+      };
+    }
+    return {
+      builtImageResults: await buildImage(seriesFiles),
+      messages,
+    };
+  }
 
   constructor() {
     super();
@@ -268,9 +289,43 @@ export default class DicomChunkImage
     }
   }
 
-  private async reallocateImage() {
+  private async reallocateImage(options = { legacy: false }) {
+    // fallback to legacy buildImage if possible
+    if (options.legacy === true && this.chunks.length > 0) {
+      const meta = new Map(this.chunks[0].metadata!);
+      const ModalityTag = NAME_TO_TAG.get('Modality')!;
+      const modality = meta.get(ModalityTag)?.trim() ?? null;
+      if (modality) {    
+        const seriesFiles: File[] = []
+        let seriesFilesCompleted = true;
+        this.chunks.forEach(async (chunk, index) => {
+          if (chunk.dataBlob) {
+            seriesFiles.push(chunk.dataBlob as File);
+            return;
+          }
+          // @ts-expect-error access private property
+          if (chunk.dataLoader?.fetcher?.chunks) {
+            // @ts-expect-error access private property
+            const file = new File(chunk.dataLoader.fetcher.chunks, `file${index}.dcm`, { type: chunk.dataLoader.fetcher.contentType } );
+            seriesFiles.push(file);
+            return;
+          }
+          seriesFilesCompleted = false;
+        });
+        if (seriesFiles.length > 0 && seriesFilesCompleted) {
+          const results = await DicomChunkImage.buildImage(seriesFiles, modality);
+          if (results.builtImageResults.outputImage) {
+            const image = vtkITKHelper.convertItkToVtkImage(results.builtImageResults.outputImage);
+            this.vtkImageData.value.delete();
+            this.vtkImageData.value = image;
+            return;
+          }
+        }
+      }
+    }
+
     this.vtkImageData.value.delete();
-    this.vtkImageData.value = await allocateImageFromChunks(this.chunks, { legacy: true });
+    this.vtkImageData.value = allocateImageFromChunks(this.chunks);
 
     // recalculate image data's data range, since allocateImageFromChunks doesn't know anything about it
     const scalars = this.vtkImageData.value.getPointData().getScalars();
