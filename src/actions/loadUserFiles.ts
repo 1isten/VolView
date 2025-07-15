@@ -560,11 +560,11 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         const zipBlob = await Promise.all(urls.map((url, i, arr) => {
           return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => {
             if (blob) {
-              const file = url?.split('/')?.pop()?.split('\\')?.pop()
+              const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
               const name = file?.split('.')?.[0]
               const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
               // eslint-disable-next-line prefer-template
-              const fileName = arr.length === 1 && file ? file : `${name ? (name + ('_' + (i + 1))) : ('file_' + (i + 1))}${ext}`.replaceAll(' ', '_');
+              const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
               zip.file(fileName, blob);
             }
           }).catch(console.error);
@@ -587,14 +587,14 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
         }     
       }
       if (options.prefetchFiles && urls.length > 0) {
-        // console.warn('[prefetch]', urls);
+        // console.warn('[prefetch]', urls, names);
         loadDataStore.setIsLoadingByBus(true);
         const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
-          const file = url?.split('/')?.pop()?.split('\\')?.pop()
+          const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
           const name = file?.split('.')?.[0]
           const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
           // eslint-disable-next-line prefer-template
-          const fileName = arr.length === 1 && file ? file : `${name ? (name + ('_' + (i + 1))) : ('file_' + (i + 1))}${ext}`.replaceAll(' ', '_');
+          const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
           const mimeType = FILE_EXT_TO_MIME[ext.slice(1)];
           return new File([blob], fileName, { type: mimeType });
         })));

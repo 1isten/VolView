@@ -232,7 +232,7 @@ export default class DicomChunkImage
     this.processNewChunks(newChunks);
 
     if (this.getModality() !== 'SEG') {
-      await this.reallocateImage();
+      await this.reallocateImage({ legacy: true });
     }
   }
 
@@ -298,18 +298,19 @@ export default class DicomChunkImage
       if (modality) {    
         const seriesFiles: File[] = []
         let seriesFilesCompleted = true;
-        this.chunks.forEach(async (chunk, index) => {
+        this.chunks.forEach(async (chunk, chunkIndex) => {
           if (chunk.dataBlob) {
-            seriesFiles.push(chunk.dataBlob as File);
+            const file = chunk.dataBlob as File;
+            seriesFiles[chunkIndex] = file;
             return;
           }
-          // @ts-expect-error access private property
+          /*
           if (chunk.dataLoader?.fetcher?.chunks) {
-            // @ts-expect-error access private property
-            const file = new File(chunk.dataLoader.fetcher.chunks, `file${index}.dcm`, { type: chunk.dataLoader.fetcher.contentType } );
+            const file = new File(chunk.dataLoader.fetcher.chunks, `file-${chunkIndex}.dcm`, { type: chunk.dataLoader.fetcher.contentType } );
             seriesFiles.push(file);
             return;
           }
+          */
           seriesFilesCompleted = false;
         });
         if (seriesFiles.length > 0 && seriesFilesCompleted) {
