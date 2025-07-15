@@ -13,6 +13,7 @@ export interface LoadEventOptions {
   volumeKeySuffix?: string; // make use of volumeKeySuffix as UID
   layoutName?: string; // Quad View | Axial | Sagittal | Coronal | 3D
   changeLayout?: boolean | 'auto';
+  changeSlice?: boolean | 'auto';
   // ...
   v?: string; // viewID
   s?: number; // slice
@@ -41,6 +42,7 @@ export type LoadedByBusRecord = {
       wlDiffers?: boolean;
       wlConfiged?: Record<string, any>;
       wlConfigedByUser?: boolean;
+      cached?: boolean;
     }
   >;
   volumeKeys: string[]; // ordered volumes

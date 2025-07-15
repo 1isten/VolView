@@ -201,10 +201,20 @@ export default defineComponent({
       if (volumeKey) {
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
         if (volumeKeySuffix) {
-          const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
+          const vol = volumes[volumeKey];
+          if (vol?.cached) {
+            return;
+          }
+          if (options.changeLayout === false) {
+            // return;
+          }
           // eslint-disable-next-line no-use-before-define
-          if (vol.layoutName && !layoutNameSettled.value) {
+          if (vol?.layoutName && !layoutNameSettled.value) {
             useViewStore().setLayoutByName(vol.layoutName, true);
+          }
+          if (vol) {
+            vol.cached = true;
           }
         }
       }

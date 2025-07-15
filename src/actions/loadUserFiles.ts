@@ -273,6 +273,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
 
           if (
+            // options.changeSlice === false ||
             options.s === undefined &&
             options.n === undefined &&
             options.i === undefined
@@ -280,14 +281,18 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             const vol = volumes[selection];
             if (vol) {
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (layoutName && options.changeLayout !== 'auto') {
+              if (options.changeLayout === false) {
+                //
+              } else if (layoutName && options.changeLayout !== 'auto') {
                 useViewStore().setLayoutByName(layoutName.toString(), true);
               } else if (vol.layoutName) {
                 useViewStore().setLayoutByName(vol.layoutName, true);
               }
             } else { // maybe not dcm, like nifti etc.
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (layoutName && options.changeLayout !== 'auto') {
+              if (options.changeLayout === false) {
+                //
+              } else if (layoutName && options.changeLayout !== 'auto') {
                 useViewStore().setLayoutByName(layoutName.toString(), true);
               }
             }
@@ -295,7 +300,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             const vol = volumes[selection];
             if (vol) {
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (layoutName && options.changeLayout !== 'auto') {
+              if (options.changeLayout === false) {
+                //
+              } else if (layoutName && options.changeLayout !== 'auto') {
                 useViewStore().setLayoutByName(layoutName.toString(), true);
               } else if (vol.layoutName) {
                 useViewStore().setLayoutByName(vol.layoutName, true);
@@ -314,7 +321,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               const vol = volumes[volumeKey];
               if (vol) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (layoutName && options.changeLayout !== 'auto') {
+                if (options.changeLayout === false) {
+                  //
+                } else if (layoutName && options.changeLayout !== 'auto') {
                   useViewStore().setLayoutByName(layoutName.toString(), true);
                 } else if (vol.layoutName) {
                   useViewStore().setLayoutByName(vol.layoutName, true);
@@ -336,7 +345,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               const vol = volumes[volumeKey];
               if (vol) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (layoutName && options.changeLayout !== 'auto') {
+                if (options.changeLayout === false) {
+                  //
+                } else if (layoutName && options.changeLayout !== 'auto') {
                   useViewStore().setLayoutByName(layoutName.toString(), true);
                 } else if (vol.layoutName) {
                   useViewStore().setLayoutByName(vol.layoutName, true);
@@ -463,6 +474,7 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
       const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
       if (volumeKeys?.length && volumes) {
         if (
+          options.changeSlice === false ||
           options.s === undefined &&
           options.n === undefined &&
           options.i === undefined
@@ -479,7 +491,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
             const viewID = useViewStore().getPrimaryViewID(volumeKey);
             if (viewID) {
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+              if (options.changeLayout === false) {
+                //
+              } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                 useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
               }
               useDatasetStore().setPrimarySelection(volumeKey);
@@ -495,7 +509,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
               const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                if (options.changeLayout === false) {
+                  //
+                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                   useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -515,7 +531,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
               const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                if (options.changeLayout === false) {
+                  //
+                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                   useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
@@ -535,7 +553,9 @@ export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
               const viewID = useViewStore().getPrimaryViewID(volumeKey);
               if (viewID) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                if (options.changeLayout === false) {
+                  //
+                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                   useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                 }
                 useDatasetStore().setPrimarySelection(volumeKey);
