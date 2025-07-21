@@ -5,7 +5,7 @@ export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
   const { uid, datasetId, projectId, pipelineId, pipelineEmbedded, manualNodeId } = query;
 
-  const peerId = `volview-${projectId || datasetId || uid || window.btoa(document.location.href)}`;
+  const peerId = `volview-${projectId || datasetId || uid || window.btoa(encodeURIComponent(document.location.href))}`;
   const ports = Object.create(null);
 
   const emitter = inject('bus');

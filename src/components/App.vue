@@ -171,7 +171,7 @@ export default defineComponent({
           return;
         }
         if (options.atob && options.uid) {
-          const decodedPath = window.atob(options.uid.toString());
+          const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
           // console.warn('[atob]', options.uid, '->', decodedPath);
           const qs = urlParams.urls[0]?.split('?')[1];
           // eslint-disable-next-line prefer-template
@@ -235,7 +235,7 @@ export default defineComponent({
     onMounted(() => {
       if (urlParams.urls) {
         if (urlParams.atob && urlParams.uid) {
-          const decodedPath = window.atob(urlParams.uid.toString());
+          const decodedPath = decodeURIComponent(window.atob(urlParams.uid.toString()));
           // console.warn('[atob]', urlParams.uid, '->', decodedPath);
           const qs = urlParams.urls[0]?.split('?')[1];
           // eslint-disable-next-line prefer-template
