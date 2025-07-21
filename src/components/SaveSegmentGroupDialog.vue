@@ -101,7 +101,7 @@ async function saveSegmentGroup() {
         }));
       }
       formData.set('type', 'segmentation');
-      const res = await fetch('connect://localhost/api/volview/sessions', { method: 'POST', body: formData });
+      const res = await fetch('h3://localhost/api/volview/sessions', { method: 'POST', body: formData });
       if (res.ok) {
         const data = await res.json();
         console.log(data);

@@ -63,8 +63,8 @@ const HTTPHandler: URLHandler = {
   testURL: (url) => {
     if (
       url.startsWith('blob:') ||
-      url.startsWith('connect:') ||
-      url.startsWith('connect-file:')
+      url.startsWith('h3:') ||
+      url.startsWith('h3-file:')
     ) {
       return true;
     }
