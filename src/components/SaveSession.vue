@@ -84,31 +84,49 @@ export default defineComponent({
           }
           // @ts-ignore
           const [blob, manifest]: [Blob, Manifest] = await serialize(true);
-          let mesurement = '';
+          const meta: any = {};
           if (manifest) {
-            switch (manifest.tools.current) {
-              case 'Rectangle':
-                // mesurement = `${'??.??'}mm × ${'??.??'}mm`;
+            meta.tool = manifest.tools.current;
+            switch (meta.tool) {
+              case 'Paint': {
+                // @ts-ignore
+                const roiHistogramData = document.getElementById('roi-histogram')?.roi_histogram;
+                if (roiHistogramData) {
+                  meta.paint = roiHistogramData;
+                }
                 break;
-              case 'Polygon':
-                // mesurement = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }].map(({ x, y }) => `(${'??.??'},${'??.??'})`).join(' ');
+              }
+              case 'Rectangle': {
+                if (manifest.tools.rectangles?.tools) {
+                  meta.rectangles = JSON.parse(JSON.stringify(manifest.tools.rectangles?.tools));
+                }
                 break;
-              case 'Ruler':
-                // mesurement = `${'??.??'}mm`;
+              }
+              case 'Polygon': {
+                if (manifest.tools.polygons?.tools) {
+                  meta.polygons = JSON.parse(JSON.stringify(manifest.tools.polygons?.tools));
+                }
                 break;
-              default:
-                mesurement = '';
+              }
+              case 'Ruler': {
+                if (manifest.tools.rulers?.tools) {
+                  meta.rulers = JSON.parse(JSON.stringify(manifest.tools.rulers?.tools));
+                }
                 break;
+              }
+              default: {
+                break;
+              }
             }
           }
           const emitter = loadDataStore.$bus.emitter;
           emitter?.emit('savesession', {
             uid,
-            mesurement,
             fileContent: blob,
             fileName: fileName.value,
             fileType: 'zip',
             toReport: saveAsHyperLink.value,
+            meta: meta.tool ? meta : undefined,
           });
           props.close();
           saving.value = false;

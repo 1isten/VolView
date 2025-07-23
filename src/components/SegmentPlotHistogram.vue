@@ -25,6 +25,7 @@ const query = useUrlSearchParams();
 const roiMode = computed(() => query.roi === 'true' || query.roi === '1');
 
 const plotlyLoaded = ref(false);
+let roiHistogramEl = null;
 
 onMounted(() => {
   const Plotly = window.Plotly;
@@ -34,7 +35,7 @@ onMounted(() => {
     return;
   }
   nextTick(() => {
-    const roiHistogramEl = document.getElementById('roi-histogram');
+    roiHistogramEl = document.getElementById('roi-histogram');
     if (roiHistogramEl) {
       // eslint-disable-next-line no-use-before-define
       roiHistogramEl.createHistogramWithNormalFit = createHistogramWithNormalFit;
@@ -157,13 +158,15 @@ function createHistogramWithNormalFit(stats) {
     return;
   }
   // Plot chart with responsive setting and minimal mode bar
-  Plotly.newPlot('roi-histogram', [histogramTrace, normalFitTrace], layout, {
+  Plotly.newPlot(roiHistogramEl, [histogramTrace, normalFitTrace], layout, {
     responsive: true,
     displaylogo: false,
     displayModeBar: false,  // Hide the mode bar
     scrollZoom: false,
     // staticPlot: true,
   });
+
+  roiHistogramEl.roi_histogram = { mean, min, max };
 }
 </script>
 
