@@ -203,18 +203,16 @@ export default defineComponent({
         if (volumeKeySuffix) {
           const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
           const vol = volumes[volumeKey];
-          if (vol?.cached) {
-            return;
-          }
-          if (options.changeLayout === false) {
-            // return;
-          }
-          // eslint-disable-next-line no-use-before-define
-          if (vol?.layoutName && !layoutNameSettled.value) {
-            useViewStore().setLayoutByName(vol.layoutName, true);
-          }
           if (vol) {
-            vol.cached = true;
+            if (!vol.cached) {
+              vol.cached = true;
+            } else {
+              // return;
+            }
+            // eslint-disable-next-line no-use-before-define
+            if (!layoutNameSettled.value && options.changeLayout !== false && vol?.layoutName) {
+              useViewStore().setLayoutByName(vol.layoutName, true);
+            }
           }
         }
       }

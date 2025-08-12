@@ -94,7 +94,9 @@ export const useViewStore = defineStore('view', {
       const layout = Layouts[layoutName];
       if (layout) {
         if (justSet) {
-          this.setLayout(layout);
+          if (this.layout?.name !== layoutName) {
+            this.setLayout(layout);
+          }
         } else if (this.layout.name !== layoutName) {
           this.prevLayoutName = this.layout.name;
           this.setLayout(layout);
@@ -109,6 +111,9 @@ export const useViewStore = defineStore('view', {
       return layoutName;
     },
     setLayout(layout: Layout) {
+      if (this.layout?.name === layout?.name) {
+        return;
+      }
       this.restoreLayout();
       this.layout = layout;
 
