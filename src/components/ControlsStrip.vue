@@ -47,6 +47,12 @@ function useViewLayout(defaultLayoutName?: string) {
       currentLayout.value.name !== layoutName.value
     ) {
       layoutName.value = currentLayout.value.name;
+      document.querySelectorAll('button.slice-viewer-reset-camera').forEach(el => {
+        const button = el as HTMLButtonElement;
+        requestAnimationFrame(() => {
+          button?.click();
+        });
+      });
     }
   });
 
