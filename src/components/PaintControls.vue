@@ -1,11 +1,11 @@
 <template>
   <v-container>
-    <v-row no-gutters align="center" class="mb-4 ml-1">
+    <v-row no-gutters align="center" justify="center" class="mb-4">
       <v-item-group
         v-model="mode"
         mandatory
         selected-class="selected"
-        class="d-flex align-center justify-space-between w-100"
+        class="d-flex align-center justify-center"
       >
         <v-item
           :value="PaintMode.CirclePaint"
@@ -16,7 +16,7 @@
             variant="tonal"
             rounded="8"
             stacked
-            :class="['mode-button', selectedClass]"
+            :class="['mode-button', 'mx-2', selectedClass]"
             @click.stop="toggle"
           >
             <v-icon>mdi-brush</v-icon>
@@ -29,27 +29,24 @@
             variant="tonal"
             rounded="8"
             stacked
-            :class="['mode-button', selectedClass]"
+            :class="['mode-button', 'mx-2', selectedClass]"
             @click.stop="toggle"
           >
             <v-icon>mdi-eraser</v-icon>
             <span class="text-caption">Eraser</span>
           </v-btn>
         </v-item>
-        <v-item
-          :value="PaintMode.FillBetween"
-          v-slot="{ selectedClass, toggle }"
-        >
+        <v-item :value="PaintMode.Process" v-slot="{ selectedClass, toggle }">
           <v-btn
             size="small"
             variant="tonal"
             rounded="8"
             stacked
-            :class="['mode-button', selectedClass]"
+            :class="['mode-button', 'mx-2', selectedClass]"
             @click.stop="toggle"
           >
-            <v-icon>mdi-layers-triple</v-icon>
-            <span class="text-caption">Fill Between</span>
+            <v-icon>mdi-cogs</v-icon>
+            <span class="text-caption">Process</span>
           </v-btn>
         </v-item>
       </v-item-group>
@@ -122,9 +119,9 @@
         </v-range-slider>
       </v-row>
     </template>
-    <template v-if="mode === PaintMode.FillBetween">
+    <template v-if="mode === PaintMode.Process">
       <v-row no-gutters align="center">
-        <FillBetweenControls />
+        <ProcessControls />
       </v-row>
     </template>
   </v-container>
@@ -135,7 +132,7 @@ import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import FillBetweenControls from '@/src/components/FillBetweenControls.vue';
+import ProcessControls from '@/src/components/ProcessControls.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageStatsStore } from '@/src/store/image-stats';
 
