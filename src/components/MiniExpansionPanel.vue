@@ -6,8 +6,8 @@
       </div>
       <v-btn
         variant="plain"
-        class="py-0 px-0"
-        style="font-size: 0.8rem"
+        class="pa-0"
+        style="font-size: smaller"
         @click="toggleInstructions"
       >
         <span>{{ label }}</span>
