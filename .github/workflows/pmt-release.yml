@@ -21,6 +21,9 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Create version file in dist
+        run: echo "${{ github.ref_name }}" > dist/version
+
       - name: Zip dist folder
         run: |
           cd dist
