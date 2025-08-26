@@ -22,7 +22,10 @@ jobs:
         run: npm run build
 
       - name: Zip dist folder
-        run: zip -r dist.zip dist/*
+        run: |
+          cd dist
+          zip -r ../dist.zip ./*
+          cd ..
 
       - name: Upload dist.zip to release
         uses: softprops/action-gh-release@v2
