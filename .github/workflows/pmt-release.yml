@@ -22,7 +22,7 @@ jobs:
         run: npm run build
 
       - name: Create version file in dist
-        run: echo "${{ github.ref_name }}" > dist/version
+        run: echo "${{ github.ref_name }}" | sed 's/^PMT-//' > dist/version
 
       - name: Zip dist folder
         run: |
