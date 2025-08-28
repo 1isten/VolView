@@ -4,6 +4,7 @@
       <v-app>
         <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
+          v-if="!liteMode"
           v-model="leftSideBar"
           app
           clipped
@@ -229,6 +230,7 @@ export default defineComponent({
     const query = useUrlSearchParams();
     const newMetadataNameTitle = computed(() => !!query.changeTitle);
     const layoutNameSettled = computed(() => !!query.layoutName);
+    const liteMode = computed(() => query.uiMode === 'lite');
 
     onMounted(() => {
       if (urlParams.urls) {
@@ -315,6 +317,8 @@ export default defineComponent({
       hasData,
       showLoading,
       layout,
+
+      liteMode,
     };
   },
 });
