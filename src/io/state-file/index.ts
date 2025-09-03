@@ -36,6 +36,7 @@ export async function serialize(returnManifest = false) {
         activeSegmentGroupID: null,
         activeSegment: null,
         brushSize: 8,
+        crossPlaneSync: false,
       },
       crop: {},
       current: Tools.WindowLevel,
