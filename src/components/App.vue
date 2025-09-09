@@ -168,15 +168,25 @@ export default defineComponent({
       onload(payload: LoadEvent) {
         const { urlParams, ...options } = payload;
 
-        if (!urlParams || !urlParams.urls) {
+        if (!urlParams || !urlParams.urls || !urlParams.urls.length) {
           return;
         }
         if (options.atob && options.uid) {
-          const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
-          // console.warn('[atob]', options.uid, '->', decodedPath);
-          const qs = urlParams.urls[0]?.split('?')[1];
-          // eslint-disable-next-line prefer-template
-          urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+          if (urlParams.urls.length > 1) {
+            if (Array.isArray(options.uid)) {
+              options.uid = `[${options.uid[0]}]`;
+            }
+            const decodedPaths = window.atob(options.uid.startsWith('[') && options.uid.endsWith(']') ? options.uid.slice(1, -1) : options.uid.toString()).split(' ');
+            // console.warn('[atob]', options.uid, '->', decodedPaths);
+            urlParams.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
+
+          } else {
+            const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
+            // console.warn('[atob]', options.uid, '->', decodedPath);
+            const qs = urlParams.urls[0]?.split('?')[1];
+            // eslint-disable-next-line prefer-template
+            urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+          }
         }
 
         // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
@@ -233,13 +243,22 @@ export default defineComponent({
     const liteMode = computed(() => query.uiMode === 'lite');
 
     onMounted(() => {
-      if (urlParams.urls) {
+      if (urlParams.urls?.length > 0) {
         if (urlParams.atob && urlParams.uid) {
-          const decodedPath = decodeURIComponent(window.atob(urlParams.uid.toString()));
-          // console.warn('[atob]', urlParams.uid, '->', decodedPath);
-          const qs = urlParams.urls[0]?.split('?')[1];
-          // eslint-disable-next-line prefer-template
-          urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+          if (urlParams.urls.length > 1) {
+            if (Array.isArray(urlParams.uid)) {
+              urlParams.uid = `[${urlParams.uid[0]}]`;
+            }
+            const decodedPaths = window.atob(urlParams.uid.startsWith('[') && urlParams.uid.endsWith(']') ? urlParams.uid.slice(1, -1) : urlParams.uid.toString()).split(' ');
+            // console.warn('[atob]', urlParams.uid, '->', decodedPaths);
+            urlParams.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
+          } else {
+            const decodedPath = decodeURIComponent(window.atob(urlParams.uid.toString()));
+            // console.warn('[atob]', urlParams.uid, '->', decodedPath);
+            const qs = urlParams.urls[0]?.split('?')[1];
+            // eslint-disable-next-line prefer-template
+            urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+          }
         }
       } else {
         return;

@@ -55,8 +55,8 @@ export type LoadedByBus = Record<
 
 export interface LoadEvent extends LoadEventOptions {
   urlParams: {
-    urls: [string];
-    names?: [string];
+    urls: string[];
+    names?: string[];
     // DICOMweb options:
     dicomWebURL?: string;
     studyInstanceUID?: string;
