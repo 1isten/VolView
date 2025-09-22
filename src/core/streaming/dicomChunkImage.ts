@@ -189,7 +189,7 @@ export default class DicomChunkImage
     this.events.emit('loading', false);
   }
 
-  async addChunks(chunks: Chunk[]) {
+  async addChunks(chunks: Chunk[], volumeKeySuffix?: string) {
     this.unregisterChunkListeners();
 
     const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
@@ -203,7 +203,8 @@ export default class DicomChunkImage
     await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
     const chunksByVolume = await splitAndSort(
       this.chunks,
-      (chunk) => chunk.metaBlob!
+      (chunk) => chunk.metaBlob!,
+      volumeKeySuffix
     );
     const volumes = Object.values(chunksByVolume);
     if (volumes.length !== 1)
@@ -211,6 +212,9 @@ export default class DicomChunkImage
 
     // save the newly sorted chunk order
     this.chunks = volumes[0];
+
+    // mutate the original input chunks to match the new order
+    chunks.sort((a, b) => this.chunks.indexOf(a) - this.chunks.indexOf(b));
 
     this.chunkStatus = this.chunks.map((chunk) => {
       switch (chunk.state) {
@@ -299,8 +303,8 @@ export default class DicomChunkImage
         const seriesFiles: File[] = []
         let seriesFilesCompleted = true;
         this.chunks.forEach(async (chunk, chunkIndex) => {
-          if (chunk.dataBlob) {
-            const file = chunk.dataBlob as File;
+          if (chunk.metaBlob) {
+            const file = chunk.metaBlob as File;
             seriesFiles[chunkIndex] = file;
             return;
           }
