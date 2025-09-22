@@ -30,7 +30,7 @@
         <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, true)" @dblclick.stop>
           <v-icon icon="mdi-flip-vertical" size="medium" class="py-1" />
           <v-tooltip
-            location="left"
+            location="right"
             activator="parent"
             transition="slide-x-transition"
           >
@@ -40,7 +40,7 @@
         <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, false)" @dblclick.stop>
           <v-icon icon="mdi-flip-horizontal" size="medium" class="py-1" />
           <v-tooltip
-            location="left"
+            location="right"
             activator="parent"
             transition="slide-x-transition"
           >
@@ -50,7 +50,7 @@
         <v-btn dark icon size="medium" variant="text" class="mt-1 mb-2" @click="rotate()" @dblclick.stop>
           <v-icon icon="mdi-rotate-right" size="medium" class="py-1" />
           <v-tooltip
-            location="left"
+            location="right"
             activator="parent"
             transition="slide-x-transition"
           >
