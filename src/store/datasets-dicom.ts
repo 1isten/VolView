@@ -315,7 +315,9 @@ export const useDICOMStore = defineStore('dicom', {
                 }
                 const viewOrientation = image.imageMetadata.value.orientation.slice(6);
                 if (viewID === 'Axial') {
-                  //
+                  if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Inferior)) {
+                    vol.camera = { Axial: { viewDirection: 'Inferior', viewUp: 'Posterior' } };
+                  }
                 } else if (viewID === 'Sagittal') {
                   if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Left)) {
                     vol.camera = { Sagittal: { viewDirection: 'Left', viewUp: 'Inferior' } };

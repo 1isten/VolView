@@ -8,7 +8,7 @@
     @focusout="hover = false"
   >
     <div class="vtk-gutter">
-      <v-btn dark icon size="medium" variant="text" class="slice-viewer-reset-camera" @click="resetCamera">
+      <v-btn dark icon size="medium" variant="text" class="slice-viewer-reset-camera mt-1" @click="resetCamera" @dblclick.stop>
         <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
         <v-tooltip
           location="right"
@@ -26,6 +26,38 @@
         :step="1"
         :handle-height="20"
       />
+      <template v-if="currentLayoutName.endsWith(' Only')">
+        <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, true)" @dblclick.stop>
+          <v-icon icon="mdi-flip-vertical" size="medium" class="py-1" />
+          <v-tooltip
+            location="left"
+            activator="parent"
+            transition="slide-x-transition"
+          >
+            Flip Vertical
+          </v-tooltip>
+        </v-btn>
+        <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, false)" @dblclick.stop>
+          <v-icon icon="mdi-flip-horizontal" size="medium" class="py-1" />
+          <v-tooltip
+            location="left"
+            activator="parent"
+            transition="slide-x-transition"
+          >
+            Flip Horizontal
+          </v-tooltip>
+        </v-btn>
+        <v-btn dark icon size="medium" variant="text" class="mt-1 mb-2" @click="rotate()" @dblclick.stop>
+          <v-icon icon="mdi-rotate-right" size="medium" class="py-1" />
+          <v-tooltip
+            location="left"
+            activator="parent"
+            transition="slide-x-transition"
+          >
+            Rotate 90°
+          </v-tooltip>
+        </v-btn>
+      </template>
     </div>
     <div class="vtk-container" data-testid="two-view-container">
       <v-progress-linear
@@ -172,11 +204,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRefs, computed } from 'vue';
+import { ref, Ref, toRefs, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { resetCameraToImage, resizeToFitImage } from '@/src/utils/camera';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import type { LayoutViewProps } from '@/src/types';
@@ -198,6 +231,8 @@ import SegmentPlot from '@/src/components/SegmentPlot.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
+import { useViewStore } from '@/src/store/views';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
@@ -212,6 +247,8 @@ import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Inter
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+
+import { mat4, vec3 } from 'gl-matrix';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -232,6 +269,8 @@ const hover = ref(false);
 
 function resetCamera() {
   vtkView.value?.resetCamera();
+  // eslint-disable-next-line no-use-before-define
+  resetFlipAndRotateState();
 }
 
 useResetViewsEvents().onClick(resetCamera);
@@ -295,6 +334,103 @@ const selectionPoints = computed(() => {
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));
 });
+
+// --- Custom support for flipping and rotating the view --- //
+
+const viewStore = useViewStore();
+const currentLayoutName = computed(() => viewStore.layout?.name || '');
+
+const loadDataStore = useLoadDataStore();
+const volCameraInfo = computed(() => {
+  if (currentImageID.value && viewId.value) {
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[currentImageID.value];
+    const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[currentImageID.value];
+    if (vol) {
+      return vol.camera || null;
+    }
+  }
+  return null;
+});
+
+const flipDirection: Ref<LPSAxisDir | undefined> = ref();
+const flipUp: Ref<LPSAxisDir | undefined> = ref();
+function flip(h = true, v = false) {
+  if (!vtkView.value) return;
+  const viewID = viewId.value as 'Axial' | 'Sagittal' | 'Coronal';
+  switch (viewID) {
+    case 'Axial': {
+      if (h) {
+        flipDirection.value = flipDirection.value || volCameraInfo?.value?.Axial?.viewDirection || viewDirection.value;
+        flipDirection.value = flipDirection.value === 'Superior' ? 'Inferior' : 'Superior';
+      }
+      if (v) {
+        flipUp.value = flipUp.value || volCameraInfo?.value?.Axial?.viewUp || viewUp.value;
+        flipUp.value = flipUp.value === 'Anterior' ? 'Posterior' : 'Anterior';
+      }
+      break;
+    }
+    case 'Sagittal': {      
+      if (h) {
+        flipDirection.value = flipDirection.value || volCameraInfo?.value?.Sagittal?.viewDirection || viewDirection.value;
+        flipDirection.value = flipDirection.value === 'Right' ? 'Left' : 'Right';
+      }
+      if (v) {
+        flipUp.value = flipUp.value || volCameraInfo?.value?.Sagittal?.viewUp || viewUp.value;
+        flipUp.value = flipUp.value === 'Superior' ? 'Inferior' : 'Superior';
+      }
+      break;
+    }
+    case 'Coronal': {
+      if (h) {
+        flipDirection.value = flipDirection.value || volCameraInfo?.value?.Coronal?.viewDirection || viewDirection.value;
+        flipDirection.value = flipDirection.value === 'Posterior' ? 'Anterior' : 'Posterior';
+      }
+      if (v) {
+        flipUp.value = flipUp.value || volCameraInfo?.value?.Coronal?.viewUp || viewUp.value;
+        flipUp.value = flipUp.value === 'Superior' ? 'Inferior' : 'Superior';
+      }
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  resetCameraToImage(
+    vtkView.value,
+    currentImageMetadata.value,
+    flipDirection.value || volCameraInfo?.value?.[viewID]?.viewDirection || viewDirection.value,
+    flipUp.value || volCameraInfo?.value?.[viewID]?.viewUp || viewUp.value
+  );
+  resizeToFitImage(
+    vtkView.value,
+    currentImageMetadata.value,
+    flipDirection.value || volCameraInfo?.value?.[viewID]?.viewDirection || viewDirection.value,
+    flipUp.value || volCameraInfo?.value?.[viewID]?.viewUp || viewUp.value
+  );
+}
+
+const rotateDegrees: Ref<number> = ref(0);
+const rotate = () => {
+  if (!vtkView.value) return;
+  const camera = vtkView.value.renderer.getActiveCamera();
+
+  const rotationMatrix = mat4.create();
+  mat4.fromRotation(rotationMatrix, (Math.PI / 2) * -1, camera.getDirectionOfProjection()); // rotate 90 degrees clockwise
+
+  const newViewUp = vec3.create();
+  vec3.transformMat4(newViewUp, camera.getViewUp(), rotationMatrix);
+
+  camera.setViewUp(newViewUp[0], newViewUp[1], newViewUp[2]);
+  vtkView.value.requestRender();
+
+  rotateDegrees.value = (rotateDegrees.value + 90) % 360;
+};
+
+function resetFlipAndRotateState() {
+  flipDirection.value = undefined;
+  flipUp.value = undefined;
+  rotateDegrees.value = 0;
+}
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>

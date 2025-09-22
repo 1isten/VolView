@@ -36,7 +36,7 @@ export type LoadedByBusRecord = {
     {
       layoutName?: string;
       camera?: {
-        // Axial?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+        Axial?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
         Sagittal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
         Coronal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
       },
