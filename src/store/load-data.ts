@@ -7,6 +7,8 @@ import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
 
+import { LPSAxisDir } from '@/src/types/lps';
+
 export interface LoadEventOptions {
   uid?: string; // shortcut for volumeKeyUID
   volumeKeyUID?: string; // alias for volumeKeySuffix
@@ -33,6 +35,11 @@ export type LoadedByBusRecord = {
     string, // volumeKey
     {
       layoutName?: string;
+      camera?: {
+        // Axial?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+        Sagittal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+        Coronal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+      },
       slices: {
         width?: number;
         level?: number;

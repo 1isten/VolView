@@ -1,5 +1,6 @@
-import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { defineStore } from 'pinia';
+import deepEqual from 'fast-deep-equal';
+import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { Image } from 'itk-wasm';
 import * as DICOM from '@/src/io/dicom';
 import { Chunk } from '@/src/core/streaming/chunk';
@@ -305,10 +306,24 @@ export const useDICOMStore = defineStore('dicom', {
               const volumeKey = id;
               const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
               const viewID = viewStore.getPrimaryViewID(volumeKey);
-              if (viewID && !vol.layoutName) {
-                const layoutName = loadDataStore.loadedByBus[volumeKeySuffix].options.layoutName || viewStore.getLayoutByViewID(viewID);
-                if (layoutName) {
-                  vol.layoutName = layoutName;
+              if (viewID) {
+                if (!vol.layoutName) {
+                  const layoutName = loadDataStore.loadedByBus[volumeKeySuffix].options.layoutName || viewStore.getLayoutByViewID(viewID);
+                  if (layoutName) {
+                    vol.layoutName = layoutName;
+                  }
+                }
+                const viewOrientation = image.imageMetadata.value.orientation.slice(6);
+                if (viewID === 'Axial') {
+                  //
+                } else if (viewID === 'Sagittal') {
+                  if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Left)) {
+                    vol.camera = { Sagittal: { viewDirection: 'Left', viewUp: 'Inferior' } };
+                  }
+                } else if (viewID === 'Coronal') {
+                  if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Anterior)) {
+                    vol.camera = { Coronal: { viewDirection: 'Anterior', viewUp: 'Inferior' } };
+                  }
                 }
               }
             }
