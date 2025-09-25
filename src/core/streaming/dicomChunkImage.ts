@@ -303,18 +303,14 @@ export default class DicomChunkImage
         const seriesFiles: File[] = []
         let seriesFilesCompleted = true;
         this.chunks.forEach(async (chunk, chunkIndex) => {
+          if (chunk.state === ChunkState.MetaOnly || !chunk.dataBlob) {
+            await chunk.loadData();
+          }
           if (chunk.metaBlob) {
-            const file = chunk.metaBlob as File;
+            const file: File = chunk.metaBlob instanceof File ? chunk.metaBlob : new File([chunk.metaBlob], `file-${chunkIndex}.dcm`, { type: chunk.metaBlob.type } );
             seriesFiles[chunkIndex] = file;
             return;
           }
-          /*
-          if (chunk.dataLoader?.fetcher?.chunks) {
-            const file = new File(chunk.dataLoader.fetcher.chunks, `file-${chunkIndex}.dcm`, { type: chunk.dataLoader.fetcher.contentType } );
-            seriesFiles.push(file);
-            return;
-          }
-          */
           seriesFilesCompleted = false;
         });
         if (seriesFiles.length > 0 && seriesFilesCompleted) {
