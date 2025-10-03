@@ -1,5 +1,5 @@
 <template>
-  <div v-if="roiMode && plotlyLoaded">
+  <div v-if="roiMode && plotlyLoaded" style="position: sticky; top: 100%;">
     <span class="px-4 text-body2">ROI Histogram:</span>
     <div id="roi-histogram"></div>
   </div>
