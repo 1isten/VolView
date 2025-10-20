@@ -303,7 +303,7 @@ export default class DicomChunkImage
         const seriesFiles: File[] = []
         let seriesFilesCompleted = true;
         this.chunks.forEach(async (chunk, chunkIndex) => {
-          if (chunk.state === ChunkState.MetaOnly || !chunk.dataBlob) {
+          if (chunk.state === ChunkState.MetaOnly && !chunk.dataBlob) {
             await chunk.loadData();
           }
           if (chunk.metaBlob) {
