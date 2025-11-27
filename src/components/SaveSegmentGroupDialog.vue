@@ -86,7 +86,9 @@ async function saveSegmentGroup() {
   await useErrorMessage('Failed to save segment group', async () => {
     const parentImageID = segmentGroupStore.metadataByID[props.id].parentImage;
     const image = segmentGroupStore.dataIndex[props.id];
-    const serialized = await writeImage(fileFormat.value, image);
+    // @ts-ignore
+    // eslint-disable-next-line no-undef
+    const serialized = await writeImage(fileFormat.value, image) as BlobPart;
     if (roiMode.value && (fileFormat.value in FILE_EXT_TO_MIME)) {
       const formData = new FormData();
       const fileContent = new Blob([serialized], { type: FILE_EXT_TO_MIME[fileFormat.value] });
@@ -98,6 +100,7 @@ async function saveSegmentGroup() {
         formData.set('meta', JSON.stringify({
           manualNodeId: query.manualNodeId,
           batch: query.pipelineEmbedded === 'embedded' ? true : undefined,
+          blackbox: query.blackboxTaskId ? true : undefined,
         }));
       }
       formData.set('type', 'segmentation');

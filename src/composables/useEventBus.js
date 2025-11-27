@@ -3,7 +3,7 @@ import { useUrlSearchParams } from '@vueuse/core';
 
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
-  const { uid, datasetId, projectId, pipelineId, pipelineEmbedded, manualNodeId } = query;
+  const { uid, datasetId, projectId, pipelineId, blackboxTaskId, pipelineEmbedded, manualNodeId } = query;
 
   const peerId = `volview-${projectId || datasetId || uid || window.btoa(encodeURIComponent(document.location.href))}`;
   const ports = Object.create(null);
@@ -52,22 +52,23 @@ export function useEventBus(handlers, loadDataStore) {
     };
     onsavesegmentation = payload => {
       if (pipelineId && manualNodeId) {
+        const oid = payload.uid ?? uid;
         const labelmap = payload?.data?.path || payload?.data?.filePath;
-        if (labelmap && payload?.uid) {
+        if (labelmap && oid) {
           const msg = {
             type: 'created-segmentation',
             payload: {
               pipelineId,
               manualNodeId,
-              oid: payload.uid,
+              oid,
               labelmap,
             },
           };
           const port = ports[`comfyui-${pipelineId}`];
           if (port) {
             port.postMessage(msg);
-          } else if (window.parent !== window || pipelineEmbedded === 'embedded') {
-            window.parent.postMessage(msg, '*'); // `comfyui-${pipelineId}` + (pipelineEmbedded ? '-embedded' : '')
+          } else if (window.parent !== window || blackboxTaskId || pipelineEmbedded === 'embedded') {
+            window.parent.postMessage(msg, '*');
           }
         }
       }
