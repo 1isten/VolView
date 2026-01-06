@@ -60,5 +60,6 @@ const formattedProbeItems = computed(() => {
   pointer-events: none;
   z-index: 1000;
   text-align: right;
+  visibility: hidden;
 }
 </style>

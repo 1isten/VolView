@@ -43,7 +43,11 @@ export default defineComponent({
 
     const hasLayers = computed(() => !!currentLayers.value.length);
 
-    const panels = ref<string[]>(['properties', 'layers']);
+    const panels = ref<string[]>([
+      // 'preset',
+      // 'properties',
+      'layers',
+    ]);
 
     return {
       panels,

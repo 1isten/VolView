@@ -1,4 +1,8 @@
 const fullUrl = (relative) => {
+  if (window.__webpack_public_path__) {
+    return window.__webpack_public_path__ + relative;
+  }
+
   // ex: /itk/image-io
   const u = new URL(document.location); // ex: http://localhost:8043/orthanc/volview/index.html
   const origin = u.origin; // ex: http://localhost:8043

@@ -62,6 +62,8 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
   let interruptSentinel = Symbol('interrupt');
 
   async function doThumbnailing(imageID: string, image: vtkImageData) {
+    if (thumbnailer === null) return;
+
     const localSentinel = Symbol('interrupt');
     interruptSentinel = localSentinel;
 
@@ -69,6 +71,8 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
     const imageDataRange = image.getPointData().getScalars().getRange();
 
     async function helper(presetName: string) {
+      if (thumbnailer === null) return;
+
       // bail if a new thumbnail process has started
       if (interruptSentinel !== localSentinel) {
         return;
