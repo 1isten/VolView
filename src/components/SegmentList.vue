@@ -169,7 +169,7 @@ const toggleLock = (value: number) => {
 <template>
   <div class="d-flex justify-space-evenly">
     <v-btn @click.stop="toggleGlobalVisible" class="my-1">
-      Toggle Segments
+      <span class="d-sr-only">Toggle </span>Segments
       <slot name="append">
         <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
         <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
@@ -180,7 +180,7 @@ const toggleLock = (value: number) => {
     </v-btn>
 
     <v-btn @click.stop="toggleGlobalLocked" class="my-1">
-      Toggle Locks
+      <span class="d-sr-only">Toggle </span>Locks
       <slot name="append">
         <v-icon v-if="allLocked" class="pl-2" color="red">mdi-lock</v-icon>
         <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
@@ -197,6 +197,7 @@ const toggleLock = (value: number) => {
     item-key="value"
     item-title="name"
     create-label-text="New segment"
+    cols-per-row="12"
     @create="addNewSegment"
     class="my-4"
   >

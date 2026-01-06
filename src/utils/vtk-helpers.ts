@@ -158,10 +158,17 @@ type OpacityFunctionWithoutRange =
  * Caller must provide mappingRange to complete the OpacityFunction.
  */
 export function getOpacityFunctionFromPreset(
-  presetName: string
+  presetName: string,
+  viewID?: string
 ): OpacityFunctionWithoutRange {
-  const preset = vtkColorMaps.getPresetByName(presetName);
-
+  let preset = vtkColorMaps.getPresetByName(presetName);
+  preset = JSON.parse(JSON.stringify(preset));
+  if (preset.Name === 'Heatmap') {
+    if (viewID && viewID.includes('3D')) {
+      // use gaussians for 3D heatmap
+      delete preset.OpacityPoints;
+    }
+  }
   if (preset.OpacityPoints) {
     return {
       mode: vtkPiecewiseFunctionProxy.Mode.Points,
@@ -201,11 +208,16 @@ export function inflateAxisBounds(bounds: number[], delta: number) {
  * @returns
  */
 export function getColorFunctionRangeFromPreset(
-  presetName: string
+  presetName: string,
+  viewID?: string
 ): [number, number] | null {
   const preset = vtkColorMaps.getPresetByName(presetName);
   if (!preset) return null;
-
+  if (preset.Name === 'Heatmap') {
+    if (viewID) {
+      // ...
+    }
+  }
   const { AbsoluteRange, RGBPoints } = preset;
   if (AbsoluteRange && RGBPoints) {
     let min = Infinity;

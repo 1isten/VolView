@@ -9,6 +9,9 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useModelStore } from '@/src/store/datasets-models';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
+import { useImageCacheStore } from '@/src/store/image-cache';
+
+import { useLoadDataStore } from './load-data';
 
 export const DataType = {
   Image: 'Image',
@@ -128,6 +131,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   const dicomStore = useDICOMStore();
   const layersStore = useLayersStore();
   const modelStore = useModelStore();
+  const loadDataStore = useLoadDataStore();
 
   // --- state --- //
 
@@ -172,6 +176,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     layersStore.remove(id);
     useViewConfigStore().removeData(id);
     useImageStatsStore().removeData(id);
+
+    loadDataStore.removeLoadedByBus(id);
   };
 
   const removeAll = () => {

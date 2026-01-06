@@ -67,6 +67,9 @@ function updateRenderingProperty(
 }
 
 export function createVolumeThumbnailer(size: number) {
+  // TODO: https://github.com/Kitware/VolView/issues/541
+  return null;
+
   const container = document.createElement('div');
   container.style.width = `${size}px`;
   container.style.height = `${size}px`;

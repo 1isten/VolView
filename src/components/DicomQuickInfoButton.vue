@@ -3,6 +3,10 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { Maybe } from '@/src/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { computed, toRef } from 'vue';
+import { useDisplay } from 'vuetify';
+
+const display = useDisplay();
+const xsAndDown = computed(() => display.width.value < 600 || display.height.value < 400);
 
 interface Props {
   imageId: Maybe<string>;
@@ -47,7 +51,7 @@ const dicomInfo = computed(() => {
     left
     nudge-left="10"
     dark
-    v-if="dicomInfo !== null"
+    v-if="dicomInfo !== null && !xsAndDown"
     max-width="300px"
   >
     <template v-slot:activator="{ props }">
@@ -61,7 +65,7 @@ const dicomInfo = computed(() => {
         mdi-information
       </v-icon>
     </template>
-    <v-list class="bg-grey-darken-3">
+    <v-list class="bg-neutral-darken-3">
       <v-list-item>
         <v-list-item-title class="font-weight-bold">
           PATIENT / CASE

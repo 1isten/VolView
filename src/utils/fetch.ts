@@ -61,6 +61,13 @@ interface URLHandler {
  */
 const HTTPHandler: URLHandler = {
   testURL: (url) => {
+    if (
+      url.startsWith('blob:') ||
+      url.startsWith('h3:') ||
+      url.startsWith('h3-file:')
+    ) {
+      return true;
+    }
     const { protocol } = parseUrl(url, window.location.href);
     return protocol === 'http:' || protocol === 'https:';
   },

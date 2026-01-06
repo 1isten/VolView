@@ -16,10 +16,12 @@ const props = withDefaults(
     itemKey: T[KeyProp] extends string | number | symbol ? KeyProp : never;
     itemTitle: T[TitleProp] extends string ? TitleProp : never;
     createLabelText?: string;
+    colsPerRow?: string | number | boolean;
     modelValue: Maybe<T[KeyProp]>;
   }>(),
   {
     createLabelText: 'Create Label',
+    colsPerRow: 6,
   }
 );
 
@@ -39,7 +41,7 @@ const itemsToRender = computed(() =>
     mandatory
   >
     <v-row dense>
-      <v-col cols="6" v-for="({ key, title }, idx) in itemsToRender" :key="key">
+      <v-col :cols="colsPerRow" v-for="({ key, title }, idx) in itemsToRender" :key="key">
         <v-item v-slot="{ selectedClass, toggle }" :value="key">
           <v-chip
             variant="tonal"
@@ -59,7 +61,7 @@ const itemsToRender = computed(() =>
       </v-col>
 
       <!-- Add Label button -->
-      <v-col cols="6">
+      <v-col :cols="colsPerRow">
         <v-chip variant="outlined" class="w-100" @click="$emit('create')">
           <v-icon class="mr-2">mdi-plus</v-icon>
           {{ createLabelText }}
