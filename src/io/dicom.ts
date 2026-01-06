@@ -2,12 +2,13 @@ import { runPipeline, TextStream, InterfaceTypes, Image } from 'itk-wasm';
 
 import {
   readDicomTags,
+  readImageDicomFileSeries,
   readOverlappingSegmentation,
   ReadOverlappingSegmentationResult,
 } from '@itk-wasm/dicom';
 
 import itkConfig from '@/src/io/itk/itkConfig';
-import { getWorker } from '@/src/io/itk/worker';
+import { getDicomSeriesWorkerPool, getWorker } from '@/src/io/itk/worker';
 
 export interface TagSpec {
   name: string;
@@ -223,4 +224,20 @@ export async function buildSegmentGroups(file: File) {
     ...result,
     outputImage: result.segImage,
   };
+}
+
+/**
+ * Builds a volume for a set of files.
+ * @async
+ * @param {File[]} seriesFiles the set of files to build volume from
+ * @returns ItkImage
+ */
+export async function buildImage(seriesFiles: File[]) {
+  const inputImages = seriesFiles.map((file) => sanitizeFile(file));
+  const result = await readImageDicomFileSeries({
+    webWorkerPool: getDicomSeriesWorkerPool(),
+    inputImages,
+    singleSortedSeries: false,
+  });
+  return result;
 }
