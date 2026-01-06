@@ -85,6 +85,7 @@ const theme = useLocalStorage(ThemeStorageKey, DefaultTheme);
 if (theme.value !== DarkTheme && theme.value !== LightTheme) {
   theme.value = DefaultTheme;
 }
-vuetify.theme.global.name.value = theme.value;
+// vuetify.theme.global.name.value = theme.value;
+vuetify.theme.change(theme.value);
 
 export default vuetify;
