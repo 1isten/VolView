@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { DefaultViewSpec, InitViewSpecs } from '../config';
+import { Layouts, DefaultViewSpec, InitViewSpecs } from '../config';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewConfigStore } from './view-configs';
 import { ViewSpec } from '../types/views';
@@ -8,6 +8,8 @@ import {
   Layout as StateFileLayout,
   View,
 } from '../io/state-file/schema';
+
+import { useImageCacheStore } from './image-cache';
 
 function cloneLayout(layout: Layout): Layout {
   return {
@@ -25,6 +27,7 @@ interface State {
   activeViewID: string;
   maximizedViewID: string | null;
   originalLayout: Layout | null;
+  prevLayoutName?: string;
 }
 
 export const useViewStore = defineStore('view', {
@@ -37,6 +40,7 @@ export const useViewStore = defineStore('view', {
     activeViewID: '',
     maximizedViewID: null,
     originalLayout: null,
+    // prevLayoutName: undefined,
   }),
   getters: {
     viewIDs(state) {
@@ -57,7 +61,59 @@ export const useViewStore = defineStore('view', {
         delete this.viewSpecs[id];
       }
     },
+    getPrimaryViewID(volumeKey: string) {
+      const imageID = volumeKey;
+      const image = useImageCacheStore().imageById[imageID];
+      if (image && image.imageMetadata) {
+        const lpsOrientation = image.imageMetadata.value.lpsOrientation;
+        if (lpsOrientation) {
+          const { Axial, Sagittal, Coronal } = lpsOrientation;
+          let viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D' = 'Axial';
+          if (Axial === 2) {
+            viewID = 'Axial';
+          } else if (Sagittal === 2) {
+            viewID = 'Sagittal';
+          } else if (Coronal === 2) {
+            viewID = 'Coronal';
+          }
+          return viewID;
+        }
+      }
+      return null;
+    },
+    getLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = `${viewID} Only`;
+      return layoutName;
+    },
+    setLayoutByViewID(viewID: 'Axial' | 'Sagittal' | 'Coronal' | '3D') {
+      const layoutName = this.getLayoutByViewID(viewID);
+      this.setLayoutByName(layoutName);
+      return layoutName;
+    },
+    setLayoutByName(layoutName: string, justSet = false) {
+      const layout = Layouts[layoutName];
+      if (layout) {
+        if (justSet) {
+          if (this.layout?.name !== layoutName) {
+            this.setLayout(layout);
+          }
+        } else if (this.layout.name !== layoutName) {
+          this.prevLayoutName = this.layout.name;
+          this.setLayout(layout);
+        } else if (this.prevLayoutName && Layouts[this.prevLayoutName]) {
+          this.setLayout(Layouts[this.prevLayoutName]);
+          this.prevLayoutName = '';
+        } else if (layoutName.includes(' Only') && Layouts['Quad View']) {
+          this.prevLayoutName = layoutName;
+          this.setLayout(Layouts['Quad View']);
+        }
+      }
+      return layoutName;
+    },
     setLayout(layout: Layout) {
+      if (this.layout?.name === layout?.name) {
+        return;
+      }
       this.restoreLayout();
       this.layout = layout;
 

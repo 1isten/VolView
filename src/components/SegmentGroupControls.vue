@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SegmentGroupOpacity from '@/src/components/SegmentGroupOpacity.vue';
 import SegmentList from '@/src/components/SegmentList.vue';
+import SegmentPlotHistogram from '@/src/components/SegmentPlotHistogram.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -367,6 +368,12 @@ function deleteSelected() {
   <segment-list
     v-if="currentSegmentGroupID"
     :group-id="currentSegmentGroupID"
+  />
+
+  <segment-plot-histogram
+    v-if="currentSegmentGroupID"
+    :group-id="currentSegmentGroupID"
+    :image-id="currentImageID"
   />
 
   <v-dialog v-model="editDialog" max-width="400px">

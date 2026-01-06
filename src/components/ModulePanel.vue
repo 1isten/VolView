@@ -43,7 +43,7 @@
 import { Component, computed, defineComponent, ref, watch } from 'vue';
 
 import { ConnectionState, useServerStore } from '@/src/store/server';
-import DataBrowser from './DataBrowser.vue';
+// import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 import ServerModule from './ServerModule.vue';
@@ -59,11 +59,11 @@ interface Module {
 }
 
 const Modules: Module[] = [
-  {
-    name: 'Data',
-    icon: 'database',
-    component: DataBrowser,
-  },
+  // {
+  //   name: 'Data',
+  //   icon: 'database',
+  //   component: DataBrowser,
+  // },
   {
     name: 'Annotations',
     icon: 'pencil',
@@ -99,7 +99,7 @@ export default defineComponent({
       () => toolStore.currentTool,
       (newTool) => {
         if (autoSwitchToAnnotationsTools.includes(newTool))
-          selectedModuleIndex.value = 1;
+          selectedModuleIndex.value = 0;
       }
     );
 

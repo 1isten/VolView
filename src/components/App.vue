@@ -2,20 +2,26 @@
   <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
-        <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
+        <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
+          v-if="!liteMode"
           v-model="leftSideBar"
           app
           clipped
           touchless
-          width="450"
+          width="350"
           id="left-nav"
+          location="end"
+          :mobile-breakpoint="0"
+          disable-resize-watcher
+          disable-route-watcher
+          :temporary="temporaryDrawer"
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData"></controls-strip>
+            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
@@ -51,10 +57,11 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams, watchOnce } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
-import useLoadDataStore from '@/src/store/load-data';
+import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
+import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
@@ -74,13 +81,15 @@ import ControlsModal from '@/src/components/ControlsModal.vue';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
-import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+// import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   populateAuthorizationToken,
   stripTokenFromUrl,
 } from '@/src/utils/token';
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
+
+import { useEventBus } from '@/src/composables/useEventBus';
 
 export default defineComponent({
   name: 'App',
@@ -101,13 +110,14 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
 
     useGlobalErrorHook();
-    useKeyboardShortcuts();
+    // useKeyboardShortcuts();
 
     // --- file handling --- //
 
     const loadDataStore = useLoadDataStore();
     const hasData = computed(
       () =>
+        loadDataStore.isBusUnselected || loadDataStore.isLoadingByBus ? false :
         imageStore.idList.length > 0 ||
         Object.keys(dicomStore.volumeInfo).length > 0
     );
@@ -115,7 +125,7 @@ export default defineComponent({
     // since the welcome screen shouldn't be visible when
     // a dataset is opened.
     const showLoading = computed(
-      () => loadDataStore.isLoading || hasData.value
+      () => loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
     );
 
     const { currentImageMetadata, isImageLoading } = useCurrentImage();
@@ -123,24 +133,150 @@ export default defineComponent({
     watch(currentImageMetadata, (newMetadata) => {
       let prefix = '';
       if (
+        // eslint-disable-next-line no-use-before-define
+        newMetadataNameTitle.value &&
         newMetadata?.name &&
         // wait until we get a real name, but if we never do, show default name
         (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
       ) {
-        prefix = `${newMetadata.name} -`;
+        prefix = `${newMetadata.name} - `;
+      }
+      if (window.parent !== window) {
+        window.parent.postMessage({
+          type: 'volview:changetitle',
+          payload: { title: `${prefix}VolView` },
+        }, '*');
       }
       document.title = `${prefix}VolView`;
     });
 
+    // --- event handling --- //
+    /*
+    $bus.emitter.emit('load', {
+      urlParams: { urls: ['./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip'], names: ['archive.zip'] },
+      uid: '8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3',
+      n: 1,
+    });
+    */
+
+    const datasetStore = useDatasetStore();
+    const { emitter } = useEventBus(({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      onloading(payload?: any) {
+        loadDataStore.setIsLoadingByBus(true);
+      },
+      onload(payload: LoadEvent) {
+        const { urlParams, ...options } = payload;
+
+        if (!urlParams || !urlParams.urls || !urlParams.urls.length) {
+          return;
+        }
+        if (options.atob && options.uid) {
+          if (urlParams.urls.length > 1) {
+            if (Array.isArray(options.uid)) {
+              options.uid = `[${options.uid[0]}]`;
+            }
+            const decodedPaths = window.atob(options.uid.startsWith('[') && options.uid.endsWith(']') ? options.uid.slice(1, -1) : options.uid.toString()).split(' ');
+            // console.warn('[atob]', options.uid, '->', decodedPaths);
+            urlParams.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
+
+          } else {
+            const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
+            // console.warn('[atob]', options.uid, '->', decodedPath);
+            const qs = urlParams.urls[0]?.split('?')[1];
+            // eslint-disable-next-line prefer-template
+            urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+          }
+        }
+
+        // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
+        const volumeKeyUID = options.volumeKeyUID || options.uid;
+        if (volumeKeyUID) {
+          if (!('volumeKeySuffix' in options)) options.volumeKeySuffix = volumeKeyUID;
+          delete options.uid;
+        }
+
+        loadUrls(payload.urlParams, options);
+      },
+      onunload() {
+        datasetStore.removeAll();
+      },
+      onunselect() {
+        datasetStore.setPrimarySelection(null);
+        loadDataStore.isBusUnselected = true;
+      },
+    } as unknown as EventHandlers), loadDataStore);
+
+    const { primarySelection } = storeToRefs(datasetStore);
+    watch(primarySelection, async (volumeKey) => {
+      if (volumeKey) {
+        const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
+        if (volumeKeySuffix) {
+          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
+          const vol = volumes[volumeKey];
+          if (vol) {
+            if (!vol.cached) {
+              vol.cached = true;
+            } else {
+              // return;
+            }
+            // eslint-disable-next-line no-use-before-define
+            if (!layoutNameSettled.value && options.changeLayout !== false && vol?.layoutName) {
+              useViewStore().setLayoutByName(vol.layoutName, true);
+            }
+          }
+        }
+      }
+    });
+
     // --- parse URL -- //
+    // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
+    // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/ec780211-db457dfe-ca89dfa0-aae410f6-e5938432.zip]&uid=ec780211-db457dfe-ca89dfa0-aae410f6-e5938432&i=0
 
     populateAuthorizationToken();
     stripTokenFromUrl();
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+    const query = useUrlSearchParams();
+    const newMetadataNameTitle = computed(() => !!query.changeTitle);
+    const layoutNameSettled = computed(() => !!query.layoutName);
+    const liteMode = computed(() => query.uiMode === 'lite');
 
     onMounted(() => {
-      if (!urlParams.urls) {
+      if (urlParams.urls?.length > 0) {
+        if (urlParams.atob && urlParams.uid) {
+          if (urlParams.urls.length > 1) {
+            if (Array.isArray(urlParams.uid)) {
+              urlParams.uid = `[${urlParams.uid[0]}]`;
+            }
+            const decodedPaths = window.atob(urlParams.uid.startsWith('[') && urlParams.uid.endsWith(']') ? urlParams.uid.slice(1, -1) : urlParams.uid.toString()).split(' ');
+            // console.warn('[atob]', urlParams.uid, '->', decodedPaths);
+            urlParams.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
+          } else {
+            const decodedPath = decodeURIComponent(window.atob(urlParams.uid.toString()));
+            // console.warn('[atob]', urlParams.uid, '->', decodedPath);
+            const qs = urlParams.urls[0]?.split('?')[1];
+            // eslint-disable-next-line prefer-template
+            urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+          }
+        }
+      } else {
+        return;
+      }
+
+      const volumeKeyUID = urlParams.volumeKeyUID || urlParams.uid;
+      if (volumeKeyUID) {
+        const options = JSON.parse(JSON.stringify({
+          volumeKeySuffix: volumeKeyUID as string,
+          v: urlParams.v,
+          s: urlParams.s ?? undefined,
+          n: urlParams.n ?? undefined,
+          i: urlParams.i ?? undefined,
+        }));
+        if (urlParams.prefetch) {
+          options.prefetchFiles = true;
+        }
+        loadUrls(urlParams, options);
         return;
       }
 
@@ -171,13 +307,37 @@ export default defineComponent({
 
     const display = useDisplay();
 
+    const noDrawer = computed(() => query.drawer === 'none' || query.drawer === 'hidden');
+    const permanentDrawer = computed(() => noDrawer.value || query.drawer === 'permanent');
+    const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
+    const leftSideBar = ref(false);
+
+    watchOnce(display.mobile, (isMobile) => {
+      if (noDrawer.value) {
+        leftSideBar.value = false;
+      } else if (!isMobile && !leftSideBar.value) {
+        leftSideBar.value = !temporaryDrawer.value;
+      }
+    }, { immediate: !display.mobile.value });
+
     return {
-      leftSideBar: ref(!display.mobile.value),
+      emitter,
+      closeApp: () => {
+        emitter.emit('unselect');
+        setTimeout(() => {
+          emitter.emit('close');
+        }, 100);
+      },
+      temporaryDrawer,
+      leftSideBar,
+
       loadUserPromptedFiles,
       loadFiles,
       hasData,
       showLoading,
       layout,
+
+      liteMode,
     };
   },
 });
@@ -225,5 +385,6 @@ export default defineComponent({
   border-radius: 8px;
   box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.4);
   padding: 64px;
+  visibility: hidden;
 }
 </style>

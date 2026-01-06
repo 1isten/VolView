@@ -8,11 +8,13 @@ import {
 import { useViewStore } from '@/src/store/views';
 import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { isDicomImage } from '@/src/utils/dataSelection';
 
 export default defineComponent({
   setup() {
     const { currentImageID } = useCurrentImage();
+    const loadDataStore = useLoadDataStore();
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
@@ -57,8 +59,11 @@ export default defineComponent({
 
     const wlConfig = computed(() => {
       // All views will have the same settings, just grab the first
-      const viewID = viewIDs.value[0];
+      // const viewID = viewIDs.value[0];
       const imageID = currentImageID.value;
+      const volumeKeySuffix = imageID ? loadDataStore.dataIDToVolumeKeyUID[imageID] : null;
+      const vol = volumeKeySuffix && imageID ? loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID] : null;
+      const viewID = vol?.layoutName && viewIDs.value.find(id => vol.layoutName?.includes(id)) || viewIDs.value[0];
       if (!imageID || !viewID) return defaultWindowLevelConfig();
       return (
         windowingStore.getConfig(viewID, imageID)?.value ??
@@ -84,6 +89,14 @@ export default defineComponent({
         const viewID = viewIDs.value[0];
         if (!imageID || !viewID) {
           return;
+        }
+
+        const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
+        const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID];
+        if (vol) {
+          // eslint-disable-next-line no-use-before-define
+          const usefirstTag = selection === tags.value?.[0];
+          vol.wlConfigedByUser = !usefirstTag;
         }
 
         if (typeof selection === 'object') {
