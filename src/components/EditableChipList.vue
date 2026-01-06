@@ -41,7 +41,11 @@ const itemsToRender = computed(() =>
     mandatory
   >
     <v-row dense>
-      <v-col :cols="colsPerRow" v-for="({ key, title }, idx) in itemsToRender" :key="key">
+      <v-col
+        :cols="colsPerRow"
+        v-for="({ key, title }, idx) in itemsToRender"
+        :key="key"
+      >
         <v-item v-slot="{ selectedClass, toggle }" :value="key">
           <v-chip
             variant="tonal"

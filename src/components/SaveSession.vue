@@ -45,7 +45,7 @@ import { saveAs } from 'file-saver';
 import { onKeyDown } from '@vueuse/core';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useLoadDataStore } from '@/src/store/load-data';
-import { serialize } from '../io/state-file';
+import { serialize } from '../io/state-file/serialize';
 import { Manifest } from '../io/state-file/schema';
 
 const DEFAULT_FILENAME = 'session.volview.zip';
