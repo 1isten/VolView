@@ -1,6 +1,6 @@
 <template>
   <div class="vtk-container-wrapper volume-viewer-container" tabindex="0">
-    <div class="vtk-container" data-testid="two-view-container">
+    <div class="vtk-container" data-testid="two-view-container" v-if="volumeRendered">
       <v-progress-linear
         v-if="isImageLoading"
         indeterminate
@@ -37,6 +37,7 @@
               size="medium"
               variant="text"
               @click="resetCamera"
+              @dblclick.stop
             >
               <v-icon size="medium" class="py-1">
                 mdi-camera-flip-outline
@@ -62,7 +63,51 @@
             <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
           </div>
         </template>
+        <template v-slot:bottom-right>
+          <div class="annotation-cell d-flex flex-column align-end">
+            <div v-if="currentLayoutName === '3D Only'" class="vtk-gutter pa-1">
+              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('X')" @contextmenu.prevent="resetOrientation('X', true)" @dblclick.stop>
+                <v-icon icon="mdi mdi-alpha-l-circle" size="medium" class="py-1" />
+                <v-tooltip
+                  location="left"
+                  activator="parent"
+                  transition="slide-x-transition"
+                >
+                  Reset Camera to Orientation L (X)
+                </v-tooltip>
+              </v-btn>
+              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('Y')" @contextmenu.prevent="resetOrientation('Y', true)" @dblclick.stop>
+                <v-icon icon="mdi mdi-alpha-p-circle" size="medium" class="py-1" />
+                <v-tooltip
+                  location="left"
+                  activator="parent"
+                  transition="slide-x-transition"
+                >
+                  Reset Camera to Orientation P (Y)
+                </v-tooltip>
+              </v-btn>
+              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('Z')" @contextmenu.prevent="resetOrientation('Z', true)" @dblclick.stop>
+                <v-icon icon="mdi mdi-alpha-s-circle" size="medium" class="py-1" />
+                <v-tooltip
+                  location="left"
+                  activator="parent"
+                  transition="slide-x-transition"
+                >
+                  Reset Camera to Orientation S (Z)
+                </v-tooltip>
+              </v-btn>
+            </div>
+          </div>
+        </template>
       </view-overlay-grid>
+    </div>
+    <div v-else-if="currentImageID" class="d-flex align-center justify-center">
+      <v-btn size="x-large" variant="plain" @click="render">
+        Render
+        <template v-slot:append>
+          <v-icon icon="mdi-video-3d" size="2rem" class="ms-n1"></v-icon>
+        </template>
+      </v-btn>
     </div>
   </div>
 </template>
@@ -84,6 +129,16 @@ import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useViewStore } from '@/src/store/views';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
+
+import { useLoadDataStore } from '@/src/store/load-data';
+import { useViewStore } from '@/src/store/views';
+import { resetCameraToImage } from '@/src/utils/camera';
+/* TODO: TBD
+interface Props extends LayoutViewProps {
+  viewDirection: LPSAxisDir;
+  viewUp: LPSAxisDir;
+}
+*/
 
 interface Props {
   viewId: string;
@@ -128,6 +183,17 @@ const {
   isImageLoading,
 } = useCurrentImage();
 
+/* TODO: TBD
+// lazy render 3D
+const loadDataStore = useLoadDataStore();
+const volumeRendered = computed(() => !!(currentImageID.value && loadDataStore.volumeRendered[currentImageID.value]));
+const render = () => {
+  if (currentImageID.value) {
+    loadDataStore.volumeRendered[currentImageID.value] = true;
+  }
+};
+*/
+
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
@@ -140,6 +206,46 @@ const coloringConfig = computed(() =>
 const presetName = computed(
   () => coloringConfig.value?.transferFunction.preset.replace(/-/g, ' ') ?? ''
 );
+
+// --- Custom support for rotating the scene --- //
+
+const viewStore = useViewStore();
+const currentLayoutName = computed(() => viewStore.layout?.name || '');
+
+function resetOrientation(mode: 'X' | 'Y' | 'Z', flip = false) {
+  if (!vtkView.value) return;
+  let dir = viewDirection.value;
+  let up = viewUp.value;
+  switch (mode) {
+    // Sagittal
+    case 'X': {
+      dir = flip ? 'Left' : 'Right';
+      up = 'Superior';
+      break;
+    }
+    // Coronal
+    case 'Y': {
+      dir = flip ? 'Anterior' : 'Posterior';
+      up = 'Superior';
+      break;
+    }
+    // Axial
+    case 'Z': {
+      dir = flip ? 'Inferior' : 'Superior';
+      up = flip && false ? 'Posterior' : 'Anterior';
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  resetCameraToImage(
+    vtkView.value,
+    currentImageMetadata.value,
+    dir,
+    up,
+  );
+}
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>

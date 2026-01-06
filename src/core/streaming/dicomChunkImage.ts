@@ -1,4 +1,5 @@
 import {
+  buildImage,
   buildSegmentGroups,
   ReadOverlappingSegmentationMeta,
   readVolumeSlice,
@@ -9,7 +10,7 @@ import { Image, JsonCompatible, readImage } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags, NAME_TO_TAG } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
 import {
@@ -84,6 +85,27 @@ export default class DicomChunkImage
   public segBuildInfo:
     | (JsonCompatible & ReadOverlappingSegmentationMeta)
     | null;
+
+  static async buildImage(seriesFiles: File[], modality: string) {
+    const messages: string[] = [];
+    if (modality === 'SEG') {
+      const segFile = seriesFiles[0];
+      const results = await buildSegmentGroups(segFile);
+      if (seriesFiles.length > 1)
+        messages.push(
+          'Tried to make one volume from 2 SEG modality files. Using only the first file!'
+        );
+      return {
+        modality: 'SEG',
+        builtImageResults: results,
+        messages,
+      };
+    }
+    return {
+      builtImageResults: await buildImage(seriesFiles),
+      messages,
+    };
+  }
 
   constructor() {
     super();
@@ -167,7 +189,7 @@ export default class DicomChunkImage
     this.events.emit('loading', false);
   }
 
-  async addChunks(chunks: Chunk[]) {
+  async addChunks(chunks: Chunk[], volumeKeySuffix?: string) {
     this.unregisterChunkListeners();
 
     const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
@@ -181,7 +203,8 @@ export default class DicomChunkImage
     await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
     const chunksByVolume = await splitAndSort(
       this.chunks,
-      (chunk) => chunk.metaBlob!
+      (chunk) => chunk.metaBlob!,
+      volumeKeySuffix
     );
     const volumes = Object.values(chunksByVolume);
     if (volumes.length !== 1)
@@ -189,6 +212,9 @@ export default class DicomChunkImage
 
     // save the newly sorted chunk order
     this.chunks = volumes[0];
+
+    // mutate the original input chunks to match the new order
+    chunks.sort((a, b) => this.chunks.indexOf(a) - this.chunks.indexOf(b));
 
     this.chunkStatus = this.chunks.map((chunk) => {
       switch (chunk.state) {
@@ -207,7 +233,7 @@ export default class DicomChunkImage
     this.onChunksUpdated();
 
     if (this.getModality() !== 'SEG') {
-      this.reallocateImage();
+      await this.reallocateImage({ legacy: true });
     }
 
     this.registerChunkListeners();
@@ -276,7 +302,38 @@ export default class DicomChunkImage
     }
   }
 
-  private reallocateImage() {
+  private async reallocateImage(options = { legacy: false }) {
+    // fallback to legacy buildImage if possible
+    if (options.legacy === true && this.chunks.length > 0) {
+      const meta = new Map(this.chunks[0].metadata!);
+      const ModalityTag = NAME_TO_TAG.get('Modality')!;
+      const modality = meta.get(ModalityTag)?.trim() ?? null;
+      if (modality) {    
+        const seriesFiles: File[] = []
+        let seriesFilesCompleted = true;
+        this.chunks.forEach(async (chunk, chunkIndex) => {
+          if (chunk.state === ChunkState.MetaOnly && !chunk.dataBlob) {
+            await chunk.loadData();
+          }
+          if (chunk.metaBlob) {
+            const file: File = chunk.metaBlob instanceof File ? chunk.metaBlob : new File([chunk.metaBlob], `file-${chunkIndex}.dcm`, { type: chunk.metaBlob.type } );
+            seriesFiles[chunkIndex] = file;
+            return;
+          }
+          seriesFilesCompleted = false;
+        });
+        if (seriesFiles.length > 0 && seriesFilesCompleted) {
+          const results = await DicomChunkImage.buildImage(seriesFiles, modality);
+          if (results.builtImageResults.outputImage) {
+            const image = vtkITKHelper.convertItkToVtkImage(results.builtImageResults.outputImage);
+            this.vtkImageData.value.delete();
+            this.vtkImageData.value = image;
+            return;
+          }
+        }
+      }
+    }
+
     this.vtkImageData.value.delete();
     this.vtkImageData.value = allocateImageFromChunks(this.chunks);
   }

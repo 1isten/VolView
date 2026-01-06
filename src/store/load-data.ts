@@ -2,10 +2,91 @@ import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
 import { logError } from '@/src/utils/loggers';
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
+
+import { LPSAxisDir } from '@/src/types/lps';
+
+export interface LoadEventOptions {
+  uid?: string; // shortcut for volumeKeyUID
+  volumeKeyUID?: string; // alias for volumeKeySuffix
+  volumeKeySuffix?: string; // make use of volumeKeySuffix as UID
+  layoutName?: string; // Quad View | Axial | Sagittal | Coronal | 3D
+  changeLayout?: boolean | 'auto';
+  changeSlice?: boolean | 'auto';
+  // ...
+  v?: string; // viewID
+  s?: number; // slice
+  n?: number; // instance number (x00200013)
+  i?: number; // index (from parsed data list)
+  // ...
+  loading?: boolean;
+  atob?: boolean;
+  prefetchFiles?: boolean;
+  zip?: boolean;
+  zipObjectUrl?: string | null;
+}
+
+export type LoadedByBusRecord = {
+  options: LoadEventOptions;
+  volumes: Record<
+    string, // volumeKey
+    {
+      layoutName?: string;
+      camera?: {
+        Axial?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+        Sagittal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+        Coronal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
+      },
+      slices: {
+        width?: number;
+        level?: number;
+        n: number;
+        i: number;
+      }[];
+      wlDiffers?: boolean;
+      wlConfiged?: Record<string, any>;
+      wlConfigedByUser?: boolean;
+      cached?: boolean;
+    }
+  >;
+  volumeKeys: string[]; // ordered volumes
+};
+
+export type LoadedByBus = Record<
+  string, // volumeKeyUID
+  LoadedByBusRecord
+>;
+
+export interface LoadEvent extends LoadEventOptions {
+  urlParams: {
+    urls: string[];
+    names?: string[];
+    // DICOMweb options:
+    dicomWebURL?: string;
+    studyInstanceUID?: string;
+    seriesInstanceUID?: string;
+    sopInstanceUID?: string;
+  };
+}
+
+export type Events = {
+  // received from outside
+  onload: LoadEvent;
+  onunload: void;
+  onunselect: void;
+  // ...
+
+  // emit to outside
+  onslicing?: {
+    uid: string;
+    slice: number;
+  };
+  onclose?: void;
+  // ...
+};
 
 const NotificationMessages = {
   Loading: 'Loading datasets...',
@@ -95,11 +176,32 @@ export function useLoadingNotifications() {
   };
 }
 
-const useLoadDataStore = defineStore('loadData', () => {
+export const useLoadDataStore = defineStore('loadData', () => {
   const { startLoading, stopLoading, setError, isLoading } =
     useLoadingNotifications();
 
   const segmentGroupExtension = ref('');
+
+  const $bus = {
+    emitter: null as any
+  };
+  const dataIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
+  const loadedByBus = shallowRef<LoadedByBus>(Object.create(null));
+  const isLoadingByBus = ref(false);
+  const isBusUnselected = ref(false);
+  const getLoadedByBusOptions = (volumeKeyUID?: string) => volumeKeyUID && loadedByBus.value[volumeKeyUID]?.options || {};
+  const setLoadedByBusOptions = (volumeKeyUID: string | undefined, options: LoadEventOptions) => {
+    if (!volumeKeyUID) {
+      return options;
+    }
+    if (!loadedByBus.value[volumeKeyUID]) {
+      loadedByBus.value[volumeKeyUID] = Object.create(null);
+      loadedByBus.value[volumeKeyUID].volumes = Object.create(null);
+      loadedByBus.value[volumeKeyUID].volumeKeys = [];
+    }
+    loadedByBus.value[volumeKeyUID].options = options;
+    return loadedByBus.value[volumeKeyUID].options;
+  };
 
   return {
     segmentGroupExtension,
@@ -107,6 +209,43 @@ const useLoadDataStore = defineStore('loadData', () => {
     startLoading,
     stopLoading,
     setError,
+
+    volumeRendered: ref(Object.create(null)),
+    hasProjectPort: ref(false),
+    getLoadedByBusOptions,
+    setLoadedByBusOptions,
+    setIsLoadingByBus(value: boolean, uid?: string) {
+      isLoadingByBus.value = value;
+      if (!isLoadingByBus.value && isBusUnselected.value) {
+        isBusUnselected.value = false;
+      }
+      if (!isLoadingByBus.value && uid) {
+        const options = getLoadedByBusOptions(uid);
+        if (options && options.zip && options.zipObjectUrl) {
+          URL.revokeObjectURL(options.zipObjectUrl);
+          options.zipObjectUrl = null;
+        }
+        delete options.loading;
+      }
+      return isLoadingByBus.value;
+    },
+    isLoadingByBus,
+    isBusUnselected,
+    loadedByBus,
+    dataIDToVolumeKeyUID,
+    removeLoadedByBus: (id: string | null) => {
+      if (id && id in dataIDToVolumeKeyUID.value) {
+        const volumeKeyUID = dataIDToVolumeKeyUID.value[id];
+        delete dataIDToVolumeKeyUID.value[id];
+        if (volumeKeyUID in loadedByBus.value) {
+          delete loadedByBus.value[volumeKeyUID];
+        }
+      }
+    },
+    loadBus: (emitter?: any) => {
+      $bus.emitter = emitter || null;
+    },
+    $bus,
   };
 });
 

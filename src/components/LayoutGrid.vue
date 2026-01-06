@@ -35,6 +35,18 @@ export default defineComponent({
       if (ALLOW_MAXIMIZE_TOOLS.includes(currentTool)) {
         useViewStore().setActiveView(id);
         useViewStore().toggleActiveViewMaximized();
+        /* TODO: TBD
+        if (
+          viewId === 'Axial' ||
+          viewId === 'Sagittal' ||
+          viewId === 'Coronal' ||
+          viewId === '3D'
+        ) {
+          useViewStore().setLayoutByViewID(viewId);
+          return;
+        }
+        useViewStore().toggleMaximizeView(viewId);
+        */
       }
     },
   },

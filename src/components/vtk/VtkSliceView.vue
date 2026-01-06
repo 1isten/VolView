@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRefs, provide, markRaw, effectScope, onUnmounted } from 'vue';
+import { ref, computed, toRefs, provide, markRaw, effectScope, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
@@ -14,6 +14,7 @@ import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
+import { useLoadDataStore } from '@/src/store/load-data';
 
 interface Props {
   viewId: string;
@@ -29,6 +30,18 @@ const {
   viewDirection,
   viewUp,
 } = toRefs(props);
+
+const loadDataStore = useLoadDataStore();
+const volCameraInfo = computed(() => {
+  if (imageID.value && viewID.value) {
+    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID.value];
+    const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID.value];
+    if (vol) {
+      return vol.camera || null;
+    }
+  }
+  return null;
+});
 
 const vtkContainerRef = ref<HTMLElement>();
 const viewCameraStore = useViewCameraStore();
@@ -80,8 +93,8 @@ function resetCamera() {
     resetCameraToImage(
       view,
       imageMetadata.value,
-      viewDirection.value,
-      viewUp.value
+      cameraInfo?.viewDirection || viewDirection.value,
+      cameraInfo?.viewUp || viewUp.value
     );
     autoFitImage();
   });
