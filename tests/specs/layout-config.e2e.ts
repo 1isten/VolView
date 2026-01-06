@@ -1,54 +1,153 @@
-import * as path from 'path';
-import * as fs from 'fs';
 import { volViewPage } from '../pageobjects/volview.page';
-import { FIXTURES, DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
-import { writeManifestToFile } from './utils';
+import { PROSTATEX_DATASET, openConfigAndWait } from './configTestUtils';
 
 describe('VolView Layout Configuration', () => {
-  it('should load single view layout from config', async () => {
-    const configPath = path.join(FIXTURES, 'config-layout-1x1.json');
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    const configFileName = 'config-layout-1x1.json';
-    await writeManifestToFile(config, configFileName);
-
-    await volViewPage.open(`?urls=[tmp/${configFileName}]`);
-
-    await browser.pause(2000);
-
-    await volViewPage.downloadProstateSample();
-
-    await volViewPage.waitForViews();
-
-    await browser.waitUntil(
-      async () => {
-        const currentViews = await volViewPage.views;
-        const viewCount = await currentViews.length;
-
-        if (viewCount !== 1) {
-          return false;
-        }
-
-        const view = currentViews[0];
-        const width = await view.getAttribute('width');
-        const height = await view.getAttribute('height');
-
-        if (!width || !height) {
-          return false;
-        }
-
-        const w = parseInt(width, 10);
-        const h = parseInt(height, 10);
-
-        return w > 200 && h > 200;
+  it('should create a 2x2 grid layout from simple string array', async () => {
+    const config = {
+      layouts: {
+        default: [
+          ['axial', 'sagittal'],
+          ['coronal', 'volume'],
+        ],
       },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected exactly 1 view with rendered content',
-        interval: 1000,
-      }
+    };
+
+    await openConfigAndWait(config, 'layout-grid');
+
+    await volViewPage.waitForViewCounts(3, true);
+  });
+
+  it('should create an asymmetric nested layout', async () => {
+    const config = {
+      layouts: {
+        default: {
+          direction: 'row',
+          items: [
+            'volume',
+            {
+              direction: 'column',
+              items: ['axial', 'coronal', 'sagittal'],
+            },
+          ],
+        },
+      },
+    };
+
+    await openConfigAndWait(config, 'layout-nested');
+
+    await volViewPage.waitForViewCounts(3, true);
+  });
+
+  it('should create layout with custom view options', async () => {
+    const config = {
+      layouts: {
+        default: {
+          direction: 'column',
+          items: [
+            {
+              type: '3D',
+              name: 'Top View',
+              viewDirection: 'Superior',
+              viewUp: 'Anterior',
+            },
+            {
+              direction: 'row',
+              items: [
+                {
+                  type: '2D',
+                  orientation: 'Axial',
+                },
+                {
+                  type: '2D',
+                  orientation: 'Coronal',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    await openConfigAndWait(config, 'layout-custom-views');
+
+    await volViewPage.waitForViewCounts(2, true);
+  });
+
+  it('should support multiple named layouts and preserve slice selection', async () => {
+    const config = {
+      layouts: {
+        'Four Up Axial': [
+          ['axial', 'sagittal'],
+          ['coronal', 'axial'],
+        ],
+        'Single Axial': [['axial']],
+        'Dual Axial': [['axial'], ['axial']],
+      },
+    };
+
+    await openConfigAndWait(config, 'multiple-layouts', PROSTATEX_DATASET);
+
+    await volViewPage.waitForViewCounts(4, false);
+
+    await volViewPage.focusFirst2DView();
+
+    const initialSlice = await volViewPage.getFirst2DSlice();
+    expect(initialSlice).not.toBeNull();
+
+    await volViewPage.advanceSliceAndWait();
+
+    const sliceAfterScroll = await volViewPage.getFirst2DSlice();
+    expect(sliceAfterScroll).not.toBeNull();
+    if (initialSlice !== null && sliceAfterScroll !== null) {
+      expect(sliceAfterScroll).toBeLessThan(initialSlice);
+    }
+
+    await volViewPage.openLayoutMenu(3);
+    const layoutTitles = await volViewPage.getLayoutOptionTitles();
+    expect(layoutTitles).toEqual(
+      expect.arrayContaining(['Four Up Axial', 'Single Axial', 'Dual Axial'])
     );
 
-    const views = await volViewPage.views;
-    await expect(views).toHaveLength(1);
+    await volViewPage.selectLayoutOption('Single Axial');
+    await volViewPage.waitForViewCounts(1, false);
+
+    await volViewPage.focusFirst2DView();
+    const sliceAfterLayoutSwitch = await volViewPage.getFirst2DSlice();
+    expect(sliceAfterLayoutSwitch).toBe(sliceAfterScroll);
+
+    await volViewPage.openLayoutMenu(3);
+    await volViewPage.selectLayoutOption('Dual Axial');
+    await volViewPage.waitForViewCounts(2, false);
+
+    await volViewPage.focusFirst2DView();
+    const sliceInFirstViewAfterDualSwitch = await volViewPage.getFirst2DSlice();
+    expect(sliceInFirstViewAfterDualSwitch).toBe(sliceAfterScroll);
+  });
+
+  it('should disable 3D and Oblique view types', async () => {
+    const config = {
+      disabledViewTypes: ['3D', 'Oblique'],
+    };
+
+    await openConfigAndWait(config, 'disabled-view-types');
+
+    await volViewPage.waitForViewCounts(4, false);
+
+    const viewTypeSwitchers = await $$('.view-type-select');
+    expect(viewTypeSwitchers.length).toBeGreaterThan(0);
+
+    const firstSwitcher = viewTypeSwitchers[0];
+    await firstSwitcher.click();
+
+    const optionTexts = await browser.execute(() => {
+      const items = Array.from(document.querySelectorAll('.v-list-item-title'));
+      return items.map((item) => item.textContent?.trim() ?? '');
+    });
+
+    expect(optionTexts).not.toContain('Volume');
+    expect(optionTexts).not.toContain('Oblique');
+    expect(optionTexts).toContain('Axial');
+    expect(optionTexts).toContain('Coronal');
+    expect(optionTexts).toContain('Sagittal');
   });
 });

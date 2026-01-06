@@ -11,15 +11,15 @@ import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
+import { layoutConfig } from '@/src/utils/layoutParsing';
 
 // --------------------------------------------------------------------------
-// Interface
+// Layout
 
-const layout = z
-  .object({
-    gridSize: z.tuple([z.number(), z.number()]).optional(),
-  })
-  .optional();
+const layouts = z.record(z.string(), layoutConfig).optional();
+
+// --------------------------------------------------------------------------
+// Keyboard shortcuts
 
 const shortcuts = z.record(zodEnumFromObjKeys(ACTIONS), z.string()).optional();
 
@@ -72,12 +72,15 @@ const windowing = z
   })
   .optional();
 
+const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
+
 export const config = z.object({
-  layout,
+  layouts,
   labels,
   shortcuts,
   io,
   windowing,
+  disabledViewTypes,
 });
 
 export type Config = z.infer<typeof config>;
@@ -115,9 +118,17 @@ const applyLabels = (manifest: Config) => {
 };
 
 const applyLayout = (manifest: Config) => {
-  if (manifest.layout?.gridSize) {
-    useViewStore().setLayoutFromGrid(manifest.layout.gridSize);
-  }
+  if (!manifest.layouts) return;
+
+  const viewStore = useViewStore();
+  const layoutEntries = Object.entries(manifest.layouts);
+
+  if (layoutEntries.length === 0) return;
+
+  viewStore.setNamedLayoutsFromConfig(manifest.layouts);
+
+  const firstLayoutName = layoutEntries[0][0];
+  viewStore.switchToNamedLayout(firstLayoutName);
 };
 
 const applyShortcuts = (manifest: Config) => {
@@ -143,7 +154,14 @@ const applyWindowing = (manifest: Config) => {
   useWindowingStore().runtimeConfigWindowLevel = manifest.windowing;
 };
 
+const applyDisabledViewTypes = (manifest: Config) => {
+  if (!manifest.disabledViewTypes) return;
+
+  useViewStore().disabledViewTypes = manifest.disabledViewTypes;
+};
+
 export const applyPreStateConfig = (manifest: Config) => {
+  applyDisabledViewTypes(manifest);
   applyLayout(manifest);
   applyShortcuts(manifest);
   applyIo(manifest);

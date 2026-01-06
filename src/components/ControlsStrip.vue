@@ -13,8 +13,7 @@ import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
 import MessageCenter from '@/src/components/MessageCenter.vue';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import { ConnectionState, useServerStore } from '@/src/store/server';
-import { useViewStore } from '@/src/store/views';
-import LayoutGridEditor from '@/src/components/LayoutGridEditor.vue';
+import LayoutSelector from '@/src/components/LayoutSelector.vue';
 
 interface Props {
   hasData: boolean;
@@ -23,11 +22,11 @@ interface Props {
 
 defineProps<Props>();
 
-const viewStore = useViewStore();
-
 const emit = defineEmits(['click:left-menu', 'click:close']);
 
 /* TODO: TBD
+const viewStore = useViewStore();
+
 function useViewLayout(defaultLayoutName?: string) {
   const viewStore = useViewStore();
   const layoutName = ref(defaultLayoutName || DefaultLayoutName);
@@ -141,13 +140,6 @@ const onManuallySetLayoutName = (value: string | null) => { if (value) { useView
 
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
-
-const layoutGridSize = computed({
-  get: () => [0, 0] as [number, number],
-  set: (size) => {
-    viewStore.setLayoutFromGrid(size);
-  },
-});
 </script>
 
 <template>
@@ -190,7 +182,7 @@ const layoutGridSize = computed({
       </template>
       <v-card>
         <v-card-text>
-          <LayoutGridEditor v-model="layoutGridSize" />
+          <LayoutSelector />
           <!-- TODO: TBD
           <v-radio-group v-model="layoutName" class="mt-0" hide-details @update:model-value="onManuallySetLayoutName">
             <v-radio

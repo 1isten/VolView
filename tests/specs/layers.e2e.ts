@@ -1,19 +1,11 @@
 import { DOWNLOAD_TIMEOUT } from '@/wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
+import { PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET } from './configTestUtils';
 
 describe('Add Layer button', () => {
   it('should create overlay with 2 DICOM images', async () => {
-    await openUrls([
-      {
-        url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
-        name: 'prostate.zip',
-      },
-      {
-        url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
-        name: 'MRA-Head_and_Neck.zip',
-      },
-    ]);
+    await openUrls([PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET]);
 
     await browser.waitUntil(
       async () => {
@@ -89,9 +81,9 @@ describe('Add Layer button', () => {
     if (!views2D || viewCount === 0) {
       throw new Error('Could not find 2D views for screenshot');
     }
-    const lastView2D = views2D[viewCount - 1];
+    const firstView2D = views2D[0];
     const result = await browser.checkElement(
-      lastView2D,
+      firstView2D,
       'layers_max_opacity_2d_view'
     );
 
