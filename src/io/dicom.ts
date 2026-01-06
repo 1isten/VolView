@@ -2,12 +2,13 @@ import { runPipeline, TextStream, InterfaceTypes, Image } from 'itk-wasm';
 
 import {
   readDicomTags,
+  readImageDicomFileSeries,
   readOverlappingSegmentation,
   ReadOverlappingSegmentationResult,
 } from '@itk-wasm/dicom';
 
 import itkConfig from '@/src/io/itk/itkConfig';
-import { getWorker } from '@/src/io/itk/worker';
+import { getDicomSeriesWorkerPool, getWorker } from '@/src/io/itk/worker';
 
 export interface TagSpec {
   name: string;
@@ -21,6 +22,18 @@ export type SpatialParameters = Pick<
 
 // volume ID => file names
 export type VolumesToFileNamesMap = Record<string, string[]>;
+
+export const volumeKeySuffixSep = '#';
+
+export const volumeKeyGetSuffix = (volumeKey: string) => {
+  if (volumeKey) {
+    const i = volumeKey.indexOf(volumeKeySuffixSep);
+    if (i !== -1) {
+      return volumeKey.substring(i + 1);
+    }
+  }
+  return '';
+};
 
 /**
  * Filenames must be sanitized prior to being passed into itk-wasm.
@@ -61,7 +74,8 @@ async function runTask(
  */
 export async function splitAndSort<T>(
   instances: T[],
-  mapToBlob: (inst: T, index: number) => Blob
+  mapToBlob: (inst: T, index: number) => Blob,
+  volumeKeySuffix?: string
 ) {
   const inputs = await Promise.all(
     instances.map(async (instance, index) => {
@@ -94,6 +108,14 @@ export async function splitAndSort<T>(
   const volumeToFileIndexes = JSON.parse(
     (result.outputs[0].data as TextStream).data
   ) as VolumesToFileNamesMap;
+
+  // Append volumeKeySuffix (volumeKeyUID)
+  if (volumeKeySuffix) {
+    Object.entries(volumeToFileIndexes).forEach(([volumeKey, fileIndexes]) => {
+      volumeToFileIndexes[`${volumeKey}${volumeKeySuffixSep}${volumeKeySuffix}`] = fileIndexes;
+      delete volumeToFileIndexes[volumeKey];
+    });
+  }
 
   const volumeToInstances = Object.fromEntries(
     Object.entries(volumeToFileIndexes).map(([volumeKey, fileIndexes]) => [
@@ -202,4 +224,20 @@ export async function buildSegmentGroups(file: File) {
     ...result,
     outputImage: result.segImage,
   };
+}
+
+/**
+ * Builds a volume for a set of files.
+ * @async
+ * @param {File[]} seriesFiles the set of files to build volume from
+ * @returns ItkImage
+ */
+export async function buildImage(seriesFiles: File[]) {
+  const inputImages = seriesFiles.map((file) => sanitizeFile(file));
+  const result = await readImageDicomFileSeries({
+    webWorkerPool: getDicomSeriesWorkerPool(),
+    inputImages,
+    singleSortedSeries: false,
+  });
+  return result;
 }

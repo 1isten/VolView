@@ -115,7 +115,8 @@ export type ImportContext = {
   dicomDataSources?: DataSource[];
   onCleanup?: (fn: () => void) => void;
   importDataSources?: (
-    dataSources: DataSource[]
+    dataSources: DataSource[],
+    volumeKeySuffix?: string
   ) => Promise<ImportDataSourcesResult[]>;
 };
 

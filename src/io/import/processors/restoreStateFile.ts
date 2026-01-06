@@ -21,6 +21,8 @@ import { useViewConfigStore } from '@/src/store/view-configs';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useMessageStore } from '@/src/store/messages';
 
+import { useLoadDataStore } from '@/src/store/load-data';
+
 type LeafSource =
   | { type: 'uri'; uri: string; name: string; mime?: string }
   | { type: 'file'; file: File; fileType: string };

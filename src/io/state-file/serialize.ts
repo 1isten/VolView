@@ -15,7 +15,7 @@ import { useViewConfigStore } from '@/src/store/view-configs';
 export const MANIFEST = 'manifest.json';
 export const MANIFEST_VERSION = '6.2.0';
 
-export async function serialize() {
+export async function serialize(returnManifest = false) {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
   const labelStore = useSegmentGroupStore();
@@ -29,6 +29,7 @@ export async function serialize() {
     dataSources: [],
     datasetFilePath: {},
     segmentGroups: [],
+    // labelMaps: [], // TODO: TBD
     tools: {
       crosshairs: {
         position: [0, 0, 0],
@@ -66,6 +67,9 @@ export async function serialize() {
 
   zip.file(MANIFEST, JSON.stringify(manifest));
 
+  if (returnManifest) {
+    return [await zip.generateAsync({ type: 'blob' }), manifest];
+  }
   return zip.generateAsync({ type: 'blob' });
 }
 

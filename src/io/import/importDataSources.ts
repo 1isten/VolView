@@ -85,11 +85,12 @@ function findStateFileLeaf(dataSource: DataSource) {
   return undefined;
 }
 
-async function importDicomChunkSources(sources: ChunkSource[]) {
+async function importDicomChunkSources(sources: ChunkSource[], volumeKeySuffix?: string) {
   if (sources.length === 0) return [];
 
   const volumeChunks = await useDICOMStore().importChunks(
-    sources.map((src) => src.chunk)
+    sources.map((src) => src.chunk),
+    volumeKeySuffix
   );
 
   // this is used to reconstruct the ChunkSource list
@@ -111,7 +112,8 @@ async function importDicomChunkSources(sources: ChunkSource[]) {
 }
 
 export async function importDataSources(
-  dataSources: DataSource[]
+  dataSources: DataSource[],
+  volumeKeySuffix?: string
 ): Promise<ImportDataSourcesResult[]> {
   const cleanupHandlers: Array<() => void> = [];
   const onCleanup = (fn: () => void) => {
@@ -219,7 +221,7 @@ export async function importDataSources(
   );
 
   try {
-    const dicomResults = await importDicomChunkSources(dicomChunkSources);
+    const dicomResults = await importDicomChunkSources(dicomChunkSources, volumeKeySuffix);
     results.push(...dicomResults);
   } catch (err) {
     const errorSource =

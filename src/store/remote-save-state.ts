@@ -19,7 +19,7 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
     try {
       isSaving.value = true;
 
-      const blob = await serialize();
+      const blob = await serialize() as Blob;
       const saveResult = await $fetch(saveUrl.value, {
         method: 'POST',
         headers: {

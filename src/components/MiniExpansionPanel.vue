@@ -1,13 +1,13 @@
 <template>
-  <div>
-    <div class="d-flex align-center justify-space-between">
+  <div class="text-body-2">
+    <div class="d-flex flex-wrap align-center justify-space-between">
       <div class="d-flex">
         <slot name="title"> </slot>
       </div>
       <v-btn
-        variant="text"
-        class="py-0 px-1"
-        style="font-size: 0.8rem"
+        variant="plain"
+        class="pa-0"
+        style="font-size: smaller"
         @click="toggleInstructions"
       >
         <span>{{ label }}</span>
