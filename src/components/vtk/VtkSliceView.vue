@@ -88,13 +88,15 @@ useResizeObserver(vtkContainerRef, () => {
 });
 
 function resetCamera() {
+  const cameraInfo = volCameraInfo.value?.[viewID.value as keyof typeof volCameraInfo.value];
+
   autoFit.autoFit.value = true;
   autoFit.withPaused(() => {
     resetCameraToImage(
       view,
       imageMetadata.value,
-      /*cameraInfo?.viewDirection || */viewDirection.value,
-      /*cameraInfo?.viewUp || */viewUp.value
+      cameraInfo?.viewDirection || viewDirection.value,
+      cameraInfo?.viewUp || viewUp.value
     );
     autoFitImage();
   });
