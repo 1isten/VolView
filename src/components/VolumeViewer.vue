@@ -63,6 +63,7 @@
             <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
           </div>
         </template>
+        <!-- TODO: TBD
         <template v-slot:bottom-right>
           <div class="annotation-cell d-flex flex-column align-end">
             <div v-if="currentLayoutName === '3D Only'" class="vtk-gutter pa-1">
@@ -99,6 +100,7 @@
             </div>
           </div>
         </template>
+        -->
       </view-overlay-grid>
     </div>
     <div v-else-if="currentImageID" class="d-flex align-center justify-center">
@@ -131,7 +133,6 @@ import { useViewStore } from '@/src/store/views';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 
 import { useLoadDataStore } from '@/src/store/load-data';
-import { useViewStore } from '@/src/store/views';
 import { resetCameraToImage } from '@/src/utils/camera';
 /* TODO: TBD
 interface Props extends LayoutViewProps {
@@ -183,7 +184,6 @@ const {
   isImageLoading,
 } = useCurrentImage();
 
-/* TODO: TBD
 // lazy render 3D
 const loadDataStore = useLoadDataStore();
 const volumeRendered = computed(() => !!(currentImageID.value && loadDataStore.volumeRendered[currentImageID.value]));
@@ -192,7 +192,6 @@ const render = () => {
     loadDataStore.volumeRendered[currentImageID.value] = true;
   }
 };
-*/
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
@@ -209,7 +208,6 @@ const presetName = computed(
 
 // --- Custom support for rotating the scene --- //
 
-const viewStore = useViewStore();
 const currentLayoutName = computed(() => viewStore.layout?.name || '');
 
 function resetOrientation(mode: 'X' | 'Y' | 'Z', flip = false) {

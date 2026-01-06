@@ -216,6 +216,7 @@ export default defineComponent({
       },
     } as unknown as EventHandlers), loadDataStore);
 
+    /* TODO: TBD
     const { primarySelection } = storeToRefs(datasetStore);
     watch(primarySelection, async (volumeKey) => {
       if (volumeKey) {
@@ -237,6 +238,7 @@ export default defineComponent({
         }
       }
     });
+    */
 
     // --- parse URL -- //
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0

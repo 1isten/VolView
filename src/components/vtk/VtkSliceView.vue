@@ -93,8 +93,8 @@ function resetCamera() {
     resetCameraToImage(
       view,
       imageMetadata.value,
-      cameraInfo?.viewDirection || viewDirection.value,
-      cameraInfo?.viewUp || viewUp.value
+      /*cameraInfo?.viewDirection || */viewDirection.value,
+      /*cameraInfo?.viewUp || */viewUp.value
     );
     autoFitImage();
   });

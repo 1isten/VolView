@@ -158,15 +158,13 @@ export default defineComponent({
     PolygonControls,
     WindowLevelControls,
   },
-  /* TODO: TBD
   props: {
     defaultTool: {
       type: String,
     },
   },
-  */
   setup(props) {
-    const dataStore = useDatasetStore();
+    // const dataStore = useDatasetStore();
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 

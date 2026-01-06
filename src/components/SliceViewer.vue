@@ -245,7 +245,6 @@ import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Inter
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useViewStore } from '@/src/store/views';
 import { LPSAxis } from '@/src/types/lps';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
@@ -358,7 +357,6 @@ const selectionPoints = computed(() => {
 
 // --- Custom support for flipping and rotating the view --- //
 
-const viewStore = useViewStore();
 const currentLayoutName = computed(() => viewStore.layout?.name || '');
 
 const loadDataStore = useLoadDataStore();
