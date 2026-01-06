@@ -68,13 +68,11 @@ const { interactorStyle } = useVtkInteractorStyle(
 
 // bind slice and window configs
 // resizeToFit camera controls
-const { autoFit, withoutAutoFitEffect } = useAutoFitState(
-  view.renderer.getActiveCamera()
-);
+const autoFit = useAutoFitState(view.renderer.getActiveCamera());
 
 function autoFitImage() {
-  if (!autoFit.value) return;
-  withoutAutoFitEffect(() => {
+  if (!autoFit.autoFit.value) return;
+  autoFit.withPaused(() => {
     resizeToFitImage(
       view,
       imageMetadata.value,
@@ -90,9 +88,8 @@ useResizeObserver(vtkContainerRef, () => {
 });
 
 function resetCamera() {
-  const cameraInfo = volCameraInfo.value?.[viewID.value as keyof typeof volCameraInfo.value];
-  autoFit.value = true;
-  withoutAutoFitEffect(() => {
+  autoFit.autoFit.value = true;
+  autoFit.withPaused(() => {
     resetCameraToImage(
       view,
       imageMetadata.value,
@@ -103,6 +100,20 @@ function resetCamera() {
   });
 }
 
+watchImmediate(
+  [viewID, imageID, disableCameraAutoReset],
+  ([viewID_, imageID_, noAutoReset]) => {
+    if (
+      imageID_ &&
+      !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
+      !noAutoReset
+    ) {
+      resetCamera();
+      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
+    }
+  }
+);
+
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
   if (!imageMetadata.value) return;
   if (
@@ -110,10 +121,7 @@ watchImmediate([imageMetadata, disableCameraAutoReset], () => {
     disableCameraAutoReset.value
   ) {
     view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
-    return;
   }
-  resetCamera();
-  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
 });
 
 // persistent camera config
@@ -128,8 +136,31 @@ const api: VtkViewApi = markRaw({
 
 defineExpose(api);
 provide(VtkViewContext, api);
+
+function onPointerDown() {
+  autoFit.resume();
+}
+
+function onPointerUp() {
+  autoFit.pause();
+}
 </script>
 
 <template>
-  <div ref="vtkContainerRef"><slot></slot></div>
+  <div>
+    <div
+      ref="vtkContainerRef"
+      class="view"
+      @pointerdown.capture="onPointerDown"
+      @pointerup.capture="onPointerUp"
+    />
+    <slot></slot>
+  </div>
 </template>
+
+<style scoped>
+.view {
+  width: 100%;
+  height: 100%;
+}
+</style>

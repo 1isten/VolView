@@ -7,6 +7,8 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useOrientationLabels } from '@/src/composables/useOrientationLabels';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
+import { useImage } from '@/src/composables/useCurrentImage';
 
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { shortenNumber } from '@/src/utils';
@@ -43,6 +45,9 @@ const {
   level: windowLevel,
 } = useWindowingConfig(viewId, imageId);
 
+const { metadata } = useImage(imageId);
+
+/* TODO: TBD
 const coordinate = vtkCoordinate.newInstance();
 coordinate.setCoordinateSystemToDisplay();
 
@@ -114,10 +119,16 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
   pointValue.value.y = '';
   pointValue.value.value = '';
 });
+*/
 </script>
 
 <template>
   <view-overlay-grid class="overlay-no-events view-annotations">
+    <template v-slot:top-left>
+      <div class="annotation-cell">
+        <span>{{ metadata.name }}</span>
+      </div>
+    </template>
     <template v-slot:top-center>
       <div class="annotation-cell">
         <span>{{ topLabel }}</span>
@@ -143,14 +154,17 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
         <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
       </div>
     </template>
-    <template v-slot:bottom-right>
-      <div class="annotation-cell">
+    <template #bottom-right>
+      <div class="annotation-cell" @click.stop>
+        <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
+        <!-- TODO: TBD
         <div v-if="pointValue.value">
           {{ pointValue.value }}
         </div>
         <div v-if="pointValue.x || pointValue.y">
           {{ pointValue.x }} {{ pointValue.y }}
         </div>
+        -->
       </div>
     </template>
   </view-overlay-grid>

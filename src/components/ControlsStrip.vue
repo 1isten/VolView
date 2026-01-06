@@ -14,7 +14,7 @@ import MessageCenter from '@/src/components/MessageCenter.vue';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import { ConnectionState, useServerStore } from '@/src/store/server';
 import { useViewStore } from '@/src/store/views';
-import { Layouts, DefaultLayoutName } from '@/src/config';
+import LayoutGridEditor from '@/src/components/LayoutGridEditor.vue';
 
 interface Props {
   hasData: boolean;
@@ -23,8 +23,11 @@ interface Props {
 
 defineProps<Props>();
 
+const viewStore = useViewStore();
+
 const emit = defineEmits(['click:left-menu', 'click:close']);
 
+/* TODO: TBD
 function useViewLayout(defaultLayoutName?: string) {
   const viewStore = useViewStore();
   const layoutName = ref(defaultLayoutName || DefaultLayoutName);
@@ -58,6 +61,7 @@ function useViewLayout(defaultLayoutName?: string) {
 
   return layoutName;
 }
+*/
 
 function useSaveControls() {
   const remoteSaveStateStore = useRemoteSaveStateStore();
@@ -129,10 +133,21 @@ const defaultTool = computed(() => query.defaultTool ? query.defaultTool.toStrin
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
+
+/* TODO: TBD
 const layoutName = useViewLayout((query.layoutName || '').toString());
 const onManuallySetLayoutName = (value: string | null) => { if (value) { useViewStore().prevLayoutName = '' } };
+*/
+
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
+
+const layoutGridSize = computed({
+  get: () => [0, 0] as [number, number],
+  set: (size) => {
+    viewStore.setLayoutFromGrid(size);
+  },
+});
 </script>
 
 <template>
@@ -175,6 +190,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       </template>
       <v-card>
         <v-card-text>
+          <LayoutGridEditor v-model="layoutGridSize" />
+          <!-- TODO: TBD
           <v-radio-group v-model="layoutName" class="mt-0" hide-details @update:model-value="onManuallySetLayoutName">
             <v-radio
               v-for="(value, key) in Layouts"
@@ -183,6 +200,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
               :value="key"
             />
           </v-radio-group>
+          -->
         </v-card-text>
       </v-card>
     </v-menu>

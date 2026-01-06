@@ -58,8 +58,9 @@ const dicomInfo = computed(() => {
       <v-icon
         v-bind="props"
         dark
-        size="x-large"
-        class="pointer-events-all hover-info"
+        size="medium"
+        class="pointer-events-all"
+        @click.stop
       >
         mdi-information
       </v-icon>
@@ -95,10 +96,4 @@ const dicomInfo = computed(() => {
 </template>
 
 <style scoped src="@/src/components/styles/utils.css"></style>
-<style scoped>
-.hover-info {
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-}
-</style>
+<style scoped></style>

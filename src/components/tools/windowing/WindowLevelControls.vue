@@ -10,6 +10,7 @@ import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLoadDataStore } from '@/src/store/load-data';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { storeToRefs } from 'pinia';
 
 export default defineComponent({
   setup() {
@@ -18,16 +19,8 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
+    const { activeView } = storeToRefs(viewStore);
     const panel = ref(['tags', 'presets', 'auto']);
-
-    // Get the relevant view ids
-    const viewIDs = computed(() =>
-      viewStore.viewIDs.filter(
-        (viewID) =>
-          currentImageID.value &&
-          !!windowingStore.getConfig(viewID, currentImageID.value)
-      )
-    );
 
     function parseLabel(text: string) {
       return text.replace(/([A-Z])/g, ' $1').trim();
@@ -59,15 +52,14 @@ export default defineComponent({
 
     const wlConfig = computed(() => {
       // All views will have the same settings, just grab the first
-      // const viewID = viewIDs.value[0];
+      // const viewID = activeView.value;
       const imageID = currentImageID.value;
       const volumeKeySuffix = imageID ? loadDataStore.dataIDToVolumeKeyUID[imageID] : null;
       const vol = volumeKeySuffix && imageID ? loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID] : null;
-      const viewID = vol?.layoutName && viewIDs.value.find(id => vol.layoutName?.includes(id)) || viewIDs.value[0];
+      const viewID = vol?.layoutName && viewIDs.value.find(id => vol.layoutName?.includes(id)) || activeView.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();
       return (
-        windowingStore.getConfig(viewID, imageID)?.value ??
-        defaultWindowLevelConfig()
+        windowingStore.getConfig(viewID, imageID) ?? defaultWindowLevelConfig()
       );
     });
 
@@ -85,8 +77,7 @@ export default defineComponent({
       },
       set(selection: AutoRangeKey | PresetValue) {
         const imageID = currentImageID.value;
-        // All views will be synchronized, just set the first
-        const viewID = viewIDs.value[0];
+        const viewID = activeView.value;
         if (!imageID || !viewID) {
           return;
         }

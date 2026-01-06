@@ -32,6 +32,7 @@ import {
   ImportDataSourcesResult,
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { useViewStore } from '@/src/store/views';
 
 import JSZip from 'jszip';
 import {
@@ -237,10 +238,11 @@ function loadSegmentations(
 }
 
 function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
-  const load = async () => {
-    const loadDataStore = useLoadDataStore();
-    const dataStore = useDatasetStore();
+  const loadDataStore = useLoadDataStore();
+  const dataStore = useDatasetStore();
+  const viewStore = useViewStore();
 
+  const load = async () => {
     let results: ImportDataSourcesResult[];
     try {
       results = (await importDataSources(sources, volumeKeySuffix)).filter((result) =>
@@ -257,14 +259,19 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
       results
     );
 
-    if (!dataStore.primarySelection || succeeded.length) {
+    const shouldShowData = viewStore
+      .getAllViews()
+      .every((view) => !view.dataID);
+
+    if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
         loadDataStore.segmentGroupExtension
       );
 
-      if (primaryDataSource && isVolumeResult(primaryDataSource)) {
-        let selection = toDataSelection(primaryDataSource);
+      if (isVolumeResult(primaryDataSource)) {
+        const selection = toDataSelection(primaryDataSource);
+        /* TODO: TBD
         if (volumeKeySuffix) {
           let dataID: string | null = null;
           let viewID: string | null = null;
@@ -387,6 +394,8 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
           });
         });
         dataStore.setPrimarySelection(selection || null);
+        */
+        viewStore.setDataForAllViews(selection);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
           primaryDataSource,

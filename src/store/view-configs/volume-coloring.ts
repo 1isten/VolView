@@ -154,10 +154,14 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     const { colorFunc, opacityFunc } =
       getColorAndOpacityFuncsFromPreset(preset, viewID);
     colorFunc.mappingRange ||= imageDataRange;
-    opacityFunc.mappingRange = imageDataRange;
+
+    const completeOpacityFunc = {
+      ...opacityFunc,
+      mappingRange: imageDataRange,
+    };
 
     updateColorTransferFunction(viewID, imageID, colorFunc);
-    updateOpacityFunction(viewID, imageID, opacityFunc);
+    updateOpacityFunction(viewID, imageID, completeOpacityFunc);
   };
 
   const resetToDefaultColoring = (
