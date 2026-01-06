@@ -7,7 +7,7 @@
       <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
         <v-text-field
           v-model="fileName"
-          hint="Filename that will appear in downloads."
+          :hint="roiMode ? 'Filename to save.' : 'Filename that will appear in downloads.'"
           label="Filename"
           :rules="[validFileName]"
           required
@@ -18,6 +18,7 @@
           label="Format"
           v-model="fileFormat"
           :items="EXTENSIONS"
+          :readonly="roiMode"
         ></v-select>
       </v-form>
     </v-card-text>
@@ -37,12 +38,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { onKeyDown } from '@vueuse/core';
+import { onMounted, ref, computed } from 'vue';
+import { onKeyDown, useUrlSearchParams } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { writeImage } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
+import { useLoadDataStore } from '@/src/store/load-data';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 const EXTENSIONS = [
   'nrrd',
@@ -54,7 +57,7 @@ const EXTENSIONS = [
   'mha',
   'vtk',
   'iwi.cbor',
-];
+].slice(2, 4);
 
 const props = defineProps<{
   id: string;
@@ -62,11 +65,16 @@ const props = defineProps<{
 
 const emit = defineEmits(['done']);
 
+const query = useUrlSearchParams();
+const roiMode = computed(() => query.roi === 'true' || query.roi === '1');
+const labelmapFormat = computed(() => query.labelmapFormat && query.labelmapFormat.toString().toLowerCase());
+
 const fileName = ref('');
 const valid = ref(true);
 const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
+const loadDataStore = useLoadDataStore();
 const segmentGroupStore = useSegmentGroupStore();
 
 async function saveSegmentGroup() {
@@ -76,8 +84,40 @@ async function saveSegmentGroup() {
 
   saving.value = true;
   await useErrorMessage('Failed to save segment group', async () => {
+    const parentImageID = segmentGroupStore.metadataByID[props.id].parentImage;
     const image = segmentGroupStore.dataIndex[props.id];
-    const serialized = await writeImage(fileFormat.value, image);
+    // @ts-ignore
+    // eslint-disable-next-line no-undef
+    const serialized = await writeImage(fileFormat.value, image) as BlobPart;
+    if (roiMode.value && (fileFormat.value in FILE_EXT_TO_MIME)) {
+      const formData = new FormData();
+      const fileContent = new Blob([serialized], { type: FILE_EXT_TO_MIME[fileFormat.value] });
+      formData.append('fileContent', fileContent);
+      formData.set('fileName', `${fileName.value.replaceAll(' ', '_')}.${fileFormat.value}`);
+      formData.set('fileType', fileFormat.value);
+      formData.set('pipelineId', query.pipelineId?.toString() || '');
+      if (query.manualNodeId) {
+        formData.set('meta', JSON.stringify({
+          manualNodeId: query.manualNodeId,
+          batch: query.pipelineEmbedded === 'embedded' ? true : undefined,
+          blackbox: query.blackboxTaskId ? true : undefined,
+        }));
+      }
+      formData.set('type', 'segmentation');
+      const res = await fetch('h3://localhost/api/volview/sessions', { method: 'POST', body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        console.log(data);
+        const emitter = loadDataStore.$bus.emitter;
+        emitter?.emit('savesegmentation', {
+          uid: loadDataStore.dataIDToVolumeKeyUID[parentImageID],
+          data,
+        });
+      } else {
+        console.error(res.status, res.statusText);
+      }
+      return;
+    }
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
   });
   saving.value = false;
@@ -87,6 +127,9 @@ async function saveSegmentGroup() {
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
   fileName.value = segmentGroupStore.metadataByID[props.id].name;
+  if (labelmapFormat.value && EXTENSIONS.includes(labelmapFormat.value)) {
+    fileFormat.value = labelmapFormat.value;
+  }
 });
 
 onKeyDown('Enter', () => {

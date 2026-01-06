@@ -111,7 +111,8 @@ export interface ImportContext {
    * A reference to importDataSources for nested imports.
    */
   importDataSources?: (
-    dataSources: DataSource[]
+    dataSources: DataSource[],
+    volumeKeySuffix?: string
   ) => Promise<ImportDataSourcesResult[]>;
 }
 

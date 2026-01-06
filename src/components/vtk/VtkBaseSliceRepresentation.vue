@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject } from 'vue';
+import { computed, toRefs, watchEffect, inject } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
@@ -10,6 +10,12 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
+
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
+import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
+import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
+import { applyColoring } from '@/src/composables/useColoringEffect';
 
 interface Props {
   viewId: string;
@@ -53,6 +59,36 @@ const colorLevel = vtkFieldRef(sliceRep.property, 'colorLevel');
 const colorWindow = vtkFieldRef(sliceRep.property, 'colorWindow');
 syncRefs(wlConfig.level, colorLevel, { immediate: true });
 syncRefs(wlConfig.width, colorWindow, { immediate: true });
+
+// apply coloring
+useVolumeColoringInitializer(viewID, imageID);
+
+const coloringConfig = computed(() =>
+  useVolumeColoringStore().getConfig(viewID.value, imageID.value)
+);
+const applyBaseColoring = () => {
+  const config = coloringConfig.value;
+  if (!config) return;
+
+  const useHeatmap = config.transferFunction.preset === 'Heatmap';
+
+  const cfun = vtkColorTransferFunction.newInstance();
+  const ofun = vtkPiecewiseFunction.newInstance();
+  sliceRep.property.setRGBTransferFunction(0, useHeatmap ? cfun : null);
+  sliceRep.property.setScalarOpacity(0, useHeatmap ? ofun : null);
+  // sliceRep.property.setUseLookupTableScalarRange(false);
+
+  applyColoring({
+    props: {
+      colorFunction: config.transferFunction,
+      opacityFunction: config.opacityFunction,
+    },
+    cfun,
+    ofun,
+  });
+};
+
+watchEffect(applyBaseColoring);
 
 defineExpose(sliceRep);
 </script>

@@ -11,7 +11,7 @@
     >
       <menu-control-button
         icon="mdi-circle-half-full"
-        :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
+        :name="'Window & Level' + '' || ` [${nameToShortcut['Window & Level']}]`"
         :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -22,7 +22,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
       <control-button
         icon="mdi-cursor-move"
-        :name="`Pan [${nameToShortcut['Pan']}]`"
+        :name="'Pan' + '' || ` [${nameToShortcut['Pan']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -31,7 +31,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Zoom">
       <control-button
         icon="mdi-magnify-plus-outline"
-        :name="`Zoom [${nameToShortcut['Zoom']}]`"
+        :name="'Zoom' + '' || ` [${nameToShortcut['Zoom']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -43,7 +43,7 @@
     >
       <control-button
         icon="mdi-crosshairs"
-        :name="`Crosshairs [${nameToShortcut['Crosshairs']}]`"
+        :name="'Crosshairs' + '' || ` [${nameToShortcut['Crosshairs']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
@@ -53,7 +53,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Select">
       <control-button
         icon="mdi-cursor-default"
-        :name="`Select [${nameToShortcut['Select']}]`"
+        :name="'Select' + '' || ` [${nameToShortcut['Select']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -62,7 +62,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
       <control-button
         icon="mdi-brush"
-        :name="`Paint [${nameToShortcut['Paint']}]`"
+        :name="'Paint' + '' || ` [${nameToShortcut['Paint']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
@@ -74,7 +74,7 @@
     >
       <menu-control-button
         icon="mdi-vector-square"
-        :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
+        :name="'Rectangle' + '' || ` [${nameToShortcut['Rectangle']}]`"
         :mobileOnlyMenu="true"
         :active="active"
         :disabled="noCurrentImage || isObliqueLayout"
@@ -86,7 +86,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
       <menu-control-button
         icon="mdi-pentagon-outline"
-        :name="`Polygon [${nameToShortcut['Polygon']}]`"
+        :name="'Polygon' + '' || ` [${nameToShortcut['Polygon']}]`"
         :mobileOnlyMenu="true"
         :active="active"
         :disabled="noCurrentImage || isObliqueLayout"
@@ -98,7 +98,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
       <menu-control-button
         icon="mdi-ruler"
-        :name="`Ruler [${nameToShortcut['Ruler']}]`"
+        :name="'Ruler' + '' || ` [${nameToShortcut['Ruler']}]`"
         :mobileOnlyMenu="true"
         :active="active"
         :disabled="noCurrentImage || isObliqueLayout"
@@ -112,7 +112,7 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
       <menu-control-button
         icon="mdi-crop"
-        :name="`Crop [${nameToShortcut['Crop']}]`"
+        :name="'Crop' + '' || ` [${nameToShortcut['Crop']}]`"
         :active="active"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
@@ -126,7 +126,8 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from 'vue';
+import { computed, defineComponent, ref, watch, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { onKeyDown, useMagicKeys } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
@@ -157,7 +158,13 @@ export default defineComponent({
     PolygonControls,
     WindowLevelControls,
   },
-  setup() {
+  props: {
+    defaultTool: {
+      type: String,
+    },
+  },
+  setup(props) {
+    // const dataStore = useDatasetStore();
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 
@@ -204,6 +211,17 @@ export default defineComponent({
         Ruler: keyMap.ruler,
         Crop: keyMap.crop,
       };
+    });
+
+    onMounted(() => {
+      if (props.defaultTool) {
+        const tool = props.defaultTool as Tools;
+        if (tool in Tools) {
+          setTimeout(() => {
+            toolStore.setCurrentTool(tool);
+          }, 100);
+        }
+      }
     });
 
     return {
