@@ -8,9 +8,11 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
+// TODO: TBD ↓↓↓
 import { useFileStore } from './datasets-files';
 import { useLoadDataStore } from './load-data';
 import { useViewStore } from './views';
+// TODO: TBD ↑↑↑
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -78,8 +80,8 @@ export interface VolumeInfo extends WindowingInfo {
   VolumeID: string;
 }
 
+// TODO: TBD ↓↓↓
 const buildImage = DicomChunkImage.buildImage;
-
 const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
   const fileStore = useFileStore();
   const files = fileStore.getFiles(volumeKey);
@@ -93,6 +95,7 @@ const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
     image,
   };
 };
+// TODO: TBD ↑↑↑
 
 interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
@@ -100,9 +103,6 @@ interface State {
 
   // volume invalidation information
   needsRebuild: Record<string, boolean>;
-
-  // Avoid recomputing image data for the same volume by checking this for existing buildVolume tasks
-  volumeBuildResults: Record<string, ReturnType<typeof constructImage>>;
 
   // patientKey -> patient info
   patientInfo: Record<string, PatientInfo>;
@@ -171,7 +171,6 @@ export const getWindowLevels = (info: VolumeInfo | WindowingInfo) => {
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
-    volumeBuildResults: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -377,10 +376,6 @@ export const useDICOMStore = defineStore('dicom', {
         delete this.volumeInfo[volumeKey];
         delete this.sliceData[volumeKey];
         delete this.volumeStudy[volumeKey];
-
-        if (volumeKey in this.volumeBuildResults) {
-          delete this.volumeBuildResults[volumeKey];
-        }
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
         if (this.studyVolumes[studyKey].length === 0) {

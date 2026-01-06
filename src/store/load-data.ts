@@ -181,6 +181,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
     useLoadingNotifications();
 
   const segmentGroupExtension = ref('');
+  const layerExtension = ref('');
 
   const $bus = {
     emitter: null as any
@@ -205,6 +206,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
 
   return {
     segmentGroupExtension,
+    layerExtension,
     isLoading,
     startLoading,
     stopLoading,

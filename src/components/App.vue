@@ -92,6 +92,7 @@ import {
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
 import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
+import { normalizeUrlParams } from '@/src/utils/urlParams';
 
 import { useEventBus } from '@/src/composables/useEventBus';
 
@@ -247,13 +248,24 @@ export default defineComponent({
     populateAuthorizationToken();
     stripTokenFromUrl();
 
-    const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+    let urlParams: ReturnType<typeof normalizeUrlParams>;
+    try {
+      urlParams = normalizeUrlParams(
+        vtkURLExtract.extractURLParameters() as UrlParams
+      );
+    } catch (error) {
+      console.error('Failed to parse URL parameters:', error);
+      urlParams = {};
+    }
+    // TODO: TBD
+    // const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
     const query = useUrlSearchParams();
     const newMetadataNameTitle = computed(() => !!query.changeTitle);
     const layoutNameSettled = computed(() => !!query.layoutName);
     const liteMode = computed(() => query.uiMode === 'lite');
 
     onMounted(() => {
+      /* TODO: TBD
       if (urlParams.urls?.length > 0) {
         if (urlParams.atob && urlParams.uid) {
           if (urlParams.urls.length > 1) {
@@ -290,25 +302,26 @@ export default defineComponent({
         loadUrls(urlParams, options);
         return;
       }
-
+      */
+      
       loadUrls(urlParams);
     });
 
-    // --- remote server --- //
+    // --- remote save state URL --- //
 
-    const serverStore = useServerStore();
-
-    onMounted(() => {
-      serverStore.connect();
-    });
-
-    // --- save state --- //
     if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
       const url = Array.isArray(urlParams.save)
         ? urlParams.save[0]
         : urlParams.save;
       useRemoteSaveStateStore().setSaveUrl(url);
     }
+
+    // --- remote server --- //
+
+    const serverStore = useServerStore();
+    onMounted(() => {
+      serverStore.connect();
+    });
 
     // --- layout --- //
 

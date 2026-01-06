@@ -45,10 +45,13 @@ const rectangleLabel = z.intersection(
 
 const labels = z
   .object({
-    defaultLabels: z.record(label).or(z.null()).optional(),
-    rulerLabels: z.record(rulerLabel).or(z.null()).optional(),
-    rectangleLabels: z.record(rectangleLabel).or(z.null()).optional(),
-    polygonLabels: z.record(polygonLabel).or(z.null()).optional(),
+    defaultLabels: z.record(z.string(), label).or(z.null()).optional(),
+    rulerLabels: z.record(z.string(), rulerLabel).or(z.null()).optional(),
+    rectangleLabels: z
+      .record(z.string(), rectangleLabel)
+      .or(z.null())
+      .optional(),
+    polygonLabels: z.record(z.string(), polygonLabel).or(z.null()).optional(),
   })
   .optional();
 
@@ -59,6 +62,7 @@ const io = z
   .object({
     segmentGroupSaveFormat: z.string().optional(),
     segmentGroupExtension: z.string().default(''),
+    layerExtension: z.string().default(''),
   })
   .optional();
 
@@ -145,7 +149,9 @@ const applyIo = (manifest: Config) => {
 
   if (manifest.io.segmentGroupSaveFormat)
     useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
-  useLoadDataStore().segmentGroupExtension = manifest.io.segmentGroupExtension;
+  const loadDataStore = useLoadDataStore();
+  loadDataStore.segmentGroupExtension = manifest.io.segmentGroupExtension;
+  loadDataStore.layerExtension = manifest.io.layerExtension;
 };
 
 const applyWindowing = (manifest: Config) => {
