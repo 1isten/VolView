@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeMount } from 'vue';
 import { useViewStore } from '@/src/store/views';
 import LayoutGridEditor from './LayoutGridEditor.vue';
+
+const props = defineProps({
+  defaultLayoutName: {
+    type: String,
+    default: '',
+  },
+});
 
 const viewStore = useViewStore();
 
@@ -18,7 +25,22 @@ const namedLayoutsList = computed(() => {
 
 const selectNamedLayout = (name: string) => {
   viewStore.switchToNamedLayout(name);
+  viewStore.prevLayoutName = '';
+  /* TODO: TBD
+  document.querySelectorAll('button.slice-viewer-reset-camera').forEach(el => {
+    const button = el as HTMLButtonElement;
+    requestAnimationFrame(() => {
+      button?.click();
+    });
+  });
+  */
 };
+
+onBeforeMount(() => {
+  if (props.defaultLayoutName && namedLayoutsList.value.includes(props.defaultLayoutName)) {
+    viewStore.switchToNamedLayout(props.defaultLayoutName);
+  }
+})
 </script>
 
 <template>

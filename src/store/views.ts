@@ -94,6 +94,7 @@ export const useViewStore = defineStore('view', () => {
       parsedDefaultLayouts
     );
   const currentLayoutName = ref<Maybe<string>>(firstLayoutName);
+  const prevLayoutName = ref<Maybe<string>>('');
 
   const isActiveViewMaximized = ref(false);
   const maximizedView = computed(() => {
@@ -207,6 +208,27 @@ export const useViewStore = defineStore('view', () => {
 
     layout.value = newLayout;
     ensureActiveViewIsVisible();
+  }
+
+  function setLayoutByName(layoutName: string, justSet = false) {
+    const newLayout = parsedDefaultLayouts[layoutName]?.layout;
+    if (newLayout) {
+      if (justSet) {
+        if (currentLayoutName.value !== layoutName) {
+          switchToNamedLayout(layoutName);
+        }
+      } else if (currentLayoutName.value !== layoutName) {
+        prevLayoutName.value = currentLayoutName.value;
+        switchToNamedLayout(layoutName);
+      } else if (prevLayoutName.value && parsedDefaultLayouts[prevLayoutName.value]?.layout) {
+        switchToNamedLayout(prevLayoutName.value);
+        prevLayoutName.value = '';
+      } else if (layoutName.includes(' Only') && parsedDefaultLayouts[firstLayoutName]?.layout) {
+        prevLayoutName.value = layoutName;
+        switchToNamedLayout(firstLayoutName);
+      }
+    }
+    return layoutName;
   }
 
   function setLayout(newLayout: Layout) {
@@ -375,10 +397,12 @@ export const useViewStore = defineStore('view', () => {
     availableViewsForSwitcher,
     namedLayouts,
     currentLayoutName,
+    prevLayoutName,
     getView,
     getAllViews,
     getViewsForData,
     replaceView,
+    setLayoutByName,
     setLayout,
     setLayoutFromGrid,
     setNamedLayoutsFromConfig,

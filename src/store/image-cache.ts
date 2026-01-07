@@ -40,6 +40,27 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     return imageById[id]?.getImageMetadata() ?? null;
   }
 
+  function getImageDefaultLayoutName(dataID: string): 'Axial Only' | 'Sagittal Only' | 'Coronal Only' | null {
+    const id = dataID;
+    const image = imageById[id];
+    if (image && image.imageMetadata) {
+      const lpsOrientation = image.imageMetadata.value.lpsOrientation;
+      if (lpsOrientation) {
+        const { Axial, Sagittal, Coronal } = lpsOrientation;
+        let viewName: 'Axial' | 'Sagittal' | 'Coronal' | '3D' = 'Axial';
+        if (Axial === 2) {
+          viewName = 'Axial';
+        } else if (Sagittal === 2) {
+          viewName = 'Sagittal';
+        } else if (Coronal === 2) {
+          viewName = 'Coronal';
+        }
+        return `${viewName} Only`;
+      }
+    }
+    return null;
+  }
+
   function registerListeners(id: string) {
     const data = imageById[id];
     const onStatus = (status: ProgressiveImageStatus) => {
@@ -141,6 +162,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     imageErrors,
     getVtkImageData,
     getImageMetadata,
+    getImageDefaultLayoutName,
     addProgressiveImage,
     addVTKImageData,
     updateVTKImageData,

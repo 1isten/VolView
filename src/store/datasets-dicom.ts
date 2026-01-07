@@ -1,6 +1,4 @@
 import { defineStore } from 'pinia';
-import deepEqual from 'fast-deep-equal';
-import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { Image } from 'itk-wasm';
 import * as DICOM from '@/src/io/dicom';
 import { Chunk } from '@/src/core/streaming/chunk';
@@ -8,11 +6,9 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
-// TODO: TBD ↓↓↓
-import { useFileStore } from './datasets-files';
 import { useLoadDataStore } from './load-data';
-import { useViewStore } from './views';
-// TODO: TBD ↑↑↑
+
+import deepEqual from 'fast-deep-equal';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -79,23 +75,6 @@ export interface VolumeInfo extends WindowingInfo {
   NumberOfSlices: number;
   VolumeID: string;
 }
-
-// TODO: TBD ↓↓↓
-const buildImage = DicomChunkImage.buildImage;
-const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
-  const fileStore = useFileStore();
-  const files = fileStore.getFiles(volumeKey);
-  if (!files) throw new Error('No files for volume key');
-  const results = await buildImage(files, volumeInfo.Modality);
-  const image = vtkITKHelper.convertItkToVtkImage(
-    results.builtImageResults.outputImage
-  );
-  return {
-    ...results,
-    image,
-  };
-};
-// TODO: TBD ↑↑↑
 
 interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
@@ -292,29 +271,38 @@ export const useDICOMStore = defineStore('dicom', {
 
           if (volumeKeySuffix) {
             if (image.imageMetadata.value.lpsOrientation) {
-              const viewStore = useViewStore();
               const volumeKey = id;
               const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
-              const viewID = viewStore.getPrimaryViewID(volumeKey);
-              if (viewID) {
+              const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(volumeKey);
+              if (defaultLayoutName) {
                 if (!vol.layoutName) {
-                  const layoutName = loadDataStore.loadedByBus[volumeKeySuffix].options.layoutName || viewStore.getLayoutByViewID(viewID);
+                  const layoutName = loadDataStore.loadedByBus[volumeKeySuffix].options.layoutName || defaultLayoutName;
                   if (layoutName) {
                     vol.layoutName = layoutName;
                   }
                 }
                 const viewOrientation = image.imageMetadata.value.orientation.slice(6);
-                if (viewID === 'Axial') {
-                  if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Inferior)) {
-                    vol.camera = { Axial: { viewDirection: 'Inferior', viewUp: 'Posterior' } };
+                switch (defaultLayoutName) {
+                  case 'Axial Only': {
+                    if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Superior)) {
+                      vol.camera = { Axial: { viewDirection: 'Superior', viewUp: 'Anterior' } };
+                    }
+                    break;
                   }
-                } else if (viewID === 'Sagittal') {
-                  if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Left)) {
-                    vol.camera = { Sagittal: { viewDirection: 'Left', viewUp: 'Inferior' } };
+                  case 'Sagittal Only': {
+                    if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Left)) {
+                      vol.camera = { Sagittal: { viewDirection: 'Left', viewUp: 'Inferior' } };
+                    }
+                    break;
                   }
-                } else if (viewID === 'Coronal') {
-                  if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Anterior)) {
-                    vol.camera = { Coronal: { viewDirection: 'Anterior', viewUp: 'Inferior' } };
+                  case 'Coronal Only': {
+                    if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Anterior)) {
+                      vol.camera = { Coronal: { viewDirection: 'Anterior', viewUp: 'Inferior' } };
+                    }
+                    break;
+                  }
+                  default: {
+                    break;
                   }
                 }
               }

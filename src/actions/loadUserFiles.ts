@@ -6,18 +6,13 @@ import {
   getDataSourceName,
 } from '@/src/io/import/dataSource';
 import { useLoadDataStore, type LoadEventOptions } from '@/src/store/load-data';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useViewStore } from '@/src/store/views';
-import { useViewSliceStore } from '@/src/store/view-configs/slicing';
-import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
-import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import {
   importDataSources,
   toDataSelection,
@@ -33,6 +28,11 @@ import {
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { useViewStore } from '@/src/store/views';
+import { useViewSliceStore } from '@/src/store/view-configs/slicing';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import { useDatasetStore } from '@/src/store/datasets';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 import JSZip from 'jszip';
 import {
@@ -278,8 +278,9 @@ function loadSegmentations(
 
 function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
   const loadDataStore = useLoadDataStore();
-  const dataStore = useDatasetStore();
+  const imageCacheStore = useImageCacheStore();
   const viewStore = useViewStore();
+  const viewSliceStore = useViewSliceStore();
 
   const load = async () => {
     let results: ImportDataSourcesResult[];
@@ -310,11 +311,10 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
       );
 
       if (isVolumeResult(primaryDataSource)) {
-        const selection = toDataSelection(primaryDataSource);
-        /* TODO: TBD
+        let selection = toDataSelection(primaryDataSource);
         if (volumeKeySuffix) {
-          let dataID: string | null = null;
-          let viewID: string | null = null;
+          let dataID: string | null | undefined;
+          let viewID: string | null | undefined;
           let s = -1;
 
           const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
@@ -331,16 +331,16 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               if (options.changeLayout === false) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
-                useViewStore().setLayoutByName(layoutName.toString(), true);
+                viewStore.setLayoutByName(layoutName.toString(), true);
               } else if (vol.layoutName) {
-                useViewStore().setLayoutByName(vol.layoutName, true);
+                viewStore.setLayoutByName(vol.layoutName, true);
               }
             } else { // maybe not dcm, like nifti etc.
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
               if (options.changeLayout === false) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
-                useViewStore().setLayoutByName(layoutName.toString(), true);
+                viewStore.setLayoutByName(layoutName.toString(), true);
               }
             }
           } else if (typeof options.s === 'number') {
@@ -350,20 +350,18 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               if (options.changeLayout === false) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
-                useViewStore().setLayoutByName(layoutName.toString(), true);
+                viewStore.setLayoutByName(layoutName.toString(), true);
               } else if (vol.layoutName) {
-                useViewStore().setLayoutByName(vol.layoutName, true);
+                viewStore.setLayoutByName(vol.layoutName, true);
               }
               s = options.s;
               if (s !== -1) {
                 dataID = selection;
-                viewID = useViewStore().getPrimaryViewID(dataID);
               } else {
                 selection = '';
               }
             }
           } else if (typeof options.n === 'number') {
-            // eslint-disable-next-line no-restricted-syntax
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol) {
@@ -371,15 +369,14 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
                 if (options.changeLayout === false) {
                   //
                 } else if (layoutName && options.changeLayout !== 'auto') {
-                  useViewStore().setLayoutByName(layoutName.toString(), true);
+                  viewStore.setLayoutByName(layoutName.toString(), true);
                 } else if (vol.layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName, true);
+                  viewStore.setLayoutByName(vol.layoutName, true);
                 }
                 s = vol.slices.findIndex(({ n }) => n === options.n);
                 if (s !== -1) {
                   selection = volumeKey;
-                  dataID = volumeKey;
-                  viewID = useViewStore().getPrimaryViewID(volumeKey);
+                  dataID = selection;
                   break;
                 } else {
                   selection = '';
@@ -387,7 +384,6 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               }
             }
           } else if (typeof options.i === 'number') {
-            // eslint-disable-next-line no-restricted-syntax
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol) {
@@ -395,15 +391,14 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
                 if (options.changeLayout === false) {
                   //
                 } else if (layoutName && options.changeLayout !== 'auto') {
-                  useViewStore().setLayoutByName(layoutName.toString(), true);
+                  viewStore.setLayoutByName(layoutName.toString(), true);
                 } else if (vol.layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName, true);
+                  viewStore.setLayoutByName(vol.layoutName, true);
                 }
                 s = vol.slices.findIndex(({ i }) => i === options.i);
                 if (s !== -1) {
                   selection = volumeKey;
-                  dataID = volumeKey;
-                  viewID = useViewStore().getPrimaryViewID(volumeKey);
+                  dataID = selection;
                   break;
                 } else {
                   selection = '';
@@ -412,29 +407,25 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             }
           }
           requestAnimationFrame(() => {
-            if (viewID && dataID && s !== -1) {
-              useViewSliceStore().updateConfig(viewID, dataID, { slice: s });
+            if (s !== -1 && dataID) {
+              viewID = viewStore.getViewsForData(dataID).find(v => v.name === imageCacheStore.getImageDefaultLayoutName(dataID!)?.replace(' Only', ''))?.id;
+              if (viewID) {
+                viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+              }
             }
-          });
-        }
-        requestAnimationFrame(() => {
-          [
-            'Axial',
-            // 'Sagittal',
-            // 'Coronal',
-          ].forEach(viewID => {
-            if (dataStore.primarySelection) {
-              const wlConfig = useWindowingStore().getConfig(viewID, dataStore.primarySelection)?.value;
+            const windowingStore = useWindowingStore();
+            viewStore.getViewsForData(selection).forEach(v => {
+              const viewId = v.id as string;
+              const dataId = v.dataID as string;
+              const wlConfig = windowingStore.getConfig(viewId, dataId);
               if ((!wlConfig?.width || !wlConfig?.level || wlConfig?.level === 2 ** 32 - 1) && wlConfig?.auto) {
-                useWindowingStore().updateConfig(viewID, dataStore.primarySelection, {
+                windowingStore.updateConfig(viewId, dataId, {
                   auto: wlConfig.auto,
                 }, true);
               }
-            }
+            });
           });
-        });
-        dataStore.setPrimarySelection(selection || null);
-        */
+        }
         viewStore.setDataForAllViews(selection);
         autoLayerDicoms(primaryDataSource, succeeded);
         autoLayerByName(
@@ -520,7 +511,7 @@ type LoadUrlsParams = {
   config?: string[];
 };
 
-export async function loadUrls(params: UrlParams | LoadUrlsParams) {
+export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: LoadEventOptions) {
   if (params.config) {
     const configUrls = wrapInArray(params.config);
     const configSources = urlsToDataSources(configUrls);
@@ -528,223 +519,214 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams) {
   }
 
   if (params.urls) {
-    const urls = wrapInArray(params.urls);
-    const names = wrapInArray(params.names ?? []);
-    const sources = urlsToDataSources(urls, names);
+    let urls = wrapInArray(params.urls);
+    let names = wrapInArray(params.names ?? []);
+    let sources = urlsToDataSources(urls, names);
+
+    if (options && options.volumeKeySuffix) {
+      const loadDataStore = useLoadDataStore();
+      const imageCacheStore = useImageCacheStore();
+      const viewStore = useViewStore();
+      const viewSliceStore = useViewSliceStore();
+      const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
+
+      const beforeLoadByBus = async () => {
+        const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
+        if (volumeKeys?.length && volumes) {
+          if (
+            options.changeSlice === false ||
+            options.s === undefined &&
+            options.n === undefined &&
+            options.i === undefined
+          ) {
+            if (names.some(name => name.toLowerCase().endsWith('.zip') && name !== 'archive.zip')) {
+              const datasetStore = useDatasetStore();
+              volumeKeys.forEach(imageID => datasetStore.remove(imageID));
+              loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options);
+              return loadDataStore.setIsLoadingByBus(true);
+            }
+            for (const dataID of Object.keys(volumes)) {
+              const vol = volumes[dataID];
+              const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+              if (defaultLayoutName) {
+                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
+                if (options.changeLayout === false) {
+                  //
+                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                  viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                }
+                const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
+                if (viewID) {
+                  viewStore.setDataForView(viewID, dataID);
+                }
+                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+              }
+            }
+          } else if (typeof options.s === 'number') {
+            for (const dataID of Object.keys(volumes)) {
+              const vol = volumes[dataID];
+              const s = options.s;
+              if (vol?.slices[options.s]) {
+                const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+                if (defaultLayoutName) {
+                  const layoutName = options.layoutName || useUrlSearchParams().layoutName;
+                  if (options.changeLayout === false) {
+                    //
+                  } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                    viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                  }
+                  const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
+                  if (viewID) {
+                    viewStore.setDataForView(viewID, dataID);
+                    requestAnimationFrame(() => {
+                      viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                    });
+                  }
+                  return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+                }
+              }
+            }
+          } else if (typeof options.n === 'number') {
+            for (const dataID of Object.keys(volumes)) {
+              const vol = volumes[dataID];
+              const s = vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
+              if (s !== -1) {
+                const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+                if (defaultLayoutName) {
+                  const layoutName = options.layoutName || useUrlSearchParams().layoutName;
+                  if (options.changeLayout === false) {
+                    //
+                  } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                    useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                  }
+                  const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
+                  if (viewID) {
+                    viewStore.setDataForView(viewID, dataID);
+                    requestAnimationFrame(() => {
+                      viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                    });
+                  }
+                  return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+                }
+              }
+            }
+          } else if (typeof options.i === 'number') {
+            for (const dataID of Object.keys(volumes)) {
+              const vol = volumes[dataID];
+              const s = vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
+              if (s !== -1) {
+                const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+                if (defaultLayoutName) {
+                  const layoutName = options.layoutName || useUrlSearchParams().layoutName;
+                  if (options.changeLayout === false) {
+                    //
+                  } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
+                    useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                  }
+                  const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
+                  if (viewID) {
+                    viewStore.setDataForView(viewID, dataID);
+                    requestAnimationFrame(() => {
+                      viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                    });
+                  }
+                  return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+                }
+              }
+            }
+          }
+          return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+        }
+        if (options.zip && urls.length > 0) {
+          if (loadDataStore.getLoadedByBusOptions(volumeKeySuffix)?.loading) {
+            return false;
+          }
+          loadDataStore.setIsLoadingByBus(true);
+          options.loading = true;
+          const zip = new JSZip();
+          const zipBlob = await Promise.all(urls.map((url, i, arr) => {
+            return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => {
+              if (blob) {
+                const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
+                const name = file?.split('.')?.[0]
+                const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
+                const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
+                zip.file(fileName, blob);
+              }
+            }).catch(console.error);
+          })).then(() => {
+            return zip.generateAsync({ type: 'blob' });
+          }).catch(console.error);
+          if (zipBlob) {
+            options.zipObjectUrl = URL.createObjectURL(zipBlob);
+            urls = [options.zipObjectUrl];
+            names = ['archive.zip'];
+            sources = urls.map((url, idx) =>
+              uriToDataSource(
+                url,
+                names[idx] ||
+                  basename(parseUrl(url, window.location.href).pathname) ||
+                  url
+              )
+            );
+          }     
+        }
+        if (options.prefetchFiles && urls.length > 0) {
+          // console.warn('[prefetch]', urls, names);
+          loadDataStore.setIsLoadingByBus(true);
+          const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
+            const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
+            const name = file?.split('.')?.[0]
+            const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
+            const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
+            const mimeType = FILE_EXT_TO_MIME[ext.slice(1)];
+            return new File([blob], fileName, { type: mimeType });
+          })));
+          const dataSources = files.map(fileToDataSource);
+          loadDataSources(dataSources, volumeKeySuffix);
+          return false;
+        }
+        return loadDataStore.setIsLoadingByBus(true);
+      };
+
+      if ('dicomWebURL' in params) {
+        const dicomWebFiles: File[] = [];
+        const dicomWebURL = params.dicomWebURL?.toString();
+        const studyInstanceUID = params.studyInstanceUID?.toString();
+        const seriesInstanceUID = params.seriesInstanceUID?.toString();
+        const sopInstanceUID = params.sopInstanceUID?.toString();
+        if (studyInstanceUID && seriesInstanceUID) {
+          if (sopInstanceUID) {
+            try {
+              const file = await fetchInstance(dicomWebURL, {
+                studyInstanceUID,
+                seriesInstanceUID,
+                sopInstanceUID,
+              });
+              dicomWebFiles.push(file);
+            } catch (error) {
+              console.error(error);
+            }
+          } else {
+            try {
+              const files = await fetchSeries(dicomWebURL, {
+                studyInstanceUID,
+                seriesInstanceUID,
+              }, ({ loaded, total }: ProgressEvent) => {
+                console.info(`fetching series ${loaded} of ${total}`);
+              });
+              dicomWebFiles.push(...files);
+            } catch (error) {
+              console.error(error);
+            }
+          }
+        }
+        return (await beforeLoadByBus()) && await loadFiles(dicomWebFiles, volumeKeySuffix);
+      }
+
+      return (await beforeLoadByBus()) && await loadDataSources(sources, volumeKeySuffix);
+    }
+
     await loadDataSources(sources);
   }
 }
-
-/* TODO: TBD
-export async function loadUrls(params: UrlParams, options?: LoadEventOptions) {
-  let urls = wrapInArray(params.urls && Array.isArray(params.urls) ? params.urls.map(url => decodeURIComponent(url)) : []);
-  let names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  let sources = urls.map((url, idx) =>
-    uriToDataSource(
-      url,
-      names[idx] ||
-        basename(parseUrl(url, window.location.href).pathname) ||
-        url
-    )
-  );
-
-  // intercept load event from bus emitter
-  if (options && options.volumeKeySuffix) {
-    const loadDataStore = useLoadDataStore();
-    const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
-
-    const beforeLoadByBus = async () => {
-      const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
-      if (volumeKeys?.length && volumes) {
-        if (
-          options.changeSlice === false ||
-          options.s === undefined &&
-          options.n === undefined &&
-          options.i === undefined
-        ) {
-          if (names.some(name => name.toLowerCase().endsWith('.zip') && name !== 'archive.zip')) {
-            const datasetStore = useDatasetStore();
-            volumeKeys.forEach(imageID => datasetStore.remove(imageID));
-            loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options);
-            return loadDataStore.setIsLoadingByBus(true);
-          }
-          // eslint-disable-next-line no-restricted-syntax
-          for (const volumeKey of Object.keys(volumes)) {
-            const vol = volumes[volumeKey];
-            const viewID = useViewStore().getPrimaryViewID(volumeKey);
-            if (viewID) {
-              const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false) {
-                //
-              } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
-              }
-              useDatasetStore().setPrimarySelection(volumeKey);
-              return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
-            }
-          }
-        } else if (typeof options.s === 'number') {
-          // eslint-disable-next-line no-restricted-syntax
-          for (const volumeKey of Object.keys(volumes)) {
-            const vol = volumes[volumeKey];
-            const s = options.s;
-            if (vol?.slices[options.s]) {
-              const viewID = useViewStore().getPrimaryViewID(volumeKey);
-              if (viewID) {
-                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false) {
-                  //
-                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
-                }
-                useDatasetStore().setPrimarySelection(volumeKey);
-                requestAnimationFrame(() => {
-                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
-                });
-                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
-              }
-            }
-          }
-        } else if (typeof options.n === 'number') {
-          // eslint-disable-next-line no-restricted-syntax
-          for (const volumeKey of Object.keys(volumes)) {
-            const vol = volumes[volumeKey];
-            const s = vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
-            if (s !== -1) {
-              const viewID = useViewStore().getPrimaryViewID(volumeKey);
-              if (viewID) {
-                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false) {
-                  //
-                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
-                }
-                useDatasetStore().setPrimarySelection(volumeKey);
-                requestAnimationFrame(() => {
-                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
-                });
-                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
-              }
-            }
-          }
-        } else if (typeof options.i === 'number') {
-          // eslint-disable-next-line no-restricted-syntax
-          for (const volumeKey of Object.keys(volumes)) {
-            const vol = volumes[volumeKey];
-            const s = vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
-            if (s !== -1) {
-              const viewID = useViewStore().getPrimaryViewID(volumeKey);
-              if (viewID) {
-                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false) {
-                  //
-                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                  useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
-                }
-                useDatasetStore().setPrimarySelection(volumeKey);
-                requestAnimationFrame(() => {
-                  useViewSliceStore().updateConfig(viewID, volumeKey, { slice: s });
-                });
-                return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
-              }
-            }
-          }
-        }
-        return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
-      }
-      if (options.zip && urls.length > 0) {
-        if (loadDataStore.getLoadedByBusOptions(volumeKeySuffix)?.loading) {
-          return false;
-        }
-        loadDataStore.setIsLoadingByBus(true);
-        // eslint-disable-next-line no-param-reassign
-        options.loading = true;
-        const zip = new JSZip();
-        const zipBlob = await Promise.all(urls.map((url, i, arr) => {
-          return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => {
-            if (blob) {
-              const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
-              const name = file?.split('.')?.[0]
-              const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
-              // eslint-disable-next-line prefer-template
-              const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
-              zip.file(fileName, blob);
-            }
-          }).catch(console.error);
-        })).then(() => {
-          return zip.generateAsync({ type: 'blob' });
-        }).catch(console.error);
-        if (zipBlob) {
-          // eslint-disable-next-line no-param-reassign
-          options.zipObjectUrl = URL.createObjectURL(zipBlob);
-          urls = [options.zipObjectUrl];
-          names = ['archive.zip'];
-          sources = urls.map((url, idx) =>
-            uriToDataSource(
-              url,
-              names[idx] ||
-                basename(parseUrl(url, window.location.href).pathname) ||
-                url
-            )
-          );
-        }     
-      }
-      if (options.prefetchFiles && urls.length > 0) {
-        // console.warn('[prefetch]', urls, names);
-        loadDataStore.setIsLoadingByBus(true);
-        const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
-          const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
-          const name = file?.split('.')?.[0]
-          const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
-          // eslint-disable-next-line prefer-template
-          const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
-          const mimeType = FILE_EXT_TO_MIME[ext.slice(1)];
-          return new File([blob], fileName, { type: mimeType });
-        })));
-        const dataSources = files.map(fileToDataSource);
-        loadDataSources(dataSources, volumeKeySuffix);
-        return false;
-      }
-      return loadDataStore.setIsLoadingByBus(true);
-    };
-
-    const dicomWebURL = params.dicomWebURL?.toString();
-    if (dicomWebURL) {
-      const dicomWebFiles: File[] = [];
-      const studyInstanceUID = params.studyInstanceUID?.toString();
-      const seriesInstanceUID = params.seriesInstanceUID?.toString();
-      const sopInstanceUID = params.sopInstanceUID?.toString();
-      if (studyInstanceUID && seriesInstanceUID) {
-        if (sopInstanceUID) {
-          try {
-            const file = await fetchInstance(dicomWebURL, {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID,
-            });
-            dicomWebFiles.push(file);
-          } catch (error) {
-            console.error(error);
-          }
-        } else {
-          try {
-            const files = await fetchSeries(dicomWebURL, {
-              studyInstanceUID,
-              seriesInstanceUID,
-            }, ({ loaded, total }: ProgressEvent) => {
-              console.info(`fetching series ${loaded} of ${total}`);
-            });
-            dicomWebFiles.push(...files);
-          } catch (error) {
-            console.error(error);
-          }
-        }
-      }
-      return (await beforeLoadByBus()) && loadFiles(dicomWebFiles, volumeKeySuffix);
-    }
-    return (await beforeLoadByBus()) && loadDataSources(sources, volumeKeySuffix);
-  }
-
-  return loadDataSources(sources);
-}
-*/

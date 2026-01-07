@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { useUrlSearchParams } from '@vueuse/core';
 import { loadUserPromptedFiles } from '@/src/actions/loadUserFiles';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
@@ -23,44 +23,6 @@ interface Props {
 defineProps<Props>();
 
 const emit = defineEmits(['click:left-menu', 'click:close']);
-
-/* TODO: TBD
-const viewStore = useViewStore();
-
-function useViewLayout(defaultLayoutName?: string) {
-  const viewStore = useViewStore();
-  const layoutName = ref(defaultLayoutName || DefaultLayoutName);
-  const { layout: currentLayout } = storeToRefs(viewStore);
-
-  watch(
-    layoutName,
-    () => {
-      const layout = Layouts[layoutName.value] || [];
-      viewStore.setLayout(layout);
-    },
-    {
-      immediate: true,
-    }
-  );
-
-  watch(currentLayout, () => {
-    if (
-      currentLayout.value?.name &&
-      currentLayout.value.name !== layoutName.value
-    ) {
-      layoutName.value = currentLayout.value.name;
-      document.querySelectorAll('button.slice-viewer-reset-camera').forEach(el => {
-        const button = el as HTMLButtonElement;
-        requestAnimationFrame(() => {
-          button?.click();
-        });
-      });
-    }
-  });
-
-  return layoutName;
-}
-*/
 
 function useSaveControls() {
   const remoteSaveStateStore = useRemoteSaveStateStore();
@@ -127,16 +89,12 @@ function useServerConnection() {
 const query = useUrlSearchParams();
 const liteMode = computed(() => query.uiMode === 'lite');
 const closeable = computed(() => query.closeable === 'true' || query.closeable === '1');
+const defaultLayoutName = computed(() => query.layoutName ? query.layoutName.toString() : '');
 const defaultTool = computed(() => query.defaultTool ? query.defaultTool.toString() : '');
 
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
-
-/* TODO: TBD
-const layoutName = useViewLayout((query.layoutName || '').toString());
-const onManuallySetLayoutName = (value: string | null) => { if (value) { useViewStore().prevLayoutName = '' } };
-*/
 
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
@@ -169,7 +127,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="handleSave"
     />
     <div class="my-1 tool-separator" />
-    <v-menu location="left" :close-on-content-click="true">
+    <v-menu eager location="left" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
           <control-button
@@ -182,17 +140,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       </template>
       <v-card>
         <v-card-text>
-          <LayoutSelector />
-          <!-- TODO: TBD
-          <v-radio-group v-model="layoutName" class="mt-0" hide-details @update:model-value="onManuallySetLayoutName">
-            <v-radio
-              v-for="(value, key) in Layouts"
-              :key="key"
-              :label="value.name"
-              :value="key"
-            />
-          </v-radio-group>
-          -->
+          <LayoutSelector :default-layout-name="defaultLayoutName" />
         </v-card-text>
       </v-card>
     </v-menu>

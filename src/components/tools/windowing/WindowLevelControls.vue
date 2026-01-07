@@ -53,12 +53,19 @@ export default defineComponent({
 
     const wlConfig = computed(() => {
       // All views will have the same settings, just grab the first
-      // const viewID = activeView.value;
-      const imageID = currentImageID.value;
-      const volumeKeySuffix = imageID ? loadDataStore.dataIDToVolumeKeyUID[imageID] : null;
-      const vol = volumeKeySuffix && imageID ? loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID] : null;
-      const viewID = vol?.layoutName && viewIDs.value.find(id => vol.layoutName?.includes(id)) || activeView.value;
+      let viewID = activeView.value;
+      let imageID = currentImageID.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();
+
+      const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
+      const vol = volumeKeySuffix ? loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID] : null;
+      if (vol?.layoutName) {
+        const view = viewStore.getViewsForData(imageID).find(v => v.name === vol.layoutName!.replace(' Only', ''));
+        if (view) {
+          viewID = view.id;
+        }
+      }
+
       return (
         windowingStore.getConfig(viewID, imageID) ?? defaultWindowLevelConfig()
       );
@@ -121,7 +128,7 @@ export default defineComponent({
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
         const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID];
         if (vol) {
-          // eslint-disable-next-line no-use-before-define
+          // eslint-disable-next-line
           const usefirstTag = selection === tags.value?.[0];
           vol.wlConfigedByUser = !usefirstTag;
         }

@@ -91,8 +91,11 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
       },
     ],
   },
-  'Axial Only': [['axial']],
+  'Axial Only': [['axial']], // Z
+  'Coronal Only': [['coronal']], // Y
+  'Sagittal Only': [['sagittal']], // X
   '3D Only': [['volume']],
+  /*
   Oblique: [['oblique']],
   '3D Primary': {
     direction: 'row',
@@ -104,105 +107,8 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
       },
     ],
   },
+  */
 };
-
-// TODO: TBD
-// /**
-//  * The default view spec.
-//  */
-// export const DefaultViewSpec = InitViewSpecs[InitViewIDs.Axial];
-
-// /**
-//  * The default layout.
-//  */
-// export const DefaultLayoutName = 'Quad View';
-
-// /**
-//  * Defines the default layouts.
-//  */
-// export const Layouts: Record<string, Layout> = [
-//   // Z
-//   {
-//     name: 'Axial Only',
-//     direction: LayoutDirection.H,
-//     items: [InitViewIDs.Axial],
-//   },
-//   // X
-//   {
-//     name: 'Sagittal Only',
-//     direction: LayoutDirection.H,
-//     items: [InitViewIDs.Sagittal],
-//   },
-//   // Y
-//   {
-//     name: 'Coronal Only',
-//     direction: LayoutDirection.H,
-//     items: [InitViewIDs.Coronal],
-//   },
-//   /*
-//   {
-//     name: 'Axial Primary',
-//     direction: LayoutDirection.V,
-//     items: [
-//       InitViewIDs.Axial,
-//       {
-//         direction: LayoutDirection.H,
-//         items: [InitViewIDs.Three, InitViewIDs.Sagittal, InitViewIDs.Coronal],
-//       },
-//     ],
-//   },
-//   */
-//   /*
-//   {
-//     name: '3D Primary',
-//     direction: LayoutDirection.V,
-//     items: [
-//       InitViewIDs.Three,
-//       {
-//         direction: LayoutDirection.H,
-//         items: [InitViewIDs.Axial, InitViewIDs.Sagittal, InitViewIDs.Coronal],
-//       },
-//     ],
-//   },
-//   */
-//   {
-//     name: 'Quad View',
-//     direction: LayoutDirection.H,
-//     items: [
-//       {
-//         direction: LayoutDirection.V,
-//         items: [InitViewIDs.Axial, InitViewIDs.Three],
-//       },
-//       {
-//         direction: LayoutDirection.V,
-//         items: [InitViewIDs.Sagittal, InitViewIDs.Coronal],
-//       },
-//     ],
-//   },
-//   /*
-//   {
-//     name: 'Oblique View',
-//     direction: LayoutDirection.H,
-//     items: [
-//       {
-//         direction: LayoutDirection.V,
-//         items: [InitViewIDs.ObliqueAxial, InitViewIDs.ObliqueThree],
-//       },
-//       {
-//         direction: LayoutDirection.V,
-//         items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueCoronal],
-//       },
-//     ],
-//   },
-//   */
-//   {
-//     name: '3D Only',
-//     direction: LayoutDirection.H,
-//     items: [InitViewIDs.Three],
-//   },
-// ].reduce((layouts, layout) => {
-//   return { ...layouts, [layout.name]: layout };
-// }, {});
 
 export const SAMPLE_DATA: SampleDataset[] = [
   {

@@ -27,41 +27,44 @@ export const defaultSliceConfig = (): SliceConfig => ({
 });
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
-  const windowingStore = useWindowingStore();
+  const imageStore = useImageStore();
+  const viewStore = useViewStore();
+  const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
+
   const loadDataStore = useLoadDataStore();
+  const windowingStore = useWindowingStore();
   const handleConfigUpdate = useDebounceFn((viewID: string, dataID: string, config: any) => {
     const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
     if (volumeKeySuffix) {
       const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
-      if (vol?.layoutName && vol.layoutName.includes(viewID)) {
-        const sliceInfo = vol.slices[config.slice];
-        if (sliceInfo) {
-          const { width, level, ...slice } = sliceInfo;
-          if (width !== undefined && level !== undefined) {
-            if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
-              try {
-                windowingStore.updateConfig(viewID, dataID, {
-                  width,
-                  level,
-                });
-              } catch (err) {
-                console.warn(err);
+      if (vol?.layoutName) {
+        const view = viewStore.getViewsForData(dataID).find(v => v.id === viewID && v.dataID === dataID);
+        if (view && vol.layoutName.includes(view.name)) {
+          const sliceInfo = vol.slices[config.slice];
+          if (sliceInfo) {
+            const { width, level, ...slice } = sliceInfo;
+            if (width !== undefined && level !== undefined) {
+              if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
+                try {
+                  windowingStore.updateConfig(viewID, dataID, {
+                    width,
+                    level,
+                  });
+                } catch (err) {
+                  console.warn(err);
+                }
               }
             }
+            const emitter = loadDataStore.$bus.emitter;
+            emitter?.emit('slicing', {
+              uid: volumeKeySuffix,
+              slice,
+            });
           }
-          const emitter = loadDataStore.$bus.emitter;
-          emitter?.emit('slicing', {
-            uid: volumeKeySuffix,
-            slice,
-          });
         }
       }
     }
   }, 0);
-
-  const imageStore = useImageStore();
-  const viewStore = useViewStore();
-  const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
 
   const computeDefaultSliceConfig = (
     viewID: Maybe<string>,

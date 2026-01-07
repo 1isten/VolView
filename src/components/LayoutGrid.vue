@@ -35,18 +35,6 @@ export default defineComponent({
       if (currentTool !== Tools.Polygon) {
         useViewStore().setActiveView(id);
         useViewStore().toggleActiveViewMaximized();
-        /* TODO: TBD
-        if (
-          viewId === 'Axial' ||
-          viewId === 'Sagittal' ||
-          viewId === 'Coronal' ||
-          viewId === '3D'
-        ) {
-          useViewStore().setLayoutByViewID(viewId);
-          return;
-        }
-        useViewStore().toggleMaximizeView(viewId);
-        */
       }
     },
   },

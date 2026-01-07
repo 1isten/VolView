@@ -59,15 +59,9 @@
           </div>
         </template>
         <template #bottom-right>
-          <div class="annotation-cell" @click.stop>
-            <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
-          </div>
-        </template>
-        <!-- TODO: TBD
-        <template v-slot:bottom-right>
-          <div class="annotation-cell d-flex flex-column align-end">
+          <div class="annotation-cell d-flex flex-column align-end" @click.stop v-if="true">
             <div v-if="currentLayoutName === '3D Only'" class="vtk-gutter pa-1">
-              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('X')" @contextmenu.prevent="resetOrientation('X', true)" @dblclick.stop>
+              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('X', true)" @contextmenu.prevent="resetOrientation('X', false)" @dblclick.stop>
                 <v-icon icon="mdi mdi-alpha-l-circle" size="medium" class="py-1" />
                 <v-tooltip
                   location="left"
@@ -77,7 +71,7 @@
                   Reset Camera to Orientation L (X)
                 </v-tooltip>
               </v-btn>
-              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('Y')" @contextmenu.prevent="resetOrientation('Y', true)" @dblclick.stop>
+              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('Y', true)" @contextmenu.prevent="resetOrientation('Y', false)" @dblclick.stop>
                 <v-icon icon="mdi mdi-alpha-p-circle" size="medium" class="py-1" />
                 <v-tooltip
                   location="left"
@@ -87,7 +81,7 @@
                   Reset Camera to Orientation P (Y)
                 </v-tooltip>
               </v-btn>
-              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('Z')" @contextmenu.prevent="resetOrientation('Z', true)" @dblclick.stop>
+              <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('Z', true)" @contextmenu.prevent="resetOrientation('Z', false)" @dblclick.stop>
                 <v-icon icon="mdi mdi-alpha-s-circle" size="medium" class="py-1" />
                 <v-tooltip
                   location="left"
@@ -99,8 +93,10 @@
               </v-btn>
             </div>
           </div>
+          <div class="annotation-cell" @click.stop v-else>
+            <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
+          </div>
         </template>
-        -->
       </view-overlay-grid>
     </div>
     <div v-else-if="currentImageID" class="d-flex align-center justify-center">
@@ -134,12 +130,6 @@ import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 
 import { useLoadDataStore } from '@/src/store/load-data';
 import { resetCameraToImage } from '@/src/utils/camera';
-/* TODO: TBD
-interface Props extends LayoutViewProps {
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-}
-*/
 
 interface Props {
   viewId: string;
@@ -208,7 +198,7 @@ const presetName = computed(
 
 // --- Custom support for rotating the scene --- //
 
-const currentLayoutName = computed(() => viewStore.layout?.name || '');
+const currentLayoutName = computed(() => viewStore.currentLayoutName || '');
 
 function resetOrientation(mode: 'X' | 'Y' | 'Z', flip = false) {
   if (!vtkView.value) return;
@@ -223,14 +213,14 @@ function resetOrientation(mode: 'X' | 'Y' | 'Z', flip = false) {
     }
     // Coronal
     case 'Y': {
-      dir = flip ? 'Anterior' : 'Posterior';
+      dir = flip ? 'Posterior' : 'Anterior';
       up = 'Superior';
       break;
     }
     // Axial
     case 'Z': {
-      dir = flip ? 'Inferior' : 'Superior';
-      up = flip && false ? 'Posterior' : 'Anterior';
+      dir = flip ? 'Superior' : 'Inferior';
+      up = flip ? 'Anterior' : 'Posterior';
       break;
     }
     default: {

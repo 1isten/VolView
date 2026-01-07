@@ -47,7 +47,6 @@ const {
 
 const { metadata } = useImage(imageId);
 
-/* TODO: TBD
 const coordinate = vtkCoordinate.newInstance();
 coordinate.setCoordinateSystemToDisplay();
 
@@ -119,7 +118,6 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
   pointValue.value.y = '';
   pointValue.value.value = '';
 });
-*/
 </script>
 
 <template>
@@ -157,6 +155,7 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
     <template #bottom-right>
       <div
         v-if="
+          false &&
           !viewId.includes('-coronal') &&
           !viewId.includes('-sagittal') &&
           !viewId.includes('-axial') &&
@@ -166,14 +165,14 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
         @click.stop
       >
         <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
-        <!-- TODO: TBD
+      </div>
+      <div v-else class="annotation-cell" @click.stop>
         <div v-if="pointValue.value">
           {{ pointValue.value }}
         </div>
         <div v-if="pointValue.x || pointValue.y">
           {{ pointValue.x }} {{ pointValue.y }}
         </div>
-        -->
       </div>
     </template>
   </view-overlay-grid>

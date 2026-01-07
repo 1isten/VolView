@@ -59,7 +59,7 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams, useUrlSearchParams, watchOnce } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
@@ -138,12 +138,11 @@ export default defineComponent({
       () => loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
     );
 
-    const { currentImageMetadata, isImageLoading } = useCurrentImage();
+    const { currentImageID, currentImageMetadata, isImageLoading } = useCurrentImage();
     const defaultImageMetadataName = defaultImageMetadata().name;
     watch(currentImageMetadata, (newMetadata) => {
       let prefix = '';
       if (
-        // eslint-disable-next-line no-use-before-define
         newMetadataNameTitle.value &&
         newMetadata?.name &&
         // wait until we get a real name, but if we never do, show default name
@@ -169,6 +168,7 @@ export default defineComponent({
     });
     */
 
+    const viewStore = useViewStore();
     const datasetStore = useDatasetStore();
     const { emitter } = useEventBus(({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -194,7 +194,6 @@ export default defineComponent({
             const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
             // console.warn('[atob]', options.uid, '->', decodedPath);
             const qs = urlParams.urls[0]?.split('?')[1];
-            // eslint-disable-next-line prefer-template
             urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
           }
         }
@@ -212,15 +211,16 @@ export default defineComponent({
         datasetStore.removeAll();
       },
       onunselect() {
-        datasetStore.setPrimarySelection(null);
+        if (currentImageID.value) {
+          viewStore.removeDataFromViews(currentImageID.value);
+        }
         loadDataStore.isBusUnselected = true;
       },
     } as unknown as EventHandlers), loadDataStore);
 
-    /* TODO: TBD
-    const { primarySelection } = storeToRefs(datasetStore);
-    watch(primarySelection, async (volumeKey) => {
-      if (volumeKey) {
+    watch(currentImageID, async (primarySelection) => {
+      if (primarySelection) {
+        const volumeKey = primarySelection;
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
         if (volumeKeySuffix) {
           const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
@@ -231,15 +231,13 @@ export default defineComponent({
             } else {
               // return;
             }
-            // eslint-disable-next-line no-use-before-define
             if (!layoutNameSettled.value && options.changeLayout !== false && vol?.layoutName) {
-              useViewStore().setLayoutByName(vol.layoutName, true);
+              viewStore.setLayoutByName(vol.layoutName, true);
             }
           }
         }
       }
     });
-    */
 
     // --- parse URL -- //
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
@@ -257,52 +255,48 @@ export default defineComponent({
       console.error('Failed to parse URL parameters:', error);
       urlParams = {};
     }
-    // TODO: TBD
-    // const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+
     const query = useUrlSearchParams();
     const newMetadataNameTitle = computed(() => !!query.changeTitle);
     const layoutNameSettled = computed(() => !!query.layoutName);
     const liteMode = computed(() => query.uiMode === 'lite');
 
     onMounted(() => {
-      /* TODO: TBD
-      if (urlParams.urls?.length > 0) {
-        if (urlParams.atob && urlParams.uid) {
-          if (urlParams.urls.length > 1) {
-            if (Array.isArray(urlParams.uid)) {
-              urlParams.uid = `[${urlParams.uid[0]}]`;
+      const params = urlParams as any;
+      if (params.urls?.length > 0) {
+        if (params.atob && params.uid) {
+          if (params.urls.length > 1) {
+            if (Array.isArray(params.uid)) {
+              params.uid = `[${params.uid[0]}]`;
             }
-            const decodedPaths = window.atob(urlParams.uid.startsWith('[') && urlParams.uid.endsWith(']') ? urlParams.uid.slice(1, -1) : urlParams.uid.toString()).split(' ');
-            // console.warn('[atob]', urlParams.uid, '->', decodedPaths);
-            urlParams.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
+            const decodedPaths = window.atob(params.uid.startsWith('[') && params.uid.endsWith(']') ? params.uid.slice(1, -1) : params.uid.toString()).split(' ');
+            // console.warn('[atob]', params.uid, '->', decodedPaths);
+            params.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
           } else {
-            const decodedPath = decodeURIComponent(window.atob(urlParams.uid.toString()));
-            // console.warn('[atob]', urlParams.uid, '->', decodedPath);
-            const qs = urlParams.urls[0]?.split('?')[1];
-            // eslint-disable-next-line prefer-template
-            urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+            const decodedPath = decodeURIComponent(window.atob(params.uid.toString()));
+            // console.warn('[atob]', params.uid, '->', decodedPath);
+            const qs = params.urls[0]?.split('?')[1];
+            params.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
           }
         }
       } else {
         return;
       }
-
-      const volumeKeyUID = urlParams.volumeKeyUID || urlParams.uid;
+      const volumeKeyUID = params.volumeKeyUID || params.uid;
       if (volumeKeyUID) {
         const options = JSON.parse(JSON.stringify({
           volumeKeySuffix: volumeKeyUID as string,
-          v: urlParams.v,
-          s: urlParams.s ?? undefined,
-          n: urlParams.n ?? undefined,
-          i: urlParams.i ?? undefined,
+          v: params.v,
+          s: params.s ?? undefined,
+          n: params.n ?? undefined,
+          i: params.i ?? undefined,
         }));
-        if (urlParams.prefetch) {
+        if (params.prefetch) {
           options.prefetchFiles = true;
         }
         loadUrls(urlParams, options);
         return;
       }
-      */
       
       loadUrls(urlParams);
     });
@@ -325,7 +319,7 @@ export default defineComponent({
 
     // --- layout --- //
 
-    const { visibleLayout } = storeToRefs(useViewStore());
+    const { visibleLayout } = storeToRefs(viewStore);
 
     // --- //
 
@@ -336,13 +330,16 @@ export default defineComponent({
     const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
     const leftSideBar = ref(false);
 
-    watchOnce(display.mobile, (isMobile) => {
+    watch(display.mobile, (isMobile) => {
       if (noDrawer.value) {
         leftSideBar.value = false;
       } else if (!isMobile && !leftSideBar.value) {
         leftSideBar.value = !temporaryDrawer.value;
       }
-    }, { immediate: !display.mobile.value });
+    }, {
+      immediate: !display.mobile.value,
+      once: true,
+    });
 
     return {
       emitter,

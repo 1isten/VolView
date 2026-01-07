@@ -245,16 +245,10 @@ import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Inter
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { LPSAxis } from '@/src/types/lps';
+import type { LPSAxis, LPSAxisDir } from '@/src/types/lps';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
 import { mat4, vec3 } from 'gl-matrix';
-/* TODO: TBD
-interface Props extends LayoutViewProps {
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-}
-*/
 
 interface Props {
   viewId: string;
@@ -289,7 +283,6 @@ const hover = ref(false);
 
 function resetCamera() {
   vtkView.value?.resetCamera();
-  // eslint-disable-next-line no-use-before-define
   resetFlipAndRotateState();
 }
 
@@ -357,7 +350,7 @@ const selectionPoints = computed(() => {
 
 // --- Custom support for flipping and rotating the view --- //
 
-const currentLayoutName = computed(() => viewStore.layout?.name || '');
+const currentLayoutName = computed(() => viewStore.currentLayoutName || '');
 
 const loadDataStore = useLoadDataStore();
 const volCameraInfo = computed(() => {
@@ -375,8 +368,8 @@ const flipDirection: Ref<LPSAxisDir | undefined> = ref();
 const flipUp: Ref<LPSAxisDir | undefined> = ref();
 function flip(h = true, v = false) {
   if (!vtkView.value) return;
-  const viewID = viewId.value as 'Axial' | 'Sagittal' | 'Coronal';
-  switch (viewID) {
+  const viewName = viewStore.getView(viewId.value)?.name as 'Axial' | 'Sagittal' | 'Coronal' | undefined;
+  switch (viewName) {
     case 'Axial': {
       if (h) {
         flipDirection.value = flipDirection.value || volCameraInfo?.value?.Axial?.viewDirection || viewDirection.value;
@@ -414,18 +407,20 @@ function flip(h = true, v = false) {
       break;
     }
   }
-  resetCameraToImage(
-    vtkView.value,
-    currentImageMetadata.value,
-    flipDirection.value || volCameraInfo?.value?.[viewID]?.viewDirection || viewDirection.value,
-    flipUp.value || volCameraInfo?.value?.[viewID]?.viewUp || viewUp.value
-  );
-  resizeToFitImage(
-    vtkView.value,
-    currentImageMetadata.value,
-    flipDirection.value || volCameraInfo?.value?.[viewID]?.viewDirection || viewDirection.value,
-    flipUp.value || volCameraInfo?.value?.[viewID]?.viewUp || viewUp.value
-  );
+  if (viewName) {
+    resetCameraToImage(
+      vtkView.value,
+      currentImageMetadata.value,
+      flipDirection.value || volCameraInfo?.value?.[viewName]?.viewDirection || viewDirection.value,
+      flipUp.value || volCameraInfo?.value?.[viewName]?.viewUp || viewUp.value
+    );
+    resizeToFitImage(
+      vtkView.value,
+      currentImageMetadata.value,
+      flipDirection.value || volCameraInfo?.value?.[viewName]?.viewDirection || viewDirection.value,
+      flipUp.value || volCameraInfo?.value?.[viewName]?.viewUp || viewUp.value
+    );
+  }
 }
 
 const rotateDegrees: Ref<number> = ref(0);
