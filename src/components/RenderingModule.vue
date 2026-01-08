@@ -38,7 +38,7 @@ export default defineComponent({
 
     // Show 3D controls only if we have both an image AND a 3D view somewhere
     const canShow3DControls = computed(
-      () => hasCurrentImage.value && !!view3DId.value
+      () => hasCurrentImage.value // && !!view3DId.value
     );
 
     const hasLayers = computed(() => !!currentLayers.value.length);
@@ -86,7 +86,7 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel v-if="canShow3DControls" value="properties">
+        <v-expansion-panel v-if="canShow3DControls && !!view3DId" value="properties">
           <v-expansion-panel-title>
             <v-icon class="flex-grow-0 mr-4">mdi-cube-scan</v-icon>
             Cinematic Rendering

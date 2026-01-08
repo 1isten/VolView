@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { ref, computed, defineComponent, watch } from 'vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -7,7 +7,8 @@ import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
+import { useViewStore } from '@/src/store/views';
+import { useVolumeColoringStore } from '@/src/store/view-configs/volume-coloring';
 import { getColorFunctionRangeFromPreset } from '@/src/utils/vtk-helpers';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
 
@@ -27,6 +28,7 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const viewStore = useViewStore();
     const volumeColoringStore = useVolumeColoringStore();
     const viewId = computed(() => props.viewId);
 
@@ -46,10 +48,17 @@ export default defineComponent({
 
     // --- selection and updates --- //
 
+    const selectedHeatmap = ref(false);
     const selectedPreset = computed(
       () => colorTransferFunctionRef.value?.preset || null
     );
     const hasCurrentImage = computed(() => !!currentImageData.value);
+
+    watch(selectedPreset, preset => {
+      if (preset !== 'Heatmap' && selectedHeatmap.value) {
+        selectedHeatmap.value = false;
+      }
+    });
 
     // the data range, if any
     const imageDataRange = computed((): [number, number] => {
@@ -66,24 +75,41 @@ export default defineComponent({
     );
 
     const selectPreset = (name: string) => {
+      if (name === 'Heatmap') {
+        if (selectedHeatmap.value && currentImageID.value) {
+          viewStore.getViewsForData(currentImageID.value).forEach((v) => {
+            if (v.dataID) {
+              volumeColoringStore.setColorPreset(
+                v.id,
+                v.dataID,
+                null
+              );
+            }
+          });
+          selectedHeatmap.value = false;
+          return;
+        }
+        selectedHeatmap.value = true;
+      } else {
+        selectedHeatmap.value = false;
+      }
+      if (!viewId.value && currentImageID.value) {
+        viewStore.getViewsForData(currentImageID.value).forEach((v) => {
+          if (v.type === '2D' && v.dataID) {
+            volumeColoringStore.setColorPreset(
+              v.id,
+              v.dataID,
+              name
+            );
+          }
+        });
+      }
       if (!viewId.value || !currentImageID.value) return;
       volumeColoringStore.setColorPreset(
         viewId.value,
         currentImageID.value,
         name
       );
-      [
-        InitViewIDs.Axial,
-        InitViewIDs.Sagittal,
-        InitViewIDs.Coronal,
-      ].forEach(TARGET_VIEW_ID_2D => {
-        if (!currentImageID.value) return;
-        volumeColoringStore.setColorPreset(
-          TARGET_VIEW_ID_2D,
-          currentImageID.value,
-          name
-        );
-      });
     };
 
     const rgbPoints = computed(
@@ -115,12 +141,16 @@ export default defineComponent({
     return {
       thumbnails: currentThumbnails,
       hasCurrentImage,
+      presetList: computed(
+        () => viewId.value ? PresetNameList : PresetNameList.filter(preset => preset === 'Heatmap')
+      ),
       preset: selectedPreset,
+      selectedPreset,
+      selectedHeatmap,
       fullMappingRange: effectiveMappingRange,
       mappingRange: computed(
         () => colorTransferFunctionRef.value!.mappingRange
       ),
-      presetList: PresetNameList,
       size: THUMBNAIL_SIZE,
       rgbPoints,
       selectPreset,
@@ -145,7 +175,7 @@ export default defineComponent({
             cols="4"
             :class="{
               'thumbnail-container': true,
-              'bg-blue': active,
+              'bg-blue': (preset === 'Heatmap' ? selectedHeatmap : active),
             }"
             @click="select"
           >
@@ -162,10 +192,10 @@ export default defineComponent({
             cols="12"
             :class="{
               'thumbnail-container': true,
-              'bg-blue': active,
+              'bg-blue': (preset === 'Heatmap' ? selectedHeatmap : active),
               'mt-2': i > 0,
             }"
-            :style="active ? '' : 'background-color: rgba(var(--v-theme-neutral), 0.2)'"
+            :style="(preset === 'Heatmap' ? selectedHeatmap && active : active) ? '' : 'background-color: rgba(var(--v-theme-neutral), 0.2)'"
             @click="select"
           >
             <div class="px-1">

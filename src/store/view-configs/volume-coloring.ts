@@ -145,10 +145,14 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
   const updateOpacityFunction = createUpdateFunc('opacityFunction');
   const updateCVRParameters = createUpdateFunc('cvr');
 
-  const setColorPreset = (viewID: string, imageID: string, preset: string) => {
+  const setColorPreset = (viewID: string, imageID: string, preset?: string | null) => {
     const imageCacheStore = useImageCacheStore();
     const image = imageCacheStore.getVtkImageData(imageID);
     if (!image) throw new Error('Invalid imageID');
+
+    if (!preset) {
+      return resetToDefaultColoring(viewID, imageID, image);
+    }
 
     const imageDataRange = image.getPointData().getScalars().getRange();
     const { colorFunc, opacityFunc } =
@@ -164,11 +168,11 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     updateOpacityFunction(viewID, imageID, completeOpacityFunc);
   };
 
-  const resetToDefaultColoring = (
+  function resetToDefaultColoring(
     viewID: string,
     dataID: string,
     image: vtkImageData
-  ) => {
+  ) {
     const defaults = defaultConfigs[dataID];
     const scalars = image.getPointData().getScalars();
 
@@ -181,7 +185,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
       dataID,
       defaults?.transferFunction?.preset ?? getPresetFromImageModality(dataID)
     );
-  };
+  }
 
   /**
    * Sets all views' defaults for given dataset.
