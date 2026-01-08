@@ -54,6 +54,11 @@ export default defineComponent({
     );
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
+    watch(currentImageID, () => {
+      if (selectedHeatmap.value) {
+        selectedHeatmap.value = false;
+      }
+    });
     watch(selectedPreset, preset => {
       if (preset !== 'Heatmap' && selectedHeatmap.value) {
         selectedHeatmap.value = false;
