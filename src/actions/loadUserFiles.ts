@@ -430,6 +430,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
                 }, true);
               }
             });
+            if (defaultLayoutName) {
+              const button = document.querySelector('button.reset-views-reset-all-cameras') as HTMLButtonElement | null;
+              if (button) {
+                button.click();
+              }
+            }
           });
         }
         viewStore.setDataForAllViews(selection);
