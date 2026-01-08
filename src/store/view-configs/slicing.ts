@@ -38,7 +38,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     if (volumeKeySuffix) {
       const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
       if (vol?.layoutName) {
-        const view = viewStore.getViewsForData(dataID).find(v => v.id === viewID && v.dataID === dataID);
+        const view = viewStore.getViewsForData(dataID).find((v) => v.id === viewID && v.dataID === dataID);
         if (view && vol.layoutName.includes(view.name)) {
           const sliceInfo = vol.slices[config.slice];
           if (sliceInfo) {

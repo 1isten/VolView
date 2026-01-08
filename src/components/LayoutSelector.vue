@@ -37,7 +37,7 @@ const selectNamedLayout = (name: string) => {
       const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
       const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
       if (vol && vol.layoutName) {
-        const viewID = viewStore.getViewsForData(dataID).find(v => v.name === vol.layoutName?.replace(' Only', ''))?.id;
+        const viewID = viewStore.getViewsForData(dataID).find((v) => v.name === vol.layoutName?.replace(' Only', ''))?.id;
         if (viewID) {
           viewStore.setActiveView(viewID);
         }

@@ -60,7 +60,7 @@ export default defineComponent({
       const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
       const vol = volumeKeySuffix ? loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID] : null;
       if (vol?.layoutName) {
-        const view = viewStore.getViewsForData(imageID).find(v => v.name === vol.layoutName!.replace(' Only', ''));
+        const view = viewStore.getViewsForData(imageID).find((v) => v.name === vol.layoutName!.replace(' Only', ''));
         if (view) {
           viewID = view.id;
         }

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { ref, computed, defineComponent, watch } from 'vue';
+import { useUrlSearchParams } from '@vueuse/core';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -28,6 +29,9 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const query = useUrlSearchParams();
+    const useHeatmap = computed(() => query.heatmap === 'on' || query.heatmap === 'true' || query.heatmap === '1');
+
     const viewStore = useViewStore();
     const volumeColoringStore = useVolumeColoringStore();
     const viewId = computed(() => props.viewId);
@@ -48,7 +52,7 @@ export default defineComponent({
 
     // --- selection and updates --- //
 
-    const selectedHeatmap = ref(false);
+    const selectedHeatmap = ref(useHeatmap.value);
     const selectedPreset = computed(
       () => colorTransferFunctionRef.value?.preset || null
     );
@@ -81,6 +85,9 @@ export default defineComponent({
 
     const selectPreset = (name: string) => {
       if (name === 'Heatmap') {
+        if (selectedHeatmap.value && useHeatmap.value) {
+          return;
+        }
         if (selectedHeatmap.value && currentImageID.value) {
           viewStore.getViewsForData(currentImageID.value).forEach((v) => {
             if (v.dataID) {
@@ -160,6 +167,8 @@ export default defineComponent({
       rgbPoints,
       selectPreset,
       updateColorMappingRange,
+
+      useHeatmap,
     };
   },
 });
@@ -180,6 +189,7 @@ export default defineComponent({
             cols="4"
             :class="{
               'thumbnail-container': true,
+              'thumbnail-container--disabled': !!useHeatmap,
               'bg-blue': (preset === 'Heatmap' ? selectedHeatmap : active),
             }"
             @click="select"
@@ -197,6 +207,7 @@ export default defineComponent({
             cols="12"
             :class="{
               'thumbnail-container': true,
+              'thumbnail-container--disabled': !!useHeatmap,
               'bg-blue': (preset === 'Heatmap' ? selectedHeatmap : active),
               'mt-2': i > 0,
             }"
@@ -217,6 +228,10 @@ export default defineComponent({
 .thumbnail-container {
   cursor: pointer;
   padding: 6px !important;
+}
+.thumbnail-container--disabled {
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .thumbnail-overlay {

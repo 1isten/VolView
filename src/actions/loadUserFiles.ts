@@ -437,6 +437,22 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
               }
             }
           });
+        } else {
+          requestAnimationFrame(() => {
+            if (useUrlSearchParams().layoutName) {
+              return;
+            }
+            const defaultLayoutName = selection ? imageCacheStore.getImageDefaultLayoutName(selection) : '';
+            if (defaultLayoutName) {
+              const viewID = viewStore.getViewsForData(selection).find((v) => v.name === defaultLayoutName?.replace(' Only', ''))?.id;
+              if (viewID) {
+                viewStore.setActiveView(viewID);
+                if (!viewStore.isActiveViewMaximized) {
+                  viewStore.toggleActiveViewMaximized();
+                }
+              }
+            }
+          });
         }
         viewStore.setDataForAllViews(selection);
         autoLayerDicoms(primaryDataSource, succeeded);
