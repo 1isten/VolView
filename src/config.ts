@@ -27,12 +27,14 @@ export const InitViewIDs: Record<string, string> = {
 
 export const getAvailableViews = () => {
   const list: ViewInfoInit[] = [
+    /*
     {
       name: 'Oblique',
       type: 'Oblique',
       dataID: null,
       options: {},
     },
+    */
     {
       name: 'Volume',
       type: '3D',
@@ -77,6 +79,13 @@ export const getAvailableViews = () => {
 };
 
 export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
+  /*
+  'Quad View': [
+    ['axial', 'volume'],
+    ['coronal', 'sagittal'],
+  ],
+  */
+  /*
   'Four Up': [
     ['axial', 'coronal'],
     ['sagittal', 'volume'],
@@ -91,9 +100,20 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
       },
     ],
   },
+  */
+  'Axial Primary': {
+    direction: 'row',
+    items: [
+      'axial',
+      {
+        direction: 'column',
+        items: ['sagittal', 'coronal'],
+      },
+    ],
+  },
   'Axial Only': [['axial']], // Z
-  'Coronal Only': [['coronal']], // Y
   'Sagittal Only': [['sagittal']], // X
+  'Coronal Only': [['coronal']], // Y
   '3D Only': [['volume']],
   /*
   Oblique: [['oblique']],

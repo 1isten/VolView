@@ -128,7 +128,6 @@ export default defineComponent({
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID];
         const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID];
         if (vol) {
-          // eslint-disable-next-line
           const usefirstTag = selection === tags.value?.[0];
           vol.wlConfigedByUser = !usefirstTag;
         }
@@ -182,7 +181,7 @@ export default defineComponent({
 
 <template>
   <v-card dark>
-    <v-card-text class="pa-0">
+    <v-card-text class="pa-0 pb-1 pt-2">
       <v-radio-group v-model="wlOptions" hide-details>
         <template v-if="tags.length">
           <v-card-subtitle class="py-1">File Specific Presets</v-card-subtitle>

@@ -53,10 +53,10 @@ onBeforeMount(() => {
           :active="viewStore.currentLayoutName === name"
           @click="selectNamedLayout(name)"
         >
-          <v-list-item-title>{{ name }}</v-list-item-title>
+          <v-list-item-title>{{ name.replace(' Only', '') }}</v-list-item-title>
         </v-list-item>
       </v-list>
-      <v-divider class="my-2" />
+      <!-- <v-divider class="my-2" /> -->
     </div>
     <div class="grid-editor">
       <LayoutGridEditor v-model="layoutGridSize" />
@@ -67,6 +67,9 @@ onBeforeMount(() => {
 <style scoped>
 .named-layouts {
   padding-bottom: 8px;
+
+  padding: 0 !important;
+  margin: -12px -8px !important;
 }
 
 .grid-editor {
@@ -74,5 +77,7 @@ onBeforeMount(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+
+  display: none !important;
 }
 </style>

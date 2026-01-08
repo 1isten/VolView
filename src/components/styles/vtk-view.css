@@ -1,9 +1,10 @@
 .vtk-container-wrapper {
   flex: 1;
   display: grid;
-  grid-template-columns: 20px auto;
+  grid-template-columns: 24px auto;
   grid-template-rows: auto;
   z-index: 0; /* avoids partial obscuring of focus outline */
+  background: black;
 }
 
 .vtk-container {
@@ -40,6 +41,8 @@
   display: flex;
   flex-flow: column;
   background: black;
+  padding: 4px 2px;
+  padding-bottom: 0;
 }
 
 .slice-slider {

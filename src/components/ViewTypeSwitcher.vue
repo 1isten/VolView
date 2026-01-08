@@ -17,7 +17,7 @@ const viewName = computed(() => {
 });
 
 const availableViewNames = computed(() =>
-  viewStore.availableViewsForSwitcher.map((v) => v.name)
+  viewStore.availableViewsForSwitcher.map((v) => v.type === '3D' ? v.type : v.name).reverse()
 );
 
 function updateView(newViewName: string) {

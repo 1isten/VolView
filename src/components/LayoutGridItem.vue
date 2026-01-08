@@ -17,6 +17,11 @@ const ItemComponent = computed(() => {
 });
 
 const activeStyles = computed(() => {
+  if (props.viewId) {
+    return {
+      border: '1px solid rgba(255, 255, 255, 0.05)',
+    };
+  }
   if (showDropTarget.value) {
     return {
       border: '2px solid goldenrod',
