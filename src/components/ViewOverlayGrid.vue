@@ -1,13 +1,13 @@
 <template>
   <div :class="$style.gridRoot">
     <div :class="[$style.top, $style.row]">
-      <div :class="[$style.left, $style.cell]">
+      <div :class="[$style.left, $style.cell]" class="overflow-hidden">
         <slot name="top-left" />
       </div>
-      <div :class="[$style.center, $style.cell]">
+      <div :class="[$style.center, $style.cell]" class="flex-shrink-0">
         <slot name="top-center" />
       </div>
-      <div :class="[$style.right, $style.cell]">
+      <div :class="[$style.right, $style.cell]" class="flex-shrink-0">
         <slot name="top-right" />
       </div>
     </div>

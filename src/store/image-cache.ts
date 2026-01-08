@@ -46,9 +46,12 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     if (image && image.imageMetadata) {
       const lpsOrientation = image.imageMetadata.value.lpsOrientation;
       if (lpsOrientation) {
+        const name = image.imageMetadata.value.name?.toLowerCase();
         const { Axial, Sagittal, Coronal } = lpsOrientation;
         let viewName: 'Axial' | 'Sagittal' | 'Coronal' | '3D' = 'Axial';
-        if (Axial === 2) {
+        if (name.endsWith('.nii') || name.endsWith('.nii.gz')) {
+          return null;
+        } else if (Axial === 2) {
           viewName = 'Axial';
         } else if (Sagittal === 2) {
           viewName = 'Sagittal';

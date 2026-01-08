@@ -26,7 +26,7 @@
         :step="1"
         :handle-height="20"
       />
-      <template v-if="currentLayoutName.endsWith(' Only')">
+      <template v-if="isViewMaximized">
         <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, true)" @dblclick.stop>
           <v-icon icon="mdi-flip-vertical" size="medium" class="py-1" />
           <v-tooltip
@@ -267,6 +267,8 @@ const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
 const viewStore = useViewStore();
+const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
+
 const viewInfo = computed(() => viewStore.getView(viewId.value)!);
 const viewOptions = computed(
   () => viewInfo.value.options as SliceViewerOptions
@@ -349,8 +351,6 @@ const selectionPoints = computed(() => {
 });
 
 // --- Custom support for flipping and rotating the view --- //
-
-const currentLayoutName = computed(() => viewStore.currentLayoutName || '');
 
 const loadDataStore = useLoadDataStore();
 const volCameraInfo = computed(() => {

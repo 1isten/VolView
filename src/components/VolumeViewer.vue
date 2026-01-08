@@ -50,7 +50,7 @@
                 Reset Camera
               </v-tooltip>
             </v-btn>
-            <span class="ml-3">{{ currentImageMetadata.name }}</span>
+            <span class="image-metadata-name ml-3" v-if="isViewMaximized">{{ currentImageMetadata.name }}</span>
           </div>
         </template>
         <template #top-right>
@@ -59,7 +59,7 @@
           </div>
         </template>
         <template #bottom-right>
-          <div class="annotation-cell d-flex flex-column align-end" @click.stop v-if="true">
+          <div class="annotation-cell d-flex flex-column align-end" @click.stop v-if="isViewMaximized">
             <div v-if="currentLayoutName === '3D Only'" class="vtk-gutter pa-1">
               <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('X', true)" @contextmenu.prevent="resetOrientation('X', false)" @dblclick.stop>
                 <v-icon icon="mdi mdi-alpha-l-circle" size="medium" class="py-1" />
@@ -147,6 +147,8 @@ const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
 const viewStore = useViewStore();
+const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
+
 const viewInfo = computed(() => viewStore.getView(viewId.value)!);
 const viewType = computed(() => viewInfo.value.type);
 const viewOptions = computed(

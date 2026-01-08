@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, toRefs, ref } from 'vue';
+import { inject, toRefs, ref, computed } from 'vue';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { Maybe } from '@/src/types';
@@ -13,6 +13,7 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { shortenNumber } from '@/src/utils';
 import { useProbeStore } from '@/src/store/probe';
+import { useViewStore } from '@/src/store/views';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkCoordinate from '@kitware/vtk.js/Rendering/Core/Coordinate';
@@ -28,6 +29,9 @@ interface Props {
 
 const props = defineProps<Props>();
 const { viewId, imageId, currentImageData, baseRep: sliceRep, slicingMode, hover } = toRefs(props);
+
+const viewStore = useViewStore();
+const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -124,7 +128,7 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
   <view-overlay-grid class="overlay-no-events view-annotations">
     <template v-slot:top-left>
       <div class="annotation-cell">
-        <span>{{ metadata.name }}</span>
+        <span class="image-metadata-name" v-if="isViewMaximized">{{ metadata.name }}</span>
       </div>
     </template>
     <template v-slot:top-center>
