@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeMount } from 'vue';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { useViewStore } from '@/src/store/views';
 import LayoutGridEditor from './LayoutGridEditor.vue';
 
@@ -26,14 +27,29 @@ const namedLayoutsList = computed(() => {
 const selectNamedLayout = (name: string) => {
   viewStore.switchToNamedLayout(name);
   viewStore.prevLayoutName = '';
-  /* TODO: TBD
-  document.querySelectorAll('button.slice-viewer-reset-camera').forEach(el => {
-    const button = el as HTMLButtonElement;
-    requestAnimationFrame(() => {
-      button?.click();
+  requestAnimationFrame(() => {
+    if (name.endsWith(' Only')) {
+      return;
+    }
+    const dataID = viewStore.getView(viewStore.activeView)?.dataID;
+    if (dataID) {
+      const loadDataStore = useLoadDataStore();
+      const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+      const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+      if (vol && vol.layoutName) {
+        const viewID = viewStore.getViewsForData(dataID).find(v => v.name === vol.layoutName?.replace(' Only', ''))?.id;
+        if (viewID) {
+          viewStore.setActiveView(viewID);
+        }
+      }
+    }
+    document.querySelectorAll('button.slice-viewer-reset-camera').forEach(el => {
+      const button = el as HTMLButtonElement;
+      requestAnimationFrame(() => {
+        button?.click();
+      });
     });
   });
-  */
 };
 
 onBeforeMount(() => {

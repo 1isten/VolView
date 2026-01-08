@@ -301,7 +301,8 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
 
     const shouldShowData = viewStore
       .getAllViews()
-      .every((view) => !view.dataID);
+      // .every((view) => !view.dataID);
+      .length;
 
     if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
@@ -407,19 +408,24 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string) {
             }
           }
           requestAnimationFrame(() => {
-            if (s !== -1 && dataID) {
-              viewID = viewStore.getViewsForData(dataID).find(v => v.name === imageCacheStore.getImageDefaultLayoutName(dataID!)?.replace(' Only', ''))?.id;
-              if (viewID) {
-                viewSliceStore.updateConfig(viewID, dataID, { slice: s });
-              }
-            }
-            const windowingStore = useWindowingStore();
+            const defaultLayoutName = dataID ? imageCacheStore.getImageDefaultLayoutName(dataID) : '';
             viewStore.getViewsForData(selection).forEach(v => {
               const viewId = v.id as string;
               const dataId = v.dataID as string;
-              const wlConfig = windowingStore.getConfig(viewId, dataId);
+              if (s !== -1 && defaultLayoutName) {
+                if (v.name === defaultLayoutName.replace(' Only', '')) {
+                  viewID = viewId;
+                  dataID = dataId;
+                  viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                  viewStore.setActiveView(viewID);
+                  if (!viewStore.isActiveViewMaximized) {
+                    viewStore.toggleActiveViewMaximized();
+                  }
+                }
+              }
+              const wlConfig = useWindowingStore().getConfig(viewId, dataId);
               if ((!wlConfig?.width || !wlConfig?.level || wlConfig?.level === 2 ** 32 - 1) && wlConfig?.auto) {
-                windowingStore.updateConfig(viewId, dataId, {
+                useWindowingStore().updateConfig(viewId, dataId, {
                   auto: wlConfig.auto,
                 }, true);
               }
@@ -555,10 +561,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                 } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                   viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                 }
-                const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
-                if (viewID) {
-                  viewStore.setDataForView(viewID, dataID);
-                }
+                viewStore.setDataForAllViews(dataID);
                 return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
               }
             }
@@ -575,13 +578,18 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                     viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                   }
-                  const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
-                  if (viewID) {
-                    viewStore.setDataForView(viewID, dataID);
-                    requestAnimationFrame(() => {
-                      viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                  requestAnimationFrame(() => {
+                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (v.name === defaultLayoutName.replace(' Only', '')) {
+                        viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                        viewStore.setActiveView(viewID);
+                        if (!viewStore.isActiveViewMaximized) {
+                          viewStore.toggleActiveViewMaximized();
+                        }
+                      }
                     });
-                  }
+                  });
+                  viewStore.setDataForAllViews(dataID);
                   return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
                 }
               }
@@ -597,15 +605,20 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   if (options.changeLayout === false) {
                     //
                   } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                    useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                    viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                   }
-                  const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
-                  if (viewID) {
-                    viewStore.setDataForView(viewID, dataID);
-                    requestAnimationFrame(() => {
-                      viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                  requestAnimationFrame(() => {
+                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (v.name === defaultLayoutName.replace(' Only', '')) {
+                        viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                        viewStore.setActiveView(viewID);
+                        if (!viewStore.isActiveViewMaximized) {
+                          viewStore.toggleActiveViewMaximized();
+                        }
+                      }
                     });
-                  }
+                  });
+                  viewStore.setDataForAllViews(dataID);
                   return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
                 }
               }
@@ -621,15 +634,20 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   if (options.changeLayout === false) {
                     //
                   } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                    useViewStore().setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                    viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                   }
-                  const viewID = viewStore.getViewsForData(dataID).find(v => v.name === defaultLayoutName.replace(' Only', ''))?.id;
-                  if (viewID) {
-                    viewStore.setDataForView(viewID, dataID);
-                    requestAnimationFrame(() => {
-                      viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                  requestAnimationFrame(() => {
+                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (v.name === defaultLayoutName.replace(' Only', '')) {
+                        viewSliceStore.updateConfig(viewID, dataID, { slice: s });
+                        viewStore.setActiveView(viewID);
+                        if (!viewStore.isActiveViewMaximized) {
+                          viewStore.toggleActiveViewMaximized();
+                        }
+                      }
                     });
-                  }
+                  });
+                  viewStore.setDataForAllViews(dataID);
                   return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
                 }
               }

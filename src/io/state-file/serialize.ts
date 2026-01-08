@@ -29,7 +29,7 @@ export async function serialize(returnManifest = false) {
     dataSources: [],
     datasetFilePath: {},
     segmentGroups: [],
-    // labelMaps: [], // TODO: TBD
+    // labelMaps: [],
     tools: {
       crosshairs: {
         position: [0, 0, 0],
