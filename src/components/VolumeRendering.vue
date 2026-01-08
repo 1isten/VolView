@@ -377,6 +377,7 @@ export default defineComponent({
         :min="rangeShiftMin"
         :max="rangeShiftMax"
         :step="colorSliderStep"
+        :disabled="!viewId"
         @pointerdown="request3DAnimation"
         @pointerup="cancel3DAnimation"
       />
@@ -388,6 +389,7 @@ export default defineComponent({
         min="1"
         :max="rangeWidthMax"
         :step="colorSliderStep"
+        :disabled="!viewId"
         @pointerdown="request3DAnimation"
         @pointerup="cancel3DAnimation"
       />
