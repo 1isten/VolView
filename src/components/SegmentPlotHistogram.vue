@@ -12,7 +12,7 @@ import { useUrlSearchParams } from '@vueuse/core';
 
 defineProps({
   imageId: {
-    required: true,
+    required: false,
     type: [String, null],
   },
   groupId: {

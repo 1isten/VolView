@@ -6,6 +6,7 @@ import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useViewStore } from '@/src/store/views';
 import { getROIStats } from '@/src/utils/roi';
 
 type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
@@ -22,6 +23,9 @@ const props = defineProps<{
 }>();
 
 const { viewId: viewID, imageId: imageID, slicingMode, slice, hover } = toRefs(props);
+
+const viewStore = useViewStore();
+const viewName = computed(() => viewID.value && viewStore.getView(viewID.value)?.name || '');
 
 const paintStore = usePaintToolStore();
 const segmentGroupID = computed(() => paintStore.activeSegmentGroupID);
@@ -50,7 +54,7 @@ function handlePaint() {
   }
   const roiHistogramEl = document.getElementById('roi-histogram');
   if (roiHistogramEl && 'createHistogramWithNormalFit' in roiHistogramEl && typeof roiHistogramEl.createHistogramWithNormalFit === 'function') {
-    const stats = getROIStats(segmentGroupData.value, parentImageData.value, parentImageMetaData.value, viewID.value, slicingMode?.value, slice.value);
+    const stats = getROIStats(segmentGroupData.value, parentImageData.value, parentImageMetaData.value, viewName.value, slicingMode?.value, slice.value);
     roiHistogramEl.createHistogramWithNormalFit(stats);
   }
 }

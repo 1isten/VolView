@@ -1,6 +1,6 @@
 /* eslint-disable */
 
-export function getROIStats(segmentGroupData, parentImageData, metadata, viewID, slicingMode, slice) {
+export function getROIStats(segmentGroupData, parentImageData, metadata, viewName, slicingMode, slice) {
   const nj = window.nj;
   if (!nj) {
     return null;
@@ -10,8 +10,8 @@ export function getROIStats(segmentGroupData, parentImageData, metadata, viewID,
     return null;
   }
 
-  const a = getNdArrayData(parentImageData, metadata, viewID, slicingMode, slice);
-  let b = getNdArrayData(segmentGroupData, metadata, viewID, slicingMode, slice);
+  const a = getNdArrayData(parentImageData, metadata, viewName, slicingMode, slice);
+  let b = getNdArrayData(segmentGroupData, metadata, viewName, slicingMode, slice);
   if (b) {
     const min = nj.min(b);
     const max = nj.max(b);
@@ -65,7 +65,7 @@ export function getROIStats(segmentGroupData, parentImageData, metadata, viewID,
   };
 }
 
-export function getNdArrayData(data, metadata, viewID, slicingMode, slice) {
+export function getNdArrayData(data, metadata, viewName, slicingMode, slice) {
   const nj = window.nj;
   if (!nj) {
     return null;
@@ -96,10 +96,10 @@ export function getNdArrayData(data, metadata, viewID, slicingMode, slice) {
   data = nj.array(data, type).reshape(shape);
 
   // 2D slice
-  if (viewID && slicingMode) {
+  if (viewName && slicingMode) {
     const dim = 'IJK'.indexOf(slicingMode);
     const s = [slice, [...shape].reverse()[dim], shape[2]];
-    switch (viewID) {
+    switch (viewName) {
       case 'Sagittal': {
         s[0] *= samplesPerPixel;
         data = data.slice(null, null, s);
