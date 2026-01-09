@@ -66,7 +66,7 @@ onBeforeMount(() => {
         <v-list-item
           v-for="name in namedLayoutsList"
           :key="name"
-          :active="viewStore.currentLayoutName === name"
+          :active="viewStore.currentLayoutName === name && false"
           @click="selectNamedLayout(name)"
         >
           <v-list-item-title>{{ name.replace(' Only', '') }}</v-list-item-title>
