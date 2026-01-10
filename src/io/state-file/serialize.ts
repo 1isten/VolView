@@ -15,7 +15,10 @@ import { useViewConfigStore } from '@/src/store/view-configs';
 export const MANIFEST = 'manifest.json';
 export const MANIFEST_VERSION = '6.2.0';
 
-export async function serialize(returnManifest = false) {
+export async function serialize(opts?: {
+  stateIDToStoreID?: Record<string, string>;
+  returnWithManifest?: boolean;
+}) {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
   const labelStore = useSegmentGroupStore();
@@ -58,7 +61,11 @@ export async function serialize(returnManifest = false) {
     manifest,
   };
 
-  await datasetStore.serialize(stateFile);
+  if (opts?.stateIDToStoreID) {
+    manifest.stateIDToStoreID = opts.stateIDToStoreID;
+  } else {
+    await datasetStore.serialize(stateFile);
+  }
   viewStore.serialize(stateFile);
   await useViewConfigStore().serialize(stateFile);
   await labelStore.serialize(stateFile);
@@ -67,7 +74,7 @@ export async function serialize(returnManifest = false) {
 
   zip.file(MANIFEST, JSON.stringify(manifest));
 
-  if (returnManifest) {
+  if (opts?.returnWithManifest) {
     return [await zip.generateAsync({ type: 'blob' }), manifest];
   }
   return zip.generateAsync({ type: 'blob' });

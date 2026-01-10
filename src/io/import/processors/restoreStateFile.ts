@@ -21,8 +21,6 @@ import { useViewConfigStore } from '@/src/store/view-configs';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useMessageStore } from '@/src/store/messages';
 
-import { useLoadDataStore } from '@/src/store/load-data';
-
 type LeafSource =
   | { type: 'uri'; uri: string; name: string; mime?: string }
   | { type: 'file'; file: File; fileType: string };
@@ -122,6 +120,13 @@ export async function completeStateFileRestore(
   stateFiles: FileEntry[],
   stateIDToStoreID: Record<string, string>
 ) {
+  if (manifest.stateIDToStoreID) {
+    stateIDToStoreID = {
+      ...stateIDToStoreID,
+      ...manifest.stateIDToStoreID,
+    };
+  }
+
   const viewStore = useViewStore();
 
   Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {

@@ -434,6 +434,9 @@ export const ManifestSchema = z.object({
   layout: Layout.optional(),
   layoutSlots: z.array(z.string()).optional(),
   parentToLayers: ParentToLayers.optional(),
+
+  // for PMT custom export/import state logic
+  stateIDToStoreID: z.record(z.string(), z.string()).optional(),
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;

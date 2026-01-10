@@ -43,8 +43,8 @@
 import { defineComponent, onMounted, ref, computed } from 'vue';
 import { saveAs } from 'file-saver';
 import { onKeyDown } from '@vueuse/core';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useLoadDataStore } from '@/src/store/load-data';
+import { useViewStore } from '@/src/store/views';
 import { serialize } from '../io/state-file/serialize';
 import { Manifest } from '../io/state-file/schema';
 
@@ -62,60 +62,66 @@ export default defineComponent({
     const valid = ref(true);
     const saving = ref(false);
 
-    const datasetStore = useDatasetStore();
     const loadDataStore = useLoadDataStore();
     const hasProjectPort = computed(() => loadDataStore.hasProjectPort);
+    const pickAndSkipData = ref(false);
     const saveAsHyperLink = ref(false);
 
     async function saveSession() {
       if (fileName.value.trim().length >= 0) {
         saving.value = true;
         if (hasProjectPort.value) {
-          let uid = '';
-          if (datasetStore.primarySelection) {
-            const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[datasetStore.primarySelection]
-            if (volumeKeySuffix && volumeKeySuffix.split('-').length === 5) {
-              if (volumeKeySuffix.length === 36) {
-                uid = volumeKeySuffix; // uuid
-              } else {
-                uid = volumeKeySuffix; // orthanc uid
-              }
-            }
+          const viewStore = useViewStore();
+          const view = viewStore.activeView ? viewStore.getView(viewStore.activeView) : null;
+          const dataID = view?.dataID;
+          const volumeKeySuffix = dataID ? loadDataStore.dataIDToVolumeKeyUID[dataID] : '';
+          const uid = volumeKeySuffix && volumeKeySuffix.split('-').length === 5 ? (
+            volumeKeySuffix.length === 36
+              ? volumeKeySuffix // uuid
+              : volumeKeySuffix // orthanc uid
+          ) : '';
+
+          if (pickAndSkipData.value) {
+            // TODO: implement PMT custom export/import state logic
+            // ...
           }
+
           // @ts-ignore
-          const [blob, manifest]: [Blob, Manifest] = await serialize(true);
+          const [blob, manifest]: [Blob, Manifest] = await serialize({ returnWithManifest: true });
           const meta: any = {};
           if (manifest) {
-            meta.tool = manifest.tools.current;
-            switch (meta.tool) {
-              case 'Paint': {
-                // @ts-ignore
-                const roiHistogramData = document.getElementById('roi-histogram')?.roi_histogram;
-                if (roiHistogramData) {
-                  meta.paint = roiHistogramData;
+            if (manifest.tools?.current) {
+              meta.tool = manifest.tools.current;
+              switch (meta.tool) {
+                case 'Paint': {
+                  // @ts-ignore
+                  const roiHistogramData = document.getElementById('roi-histogram')?.roi_histogram;
+                  if (roiHistogramData) {
+                    meta.paint = roiHistogramData;
+                  }
+                  break;
                 }
-                break;
-              }
-              case 'Rectangle': {
-                if (manifest.tools.rectangles?.tools) {
-                  meta.rectangles = JSON.parse(JSON.stringify(manifest.tools.rectangles?.tools));
+                case 'Rectangle': {
+                  if (manifest.tools.rectangles?.tools) {
+                    meta.rectangles = JSON.parse(JSON.stringify(manifest.tools.rectangles?.tools));
+                  }
+                  break;
                 }
-                break;
-              }
-              case 'Polygon': {
-                if (manifest.tools.polygons?.tools) {
-                  meta.polygons = JSON.parse(JSON.stringify(manifest.tools.polygons?.tools));
+                case 'Polygon': {
+                  if (manifest.tools.polygons?.tools) {
+                    meta.polygons = JSON.parse(JSON.stringify(manifest.tools.polygons?.tools));
+                  }
+                  break;
                 }
-                break;
-              }
-              case 'Ruler': {
-                if (manifest.tools.rulers?.tools) {
-                  meta.rulers = JSON.parse(JSON.stringify(manifest.tools.rulers?.tools));
+                case 'Ruler': {
+                  if (manifest.tools.rulers?.tools) {
+                    meta.rulers = JSON.parse(JSON.stringify(manifest.tools.rulers?.tools));
+                  }
+                  break;
                 }
-                break;
-              }
-              default: {
-                break;
+                default: {
+                  break;
+                }
               }
             }
           }
