@@ -64,7 +64,6 @@ export default defineComponent({
 
     const loadDataStore = useLoadDataStore();
     const hasProjectPort = computed(() => loadDataStore.hasProjectPort);
-    const pickAndSkipData = ref(false);
     const saveAsHyperLink = ref(false);
 
     async function saveSession() {
@@ -80,16 +79,14 @@ export default defineComponent({
               ? volumeKeySuffix // uuid
               : volumeKeySuffix // orthanc uid
           ) : '';
-
-          if (pickAndSkipData.value) {
-            // TODO: implement PMT custom export/import state logic
-            // ...
-          }
-
+          const stateIDToStoreID: Record<string, string> = saveAsHyperLink.value ? {} : dataID ? { [dataID]: dataID } : {};
+          const meta: any = dataID && stateIDToStoreID[dataID] ? { stateIDToStoreID } : {};
           // @ts-ignore
-          const [blob, manifest]: [Blob, Manifest] = await serialize({ returnWithManifest: true });
-          const meta: any = {};
-          if (manifest) {
+          const [blob, manifest]: [Blob, Manifest] = await serialize({
+            stateIDToStoreID: meta.stateIDToStoreID,
+            returnWithManifest: true,
+          });
+          if (saveAsHyperLink.value) {
             if (manifest.tools?.current) {
               meta.tool = manifest.tools.current;
               switch (meta.tool) {
@@ -124,6 +121,14 @@ export default defineComponent({
                 }
               }
             }
+          } else if (dataID) {
+            if (manifest.activeView && manifest.viewByID?.[manifest.activeView]) {
+              const viewConfig = manifest.viewByID[manifest.activeView]?.config?.[dataID];
+              if (viewConfig) {
+                meta.activeView = manifest.activeView;
+                meta.slice = viewConfig?.slice?.slice;
+              }
+            }
           }
           const emitter = loadDataStore.$bus.emitter;
           emitter?.emit('savesession', {
@@ -131,8 +136,12 @@ export default defineComponent({
             fileContent: blob,
             fileName: fileName.value,
             fileType: 'zip',
-            toReport: saveAsHyperLink.value,
-            meta: meta.tool ? meta : undefined,
+            ...(Object.keys(stateIDToStoreID).length > 0 ? {
+              meta,
+            } : {
+              meta: meta.tool ? meta : undefined,
+              toReport: saveAsHyperLink.value,
+            }),
           });
           props.close();
           saving.value = false;

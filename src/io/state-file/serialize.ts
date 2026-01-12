@@ -61,7 +61,7 @@ export async function serialize(opts?: {
     manifest,
   };
 
-  if (opts?.stateIDToStoreID) {
+  if (typeof opts?.stateIDToStoreID === 'object' && Object.keys(opts.stateIDToStoreID).length > 0) {
     manifest.stateIDToStoreID = opts.stateIDToStoreID;
   } else {
     await datasetStore.serialize(stateFile);
