@@ -27,6 +27,8 @@ export interface LoadEventOptions {
   prefetchFiles?: boolean;
   zip?: boolean;
   zipObjectUrl?: string | null;
+  // ...
+  savedSession?: any;
 }
 
 export type LoadedByBusRecord = {

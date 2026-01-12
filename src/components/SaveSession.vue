@@ -13,6 +13,7 @@
           required
           id="session-state-filename"
           hide-details
+          :disabled="hasProjectPort"
         />
         <v-checkbox
           v-if="hasProjectPort"
@@ -45,6 +46,7 @@ import { saveAs } from 'file-saver';
 import { onKeyDown } from '@vueuse/core';
 import { useLoadDataStore } from '@/src/store/load-data';
 import { useViewStore } from '@/src/store/views';
+import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { serialize } from '../io/state-file/serialize';
 import { Manifest } from '../io/state-file/schema';
 
@@ -79,7 +81,7 @@ export default defineComponent({
               ? volumeKeySuffix // uuid
               : volumeKeySuffix // orthanc uid
           ) : '';
-          const stateIDToStoreID: Record<string, string> = saveAsHyperLink.value ? {} : dataID ? { [dataID]: dataID } : {};
+          const stateIDToStoreID: Record<string, string> = dataID ? { [dataID]: dataID } : {};
           const meta: any = dataID && stateIDToStoreID[dataID] ? { stateIDToStoreID } : {};
           // @ts-ignore
           const [blob, manifest]: [Blob, Manifest] = await serialize({
@@ -121,12 +123,12 @@ export default defineComponent({
                 }
               }
             }
-          } else if (dataID) {
+          } else if (meta.stateIDToStoreID) {
             if (manifest.activeView && manifest.viewByID?.[manifest.activeView]) {
-              const viewConfig = manifest.viewByID[manifest.activeView]?.config?.[dataID];
-              if (viewConfig) {
+              const viewSliceConfig = manifest.viewByID[manifest.activeView]?.config?.[dataID!]?.slice || useViewSliceStore().getConfig(manifest.activeView, dataID);
+              if (viewSliceConfig) {
                 meta.activeView = manifest.activeView;
-                meta.slice = viewConfig?.slice?.slice;
+                meta.slice = viewSliceConfig.slice;
               }
             }
           }
@@ -136,12 +138,8 @@ export default defineComponent({
             fileContent: blob,
             fileName: fileName.value,
             fileType: 'zip',
-            ...(Object.keys(stateIDToStoreID).length > 0 ? {
-              meta,
-            } : {
-              meta: meta.tool ? meta : undefined,
-              toReport: saveAsHyperLink.value,
-            }),
+            meta: Object.values(meta).length > 0 ? meta : undefined,
+            toReport: saveAsHyperLink.value,
           });
           props.close();
           saving.value = false;

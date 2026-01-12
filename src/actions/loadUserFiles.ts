@@ -276,7 +276,7 @@ function loadSegmentations(
   });
 }
 
-function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, loadSession?: boolean) {
+function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSession?: boolean) {
   const loadDataStore = useLoadDataStore();
   const imageCacheStore = useImageCacheStore();
   const viewStore = useViewStore();
@@ -316,7 +316,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, loadSe
 
       if (isVolumeResult(primaryDataSource)) {
         let selection = toDataSelection(primaryDataSource);
-        if (loadSession) {
+        if (isSession) {
           //
         } else if (volumeKeySuffix) {
           let dataID: string | null | undefined;
@@ -324,6 +324,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, loadSe
           let s = -1;
 
           const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
+          if (options.savedSession) {
+            savedSession = options.savedSession;
+          }
 
           if (
             // options.changeSlice === false ||
@@ -413,23 +416,10 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, loadSe
             }
           }
           try {
-            if (dataID) {
-              const sessions = await fetch(`h3://localhost/api/volview/sessions?${new URLSearchParams({
-                ...(volumeKeySuffix.length === 36 ? { seriesId: volumeKeySuffix } : {}),
-                dataId: dataID,
-              })}`).then(res => res.ok ? res.json() : []);
-              if (sessions.length) {
-                // eslint-disable-next-line @typescript-eslint/no-shadow
-                const session = sessions.find((session: any) => session.type === 'session' && session.metadata?.stateIDToStoreID?.[dataID!] === dataID);
-                if (session?.filePath) {
-                  savedSession = session;
-                }
-              }
-              if (savedSession) {
-                const savedSessionBlob = await fetch(`h3://localhost/file/${encodeURIComponent(savedSession.filePath)}`).then(res => res.ok ? res.blob() : null);
-                if (savedSessionBlob) {
-                  savedSessionFile = new File([savedSessionBlob], savedSession.fileName, { type: FILE_EXT_TO_MIME.zip });
-                }
+            if (dataID && savedSession?.filePath) {
+              const savedSessionBlob = await fetch(`h3://localhost/file/${encodeURIComponent(savedSession.filePath)}`).then(res => res.ok ? res.blob() : null);
+              if (savedSessionBlob) {
+                savedSessionFile = new File([savedSessionBlob], savedSession.fileName || 'session.volview.zip', { type: FILE_EXT_TO_MIME.zip });
               }
             }
           } catch (error) {
@@ -437,13 +427,21 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, loadSe
           }
           requestAnimationFrame(() => {
             if (savedSessionFile) {
+              if (savedSession?.metadata?.activeView) {
+                s = savedSession.metadata.slice ?? s;
+                viewID = savedSession.metadata.activeView;
+              }
+              if (s !== -1 && viewID) {
+                viewSliceStore.updateConfig(viewID, dataID!, { slice: s });
+                viewStore.setActiveView(viewID);
+              }
               return;
             }
             const defaultLayoutName = dataID ? imageCacheStore.getImageDefaultLayoutName(dataID) : '';
             viewStore.getViewsForData(selection).forEach(v => {
               const viewId = v.id as string;
               const dataId = v.dataID as string;
-              if (savedSessionFile && savedSession?.metadata) {
+              if (savedSessionFile && savedSession?.metadata?.activeView) {
                 s = savedSession.metadata.slice ?? s;
               }
               if (s !== -1 && defaultLayoutName) {
@@ -517,7 +515,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, loadSe
       loadDataStore.setError(failedError);
     } else if (loadDataStore.isLoadingByBus) {
       if (savedSessionFile) {
-        return loadFiles([savedSessionFile], volumeKeySuffix, true);
+        return loadFiles([savedSessionFile], volumeKeySuffix, !!savedSession);
       }
       loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
     }
@@ -552,9 +550,9 @@ export function openFileDialog() {
   });
 }
 
-export async function loadFiles(files: File[], volumeKeySuffix?: string, loadSession?: boolean) {
+export async function loadFiles(files: File[], volumeKeySuffix?: string, isSession?: boolean) {
   const dataSources = files.map(fileToDataSource);
-  return loadDataSources(dataSources, volumeKeySuffix, loadSession);
+  return loadDataSources(dataSources, volumeKeySuffix, isSession);
 }
 
 export async function loadUserPromptedFiles() {
