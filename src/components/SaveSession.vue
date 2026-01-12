@@ -82,7 +82,7 @@ export default defineComponent({
               : volumeKeySuffix // orthanc uid
           ) : '';
           const stateIDToStoreID: Record<string, string> = dataID ? { [dataID]: dataID } : {};
-          const meta: any = dataID && stateIDToStoreID[dataID] ? { stateIDToStoreID } : {};
+          const meta: any = saveAsHyperLink.value ? {} : (dataID && stateIDToStoreID[dataID] ? { stateIDToStoreID } : {});
           // @ts-ignore
           const [blob, manifest]: [Blob, Manifest] = await serialize({
             stateIDToStoreID: meta.stateIDToStoreID,

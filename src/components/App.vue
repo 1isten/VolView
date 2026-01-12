@@ -223,8 +223,8 @@ export default defineComponent({
         const volumeKey = primarySelection;
         const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[volumeKey] || dicomStore.volumeKeyGetSuffix(volumeKey);
         if (volumeKeySuffix) {
-          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
-          const vol = volumes[volumeKey];
+          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix] || {};
+          const vol = volumes?.[volumeKey];
           if (vol) {
             if (!vol.cached) {
               vol.cached = true;
