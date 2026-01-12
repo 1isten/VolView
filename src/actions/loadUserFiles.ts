@@ -416,7 +416,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             }
           }
           try {
-            if (dataID && savedSession?.filePath) {
+            if (dataID && dataID === savedSession?.dataId && savedSession.filePath) {
               const savedSessionBlob = await fetch(`h3://localhost/file/${encodeURIComponent(savedSession.filePath)}`).then(res => res.ok ? res.blob() : null);
               if (savedSessionBlob) {
                 savedSessionFile = new File([savedSessionBlob], savedSession.fileName || 'session.volview.zip', { type: FILE_EXT_TO_MIME.zip });
