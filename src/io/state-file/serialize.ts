@@ -31,8 +31,7 @@ export async function serialize(opts?: {
     datasets: [],
     dataSources: [],
     datasetFilePath: {},
-    segmentGroups: [],
-    // labelMaps: [],
+    segmentGroups: [], // labelMaps
     tools: {
       crosshairs: {
         position: [0, 0, 0],
