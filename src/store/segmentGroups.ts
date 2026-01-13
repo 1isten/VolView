@@ -508,6 +508,19 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       return segmentGroupIDMap;
     }
 
+    if (Object.keys(dataIDMap).length > 0) {
+      // avoid existing segment groups with same name
+      Object.keys(metadataByID).forEach((segmentGroupID) => {
+        const group = metadataByID[segmentGroupID];
+        if (segmentGroups.find((segmentGroup) => (
+          // segmentGroup.metadata?.parentImage === group.parentImage &&
+          segmentGroup.metadata?.name === group.name
+        ))) {
+          removeGroup(segmentGroupID);
+        }
+      });
+    }
+
     // First restore the data, then restore the store.
     // This preserves ordering from orderByParent.
 

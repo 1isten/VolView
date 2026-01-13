@@ -180,6 +180,15 @@ export const useAnnotationTool = <
     dataIDMap: Record<string, string>
   ) {
     if (serialized?.labels) {
+      // clear existing tools
+      while (toolIDs.value.length > 0) {
+        const id = Object.keys(toolByID.value).pop() as ToolID;
+        if (id) {
+          removeTool(id);
+        } else {
+          break;
+        }
+      }
       labels.clearDefaultLabels();
     }
     const labelIDMap = Object.fromEntries(
