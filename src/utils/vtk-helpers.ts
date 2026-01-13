@@ -3,7 +3,7 @@ import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunc
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3, Extent } from '@kitware/vtk.js/types';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { intersectDisplayWithPlane } from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import {
@@ -36,6 +36,48 @@ export function computeDisplayToWorld(
     return view.displayToWorld(x, y, 0, renderer);
   }
   return null;
+}
+
+export function normalizeIJKCoords(ijk: Vector3, slicingMode: string, currentSlice: number, extend: Extent) {
+  let [i, j, k] = ijk;
+  let outOfRange = false;
+
+  switch (slicingMode) {
+    case 'I':
+      i = currentSlice;
+      break;
+    case 'J':
+      j = currentSlice;
+      break;
+    case 'K':
+      k = currentSlice;
+      break;
+  }
+
+  const [imin, imax, jmin, jmax, kmin, kmax] = extend;
+
+  i = Math.round(i);
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  i < imin && (outOfRange = true) && (i = imin);
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  i > imax && (outOfRange = true) && (i = imax);
+
+  j = Math.round(j);
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  j < jmin && (outOfRange = true) && (j = jmin);
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  j > jmax && (outOfRange = true) && (j = jmax);
+
+  k = Math.round(k);
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  k < kmin && (outOfRange = true) && (k = kmin);
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  k > kmax && (outOfRange = true) && (k = kmax);
+
+  return {
+    ijk: [i, j, k] as Vector3,
+    outOfRange,
+  };
 }
 
 export function normalizeMouseEventPosition(
