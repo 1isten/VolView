@@ -12,6 +12,7 @@
           :key="item.name"
           :data-testid="`module-tab-${item.name}`"
           :disabled="item.disabled"
+          v-show="!item.disabled"
         >
           <div class="tab-content">
             <span class="mb-0 mt-1 module-text">{{ item.name }}</span>
@@ -43,7 +44,7 @@
 import { Component, computed, defineComponent, ref, watch } from 'vue';
 
 import { ConnectionState, useServerStore } from '@/src/store/server';
-// import DataBrowser from './DataBrowser.vue';
+import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 import ServerModule from './ServerModule.vue';
@@ -59,11 +60,12 @@ interface Module {
 }
 
 const Modules: Module[] = [
-  // {
-  //   name: 'Data',
-  //   icon: 'database',
-  //   component: DataBrowser,
-  // },
+  {
+    name: 'Data',
+    icon: 'database',
+    component: DataBrowser,
+    disabled: true,
+  },
   {
     name: 'Annotations',
     icon: 'pencil',
@@ -92,14 +94,14 @@ export default defineComponent({
   name: 'ModulePanel',
   components: { ProbeView },
   setup() {
-    const selectedModuleIndex = ref(0);
+    const selectedModuleIndex = ref(1);
 
     const toolStore = useToolStore();
     watch(
       () => toolStore.currentTool,
       (newTool) => {
         if (autoSwitchToAnnotationsTools.includes(newTool))
-          selectedModuleIndex.value = 0;
+          selectedModuleIndex.value = 1;
       }
     );
 
