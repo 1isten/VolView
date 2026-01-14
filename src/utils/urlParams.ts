@@ -41,6 +41,9 @@ const parseUrlArray = (value: string | string[]): string[] => {
 export const normalizeUrlParams = (rawParams: UrlParams): ParsedUrlParams => {
   const normalized: ParsedUrlParams = {};
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { urls: _, names, config, save, ...restParams } = rawParams;
+
   if (rawParams.urls) {
     const urls = parseUrlArray(rawParams.urls);
     const validUrls = urls.filter((url) => {
@@ -77,6 +80,10 @@ export const normalizeUrlParams = (rawParams: UrlParams): ParsedUrlParams => {
 
   if (rawParams.save) {
     normalized.save = rawParams.save;
+  }
+
+  if (Object.keys(restParams).length > 0) {
+    return { ...normalized, ...restParams };
   }
 
   return normalized;
