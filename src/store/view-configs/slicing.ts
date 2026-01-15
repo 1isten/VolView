@@ -56,10 +56,22 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
               }
             }
             const emitter = loadDataStore.$bus.emitter;
-            emitter?.emit('slicing', {
-              uid: volumeKeySuffix,
-              slice,
-            });
+            const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
+            if (cachedFiles?.fileByPath) {
+              const filePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.slice === config.slice)?.[0];
+              if (filePath) {
+                emitter?.emit('slicing', {
+                  uid: volumeKeySuffix,
+                  slice: { i: cachedFiles.fileByPath[filePath]?.slice ?? config.slice },
+                  filePath,
+                });
+              }
+            } else {
+              emitter?.emit('slicing', {
+                uid: volumeKeySuffix,
+                slice,
+              });
+            }
           }
         }
       }

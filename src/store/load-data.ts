@@ -17,7 +17,6 @@ export interface LoadEventOptions {
   changeLayout?: boolean | 'auto';
   changeSlice?: boolean | 'auto';
   // ...
-  v?: string; // viewID
   s?: number; // slice
   n?: number; // instance number (x00200013)
   i?: number; // index (from parsed data list)
@@ -25,6 +24,10 @@ export interface LoadEventOptions {
   loading?: boolean;
   atob?: boolean;
   prefetchFiles?: boolean;
+  // ...
+  openFolder?: string;
+  openFile?: string;
+  // ...
   zip?: boolean;
   zipObjectUrl?: string | null;
   // ...
@@ -55,6 +58,16 @@ export type LoadedByBusRecord = {
     }
   >;
   volumeKeys: string[]; // ordered volumes
+
+  cachedFiles?: {
+    fileNameToPath: Record<string, string>; // new file name to original file path mapping
+    fileByPath: Record<string, {
+      name: string; // original file name
+      tags?: Record<string, any>;
+      slice?: number;
+    }>;
+    primarySelection?: string | null;
+  };
 };
 
 export type LoadedByBus = Record<
@@ -201,6 +214,11 @@ export const useLoadDataStore = defineStore('loadData', () => {
       loadedByBus.value[volumeKeyUID] = Object.create(null);
       loadedByBus.value[volumeKeyUID].volumes = Object.create(null);
       loadedByBus.value[volumeKeyUID].volumeKeys = [];
+      loadedByBus.value[volumeKeyUID].cachedFiles = {
+        fileNameToPath: Object.create(null),
+        fileByPath: Object.create(null),
+        primarySelection: null,
+      };
     }
     loadedByBus.value[volumeKeyUID].options = options;
     return loadedByBus.value[volumeKeyUID].options;

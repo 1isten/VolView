@@ -178,7 +178,23 @@ export default defineComponent({
       onload(payload: LoadEvent) {
         const { urlParams, ...options } = payload;
 
-        if (!urlParams || !urlParams.urls || !urlParams.urls.length) {
+        if ('open-folder' in options) {
+          const openFolder = (options['open-folder'] || '') as string;
+          if (openFolder) {
+            options.openFolder = decodeURIComponent(window.atob(openFolder));
+            delete options['open-folder'];
+            if ('open-file' in options) {
+              const openFile = (options['open-file'] || '') as string;
+              if (openFile) {
+                options.openFile = decodeURIComponent(window.atob(openFile));
+                delete options['open-file'];
+              }
+            }
+            options.uid = window.btoa(options.openFolder);
+            urlParams.urls = [];
+            urlParams.names = [];
+          }
+        } else if (!urlParams || !urlParams.urls || !urlParams.urls.length) {
           return;
         }
         if (options.atob && options.uid) {
@@ -279,6 +295,18 @@ export default defineComponent({
             params.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
           }
         }
+      } else if ('open-folder' in params) {
+        const openFolder = params['open-folder'] || '';
+        if (openFolder) {
+          params.openFolder = decodeURIComponent(window.atob(openFolder));
+          const openFile = params['open-file'] || '';
+          if (openFile) {
+            params.openFile = decodeURIComponent(window.atob(openFile));
+          }
+          params.uid = window.btoa(params.openFolder);
+          params.urls = [];
+          params.names = [];
+        }
       } else {
         return;
       }
@@ -286,10 +314,14 @@ export default defineComponent({
       if (volumeKeyUID) {
         const options = JSON.parse(JSON.stringify({
           volumeKeySuffix: volumeKeyUID as string,
-          v: params.v,
-          s: params.s ?? undefined,
-          n: params.n ?? undefined,
-          i: params.i ?? undefined,
+          ...(params.openFolder ? {
+            openFolder: params.openFolder ?? undefined,
+            openFile: params.openFile ?? undefined,
+          } : {
+            s: params.s ?? undefined,
+            n: params.n ?? undefined,
+            i: params.i ?? undefined,
+          }),
         }));
         if (params.prefetch) {
           options.prefetchFiles = true;

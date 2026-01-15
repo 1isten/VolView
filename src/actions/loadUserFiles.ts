@@ -594,8 +594,15 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
       const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
 
       const beforeLoadByBus = async () => {
-        const { volumeKeys, volumes } = loadDataStore.loadedByBus[volumeKeySuffix];
+        const { openFolder, openFile } = options;
+        const { volumeKeys, volumes, cachedFiles } = loadDataStore.loadedByBus[volumeKeySuffix];
         if (volumeKeys?.length && volumes) {
+          if (openFolder && openFile && cachedFiles) {
+            const cachedFile = Object.entries(cachedFiles.fileByPath).find(([, v]) => v && v.name === openFile)?.[1];
+            if (cachedFile?.slice !== undefined) {
+              options.s = cachedFile.slice;
+            }
+          }
           if (
             options.changeSlice === false ||
             options.s === undefined &&
@@ -746,7 +753,111 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
             );
           }     
         }
-        if (options.prefetchFiles && urls.length > 0) {
+        if (options.prefetchFiles && urls.length > 0 || openFolder) {
+          if (openFolder) {
+            const data = await Promise.all(await fetch(`h3://localhost/api/roots/read-directory?${new URLSearchParams({ path: openFolder })}`).then(res => res.ok ? res.json() : null).then(res => ((res?.data || []) as any[]).filter((fileOrFolder: any) => {
+              if (fileOrFolder?.isFolder === false) {
+                const fileName = fileOrFolder.name.toLowerCase();
+                if (openFile) {
+                  const targetFileName = openFile.toLowerCase();
+                  if (!targetFileName.includes('.')) {
+                    return !fileName.includes('.');
+                  }
+                  if (targetFileName.endsWith('.dcm')) {
+                    return fileName.endsWith('.dcm');
+                  }
+                  return fileName === targetFileName;
+                }
+                return fileName.endsWith('.dcm');
+              }
+              return false;
+            }).map(async ({ name: fileName, path: filePath }: any) => {
+              const buffer = await fetch(`h3://localhost/file/${encodeURIComponent(filePath)}`).then(r => r.ok ? r.arrayBuffer() : null);
+              if (buffer) {
+                if (
+                  fileName.toLowerCase().endsWith('.nii') ||
+                  fileName.toLowerCase().endsWith('.nii.gz')
+                ) {
+                  return {
+                    name: fileName,
+                    path: filePath,
+                    type: FILE_EXT_TO_MIME.nii,
+                    data: buffer,
+                  }
+                } else {
+                  const dcmjs = (window as any).dcmjs;
+                  try {
+                    const DicomDict = dcmjs?.data.DicomMessage.readFile(buffer);
+                    if (DicomDict) {
+                      const metadata = { ...DicomDict.meta, ...DicomDict.dict };
+                      return {
+                        name: fileName,
+                        path: filePath,
+                        type: FILE_EXT_TO_MIME.dcm,
+                        data: buffer,
+                        tags: {
+                          SeriesInstanceUID: (metadata['0020000E'] || metadata['0020000e'])?.Value?.[0] ?? '',
+                          SopInstanceUID: (metadata['00080018'])?.Value?.[0] ?? '',
+                          InstanceNumber: (metadata['00200013'])?.Value?.[0] ?? '',
+                        },
+                      };
+                    }
+                  } catch (e) {
+                    // not a valid DICOM file
+                    console.warn(e);
+                  }
+                }
+              }
+              return null;
+            })));
+            const files: File[] = [];
+            let targetFileName = '';
+            let targetSeriesInstanceUID = '';
+            const targetFile = openFile ? data.find(f => f?.name === openFile) : data[0];
+            if (targetFile) {
+              targetSeriesInstanceUID = targetFile.tags?.SeriesInstanceUID;
+              if (targetSeriesInstanceUID) {
+                data.forEach(f => {
+                  if (f && f.tags?.SeriesInstanceUID === targetSeriesInstanceUID) {
+                    const name = f.name?.split('.')?.[0]
+                    const ext = (f.name?.slice(name?.length) || '.dcm').toLowerCase();
+                    const fileName = `${name || ('file-' + files.length)}${ext}`.replaceAll(' ', '_');
+                    const file = new File([f.data], fileName, { type: f.type });
+                    files.push(file);
+                    if (f === targetFile) {
+                      targetFileName = file.name;
+                    }
+                    if (cachedFiles) {
+                      cachedFiles.fileNameToPath[fileName] = f.path;
+                      cachedFiles.fileByPath[f.path] = {
+                        name: f.name,
+                        tags: f.tags,
+                      };
+                    }
+                  }
+                });
+              } else if (targetFile.type === FILE_EXT_TO_MIME.nii) {
+                const file = new File([targetFile.data], targetFile.name, { type: targetFile.type });
+                files.push(file);
+                targetFileName = file.name;
+                if (cachedFiles) {
+                  cachedFiles.fileNameToPath[targetFile.name] = targetFile.path;
+                  cachedFiles.fileByPath[targetFile.path] = {
+                    name: targetFile.name,
+                    tags: targetFile.tags,
+                  };
+                }
+              }
+            }
+            if (files.length > 0) {
+              if (targetFileName && cachedFiles) {
+                cachedFiles.primarySelection = targetFileName;
+              }
+              loadDataStore.setIsLoadingByBus(true);
+              loadFiles(files, volumeKeySuffix);
+              return false;
+            }
+          }
           // console.warn('[prefetch]', urls, names);
           loadDataStore.setIsLoadingByBus(true);
           const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
@@ -757,8 +868,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
             const mimeType = FILE_EXT_TO_MIME[ext.slice(1)];
             return new File([blob], fileName, { type: mimeType });
           })));
-          const dataSources = files.map(fileToDataSource);
-          loadDataSources(dataSources, volumeKeySuffix);
+          loadFiles(files, volumeKeySuffix);
           return false;
         }
         return loadDataStore.setIsLoadingByBus(true);

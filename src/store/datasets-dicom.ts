@@ -201,11 +201,12 @@ export const useDICOMStore = defineStore('dicom', {
               const windowWidths = [];
               for (let s = 0; s < sortedChunks.length; s++) {
                 const chunk = sortedChunks[s];
+                const SopInstanceUID: string = chunk.metadata?.find(meta => meta[0] === '0008|0018')?.[1] || '';
                 const InstanceNumber: string = chunk.metadata?.find(meta => meta[0] === '0020|0013')?.[1] || '';
                 const WindowLevel: string = chunk.metadata?.find(meta => meta[0] === '0028|1050')?.[1] || '';
                 const WindowWidth: string = chunk.metadata?.find(meta => meta[0] === '0028|1051')?.[1] || '';
                 // can get more tags here if needed...
-                filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10) });
+                filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10), uid: SopInstanceUID });
                 const [wl] = getWindowLevels({ WindowLevel, WindowWidth });
                 if (wl) {
                   windowLevels.push(wl.level);
@@ -224,6 +225,19 @@ export const useDICOMStore = defineStore('dicom', {
                   n,
                   i,
                 });
+                const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
+                if (cachedFiles) {
+                  if ((filesInOrder[i].chunk?.dataBlob instanceof File)) {
+                    const fileName = filesInOrder[i].chunk.dataBlob.name;
+                    const filePath = cachedFiles.fileNameToPath[fileName];
+                    if (filePath && cachedFiles.fileByPath[filePath].tags?.SopInstanceUID === filesInOrder[i].uid) {
+                      cachedFiles.fileByPath[filePath].slice = s;
+                    }
+                    if (fileName === cachedFiles.primarySelection) {
+                      loadDataStore.loadedByBus[volumeKeySuffix].options.s = s;
+                    }
+                  }
+                }
               }
               loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlDiffers = Math.max(...windowLevels) !== Math.min(...windowLevels) || Math.max(...windowWidths) !== Math.min(...windowWidths);
               loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfiged = {};
