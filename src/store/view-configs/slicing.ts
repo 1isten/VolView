@@ -43,26 +43,24 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
           const emitter = loadDataStore.$bus.emitter;
           const sliceInfo = vol.slices[config.slice];
           const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
-          if (cachedFiles) {
-            if (cachedFiles.primarySelection) {
-              const SeriesInstanceUID = cachedFiles.fileByPath[cachedFiles.fileNameToPath[cachedFiles.primarySelection]]?.tags?.SeriesInstanceUID;
-              if (SeriesInstanceUID) {
-                const filePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.tags?.SeriesInstanceUID === SeriesInstanceUID && (v.isVolume ? v.dataID === dataID : v.slice === config.slice))?.[0];
-                if (filePath) {
-                  cachedFiles.primarySelection = cachedFiles.fileByPath[filePath].name;
-                  const hashPos = volumeKeySuffix.indexOf('#');
-                  if (hashPos !== -1) {
-                    volumeKeySuffix = volumeKeySuffix.substring(0, hashPos);
-                    cachedFiles.fileByPath[filePath].slice = config.slice;
-                  }
-                  emitter?.emit('slicing', {
-                    uid: volumeKeySuffix,
-                    slice: { i: cachedFiles.fileByPath[filePath]?.slice ?? config.slice },
-                    filePath,
-                  });
+          if (cachedFiles?.primarySelection) {
+            const SeriesInstanceUID = cachedFiles.fileByPath[cachedFiles.fileNameToPath[cachedFiles.primarySelection]]?.tags?.SeriesInstanceUID;
+            if (SeriesInstanceUID) {
+              const filePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.tags?.SeriesInstanceUID === SeriesInstanceUID && (v.isVolume ? v.dataID === dataID : v.slice === config.slice))?.[0];
+              if (filePath) {
+                cachedFiles.primarySelection = cachedFiles.fileByPath[filePath].name;
+                const hashPos = volumeKeySuffix.indexOf('#');
+                if (hashPos !== -1) {
+                  volumeKeySuffix = volumeKeySuffix.substring(0, hashPos);
+                  cachedFiles.fileByPath[filePath].slice = config.slice;
                 }
+                emitter?.emit('slicing', {
+                  uid: volumeKeySuffix,
+                  slice: { i: cachedFiles.fileByPath[filePath]?.slice ?? config.slice },
+                  filePath,
+                });
               }
-            } 
+            }
           } else if (sliceInfo) {
             const { width, level, ...slice } = sliceInfo;
             if (width !== undefined && level !== undefined) {
