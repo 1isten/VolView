@@ -93,6 +93,7 @@ import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
 import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
 import { normalizeUrlParams } from '@/src/utils/urlParams';
+import { normalize as normalizePath } from '@/src/utils/path';
 
 import { useEventBus } from '@/src/composables/useEventBus';
 
@@ -181,7 +182,7 @@ export default defineComponent({
         if ('open-folder' in options) {
           const openFolder = (options['open-folder'] || '') as string;
           if (openFolder) {
-            options.openFolder = decodeURIComponent(window.atob(openFolder));
+            options.openFolder = normalizePath(decodeURIComponent(window.atob(openFolder)));
             delete options['open-folder'];
             if ('open-file' in options) {
               const openFile = (options['open-file'] || '') as string;
@@ -190,7 +191,7 @@ export default defineComponent({
                 delete options['open-file'];
               }
             }
-            options.uid = window.btoa(options.openFolder);
+            options.uid = window.btoa(encodeURIComponent(options.openFolder));
             urlParams.urls = [];
             urlParams.names = [];
           }
@@ -298,12 +299,12 @@ export default defineComponent({
       } else if ('open-folder' in params) {
         const openFolder = params['open-folder'] || '';
         if (openFolder) {
-          params.openFolder = decodeURIComponent(window.atob(openFolder));
+          params.openFolder = normalizePath(decodeURIComponent(window.atob(openFolder)));
           const openFile = params['open-file'] || '';
           if (openFile) {
             params.openFile = decodeURIComponent(window.atob(openFile));
           }
-          params.uid = window.btoa(params.openFolder);
+          params.uid = window.btoa(encodeURIComponent(params.openFolder));
           params.urls = [];
           params.names = [];
         }

@@ -64,7 +64,9 @@ export type LoadedByBusRecord = {
     fileByPath: Record<string, {
       name: string; // original file name
       tags?: Record<string, any>;
+      isVolume?: boolean; // check (0002,0002) Media Storage SOP Class UID
       slice?: number;
+      dataID?: string;
     }>;
     primarySelection?: string | null;
   };

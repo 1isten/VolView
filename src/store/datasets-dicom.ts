@@ -232,6 +232,7 @@ export const useDICOMStore = defineStore('dicom', {
                     const filePath = cachedFiles.fileNameToPath[fileName];
                     if (filePath && cachedFiles.fileByPath[filePath].tags?.SopInstanceUID === filesInOrder[i].uid) {
                       cachedFiles.fileByPath[filePath].slice = s;
+                      cachedFiles.fileByPath[filePath].dataID = id;
                     }
                     if (fileName === cachedFiles.primarySelection) {
                       loadDataStore.loadedByBus[volumeKeySuffix].options.s = s;

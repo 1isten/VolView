@@ -10,7 +10,7 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
-import { basename } from '@/src/utils/path';
+import { basename, normalize as normalizePath } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
 import {
@@ -591,19 +591,32 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
       const imageCacheStore = useImageCacheStore();
       const viewStore = useViewStore();
       const viewSliceStore = useViewSliceStore();
-      const volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
+      let volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
 
       const beforeLoadByBus = async () => {
+        let hitCachedFileDataID: string | null | undefined;
         const { openFolder, openFile } = options;
+        // newSuffix for dicom volume
+        const patchedSuffix = openFile ? Object.keys(loadDataStore.loadedByBus).find(key => key.startsWith(`${volumeKeySuffix}#`) ? key === `${volumeKeySuffix}#${window.btoa(encodeURIComponent(openFile))}` : false) : null;
+        if (patchedSuffix) {
+          volumeKeySuffix = patchedSuffix;
+        }
         const { volumeKeys, volumes, cachedFiles } = loadDataStore.loadedByBus[volumeKeySuffix];
         if (volumeKeys?.length && volumes) {
           if (openFolder && openFile && cachedFiles) {
-            const cachedFile = Object.entries(cachedFiles.fileByPath).find(([, v]) => v && v.name === openFile)?.[1];
+            const cachedFilePath = cachedFiles.fileNameToPath[openFile];
+            const cachedFile = cachedFilePath ? cachedFiles.fileByPath[cachedFilePath] : null;
             if (cachedFile?.slice !== undefined) {
+              cachedFiles.primarySelection = openFile;
               options.s = cachedFile.slice;
+              hitCachedFileDataID = cachedFile.dataID || null;
+            } else {
+              hitCachedFileDataID = null;
             }
           }
-          if (
+          if (hitCachedFileDataID === null) {
+            //
+          } else if (
             options.changeSlice === false ||
             options.s === undefined &&
             options.n === undefined &&
@@ -633,7 +646,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
             for (const dataID of Object.keys(volumes)) {
               const vol = volumes[dataID];
               const s = options.s;
-              if (vol?.slices[options.s]) {
+              if (hitCachedFileDataID ? hitCachedFileDataID === dataID && vol : vol?.slices[options.s]) {
                 const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
                   const layoutName = options.layoutName || useUrlSearchParams().layoutName;
@@ -717,7 +730,11 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
               }
             }
           }
-          return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+          if (hitCachedFileDataID === null) {
+            //
+          } else {
+            return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+          }
         }
         if (options.zip && urls.length > 0) {
           if (loadDataStore.getLoadedByBusOptions(volumeKeySuffix)?.loading) {
@@ -731,7 +748,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
               if (blob) {
                 const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
                 const name = file?.split('.')?.[0]
-                const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
+                const ext = (file?.slice(name?.length) || '.dcm').trim();
                 const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
                 zip.file(fileName, blob);
               }
@@ -766,30 +783,59 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   if (targetFileName.endsWith('.dcm')) {
                     return fileName.endsWith('.dcm');
                   }
-                  return fileName === targetFileName;
+                  return fileName === targetFileName; // exact match one if not dcm (like nii, nii.gz, png, jpg etc.)
                 }
                 return fileName.endsWith('.dcm');
               }
               return false;
             }).map(async ({ name: fileName, path: filePath }: any) => {
+              if (filePath) {
+                filePath = normalizePath(filePath);
+              } else {
+                return null;
+              }
+              if (hitCachedFileDataID === null) {
+                const cachedFileName = Object.entries(cachedFiles!.fileNameToPath).find(([fn, fp]) => fn === fileName && fp === filePath)?.[0];
+                if (cachedFileName) {
+                  const cachedFilePath = cachedFiles!.fileNameToPath[cachedFileName];
+                  const cachedFile = cachedFilePath ? cachedFiles!.fileByPath[cachedFilePath] : null;
+                  if (cachedFile?.dataID && cachedFile?.slice !== undefined) {
+                    const cachedImage = imageCacheStore.imageById[cachedFile.dataID];
+                    if (cachedImage?.loaded && 'chunks' in cachedImage) {
+                      const cachedDICOMFile = (cachedImage.chunks as any[])[cachedFile?.slice]?.dataBlob;
+                      if (cachedDICOMFile && cachedDICOMFile instanceof File && cachedDICOMFile.name === fileName) {
+                        // console.warn(`already fetched ${fileName}:`, filePath);
+                        return {
+                          name: fileName,
+                          path: filePath,
+                          type: FILE_EXT_TO_MIME.dcm,
+                          data: cachedDICOMFile,
+                          tags: cachedFile.tags,
+                        };
+                      }
+                    }
+                  }
+                }
+              }
               const buffer = await fetch(`h3://localhost/file/${encodeURIComponent(filePath)}`).then(r => r.ok ? r.arrayBuffer() : null);
               if (buffer) {
                 if (
-                  fileName.toLowerCase().endsWith('.nii') ||
-                  fileName.toLowerCase().endsWith('.nii.gz')
+                  !fileName.includes('.') ||
+                  fileName.toLowerCase().endsWith('.dcm')
                 ) {
-                  return {
-                    name: fileName,
-                    path: filePath,
-                    type: FILE_EXT_TO_MIME.nii,
-                    data: buffer,
-                  }
-                } else {
                   const dcmjs = (window as any).dcmjs;
                   try {
                     const DicomDict = dcmjs?.data.DicomMessage.readFile(buffer);
                     if (DicomDict) {
                       const metadata = { ...DicomDict.meta, ...DicomDict.dict };
+                      const MediaStorageSopClassUID = metadata['00020002']?.Value?.[0] || '';
+                      const isVolume = MediaStorageSopClassUID && [
+                        '1.2.840.10008.5.1.4.1.1.12.1.1', // Enhanced XA Image Storage
+                        '1.2.840.10008.5.1.4.1.1.12.2.1', // Enhanced XRF Image Storage
+                        '1.2.840.10008.5.1.4.1.1.2.1', // Enhanced CT Image Storage
+                        '1.2.840.10008.5.1.4.1.1.4.1', // Enhanced MR Image Storage
+                        '1.2.840.10008.5.1.4.1.1.88.22', // Enhanced SR
+                      ].includes(MediaStorageSopClassUID);
                       return {
                         name: fileName,
                         path: filePath,
@@ -799,12 +845,21 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                           SeriesInstanceUID: (metadata['0020000E'] || metadata['0020000e'])?.Value?.[0] ?? '',
                           SopInstanceUID: (metadata['00080018'])?.Value?.[0] ?? '',
                           InstanceNumber: (metadata['00200013'])?.Value?.[0] ?? '',
+                          MediaStorageSopClassUID,
                         },
+                        isVolume,
                       };
                     }
                   } catch (e) {
                     // not a valid DICOM file
                     console.warn(e);
+                  }
+                } else {
+                  return {
+                    name: fileName,
+                    path: filePath,
+                    type: FILE_EXT_TO_MIME.nii,
+                    data: buffer,
                   }
                 }
               }
@@ -818,11 +873,14 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
               targetSeriesInstanceUID = targetFile.tags?.SeriesInstanceUID;
               if (targetSeriesInstanceUID) {
                 data.forEach(f => {
+                  if (targetFile.isVolume && f !== targetFile) {
+                    return;
+                  }
                   if (f && f.tags?.SeriesInstanceUID === targetSeriesInstanceUID) {
                     const name = f.name?.split('.')?.[0]
-                    const ext = (f.name?.slice(name?.length) || '.dcm').toLowerCase();
+                    const ext = (f.name?.slice(name?.length) || '.dcm').trim();
                     const fileName = `${name || ('file-' + files.length)}${ext}`.replaceAll(' ', '_');
-                    const file = new File([f.data], fileName, { type: f.type });
+                    const file = f.data instanceof File ? f.data : new File([f.data], fileName, { type: f.type });
                     files.push(file);
                     if (f === targetFile) {
                       targetFileName = file.name;
@@ -832,6 +890,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       cachedFiles.fileByPath[f.path] = {
                         name: f.name,
                         tags: f.tags,
+                        ...(f.isVolume ? { isVolume: true } : {}),
                       };
                     }
                   }
@@ -844,13 +903,19 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   cachedFiles.fileNameToPath[targetFile.name] = targetFile.path;
                   cachedFiles.fileByPath[targetFile.path] = {
                     name: targetFile.name,
-                    tags: targetFile.tags,
                   };
                 }
               }
             }
             if (files.length > 0) {
               if (targetFileName && cachedFiles) {
+                if (targetFile?.tags && targetFile.isVolume) {
+                  const newSuffix = `${volumeKeySuffix}#${window.btoa(encodeURIComponent(targetFile.name))}`;
+                  options.volumeKeySuffix = newSuffix;
+                  loadDataStore.loadedByBus[newSuffix] = loadDataStore.loadedByBus[volumeKeySuffix];
+                  delete loadDataStore.loadedByBus[volumeKeySuffix];
+                  volumeKeySuffix = newSuffix;
+                }
                 cachedFiles.primarySelection = targetFileName;
               }
               loadDataStore.setIsLoadingByBus(true);
@@ -863,9 +928,9 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
           const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
             const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
             const name = file?.split('.')?.[0]
-            const ext = (file?.slice(name?.length) || '.dcm').toLowerCase();
+            const ext = (file?.slice(name?.length) || '.dcm').trim();
             const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
-            const mimeType = FILE_EXT_TO_MIME[ext.slice(1)];
+            const mimeType = FILE_EXT_TO_MIME[ext.slice(1).toLowerCase()];
             return new File([blob], fileName, { type: mimeType });
           })));
           loadFiles(files, volumeKeySuffix);

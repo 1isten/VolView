@@ -21,12 +21,12 @@ export function basename(path: string) {
 /**
  * Normalizes a string.
  *
- * "a//b" and "a/b/" become "a/b".
+ * "a\\b", "a//b" and "a/b/" become "a/b".
  * @param path
  * @returns
  */
 export function normalize(path: string) {
-  return path.replace(/\/+/g, '/').replace(/\/$/, '');
+  return path.replace(/\\+/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
 }
 
 /**

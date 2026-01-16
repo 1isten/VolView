@@ -34,14 +34,36 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
   const loadDataStore = useLoadDataStore();
   const windowingStore = useWindowingStore();
   const handleConfigUpdate = useDebounceFn((viewID: string, dataID: string, config: any) => {
-    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
+    let volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
     if (volumeKeySuffix) {
       const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
       if (vol?.layoutName) {
         const view = viewStore.getViewsForData(dataID).find((v) => v.id === viewID && v.dataID === dataID);
         if (view && vol.layoutName.includes(view.name)) {
+          const emitter = loadDataStore.$bus.emitter;
           const sliceInfo = vol.slices[config.slice];
-          if (sliceInfo) {
+          const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
+          if (cachedFiles) {
+            if (cachedFiles.primarySelection) {
+              const SeriesInstanceUID = cachedFiles.fileByPath[cachedFiles.fileNameToPath[cachedFiles.primarySelection]]?.tags?.SeriesInstanceUID;
+              if (SeriesInstanceUID) {
+                const filePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.tags?.SeriesInstanceUID === SeriesInstanceUID && (v.isVolume ? v.dataID === dataID : v.slice === config.slice))?.[0];
+                if (filePath) {
+                  cachedFiles.primarySelection = cachedFiles.fileByPath[filePath].name;
+                  const hashPos = volumeKeySuffix.indexOf('#');
+                  if (hashPos !== -1) {
+                    volumeKeySuffix = volumeKeySuffix.substring(0, hashPos);
+                    cachedFiles.fileByPath[filePath].slice = config.slice;
+                  }
+                  emitter?.emit('slicing', {
+                    uid: volumeKeySuffix,
+                    slice: { i: cachedFiles.fileByPath[filePath]?.slice ?? config.slice },
+                    filePath,
+                  });
+                }
+              }
+            } 
+          } else if (sliceInfo) {
             const { width, level, ...slice } = sliceInfo;
             if (width !== undefined && level !== undefined) {
               if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
@@ -55,23 +77,10 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
                 }
               }
             }
-            const emitter = loadDataStore.$bus.emitter;
-            const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
-            if (cachedFiles?.fileByPath) {
-              const filePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.slice === config.slice)?.[0];
-              if (filePath) {
-                emitter?.emit('slicing', {
-                  uid: volumeKeySuffix,
-                  slice: { i: cachedFiles.fileByPath[filePath]?.slice ?? config.slice },
-                  filePath,
-                });
-              }
-            } else {
-              emitter?.emit('slicing', {
-                uid: volumeKeySuffix,
-                slice,
-              });
-            }
+            emitter?.emit('slicing', {
+              uid: volumeKeySuffix,
+              slice,
+            });
           }
         }
       }
