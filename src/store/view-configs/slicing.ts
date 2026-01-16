@@ -46,6 +46,22 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         if (view && vol.layoutName.includes(view.name)) {
           const emitter = loadDataStore.$bus.emitter;
           const sliceInfo = vol.slices[config.slice];
+          if (
+            sliceInfo?.width !== undefined &&
+            sliceInfo?.level !== undefined
+          ) {
+            // per slice per wl
+            if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
+              try {
+                windowingStore.updateConfig(viewID, dataID, {
+                  width: sliceInfo.width,
+                  level: sliceInfo.level,
+                });
+              } catch (err) {
+                console.warn(err);
+              }
+            }
+          }
           const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
           if (cachedFiles?.primarySelection) {
             const SeriesInstanceUID = cachedFiles.fileByPath[cachedFiles.fileNameToPath[cachedFiles.primarySelection]]?.tags?.SeriesInstanceUID;
@@ -83,22 +99,9 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
               }
             }
           } else if (sliceInfo) {
-            const { width, level, ...slice } = sliceInfo;
-            if (width !== undefined && level !== undefined) {
-              if ((vol.wlDiffers || !vol.wlConfiged?.[viewID]) && !vol.wlConfigedByUser) {
-                try {
-                  windowingStore.updateConfig(viewID, dataID, {
-                    width,
-                    level,
-                  });
-                } catch (err) {
-                  console.warn(err);
-                }
-              }
-            }
             emitter?.emit('slicing', {
               uid: volumeKeySuffix,
-              slice,
+              slice: { n: sliceInfo.n, i: sliceInfo.i },
             });
             const cachedImage = imageCacheStore.imageById[dataID];
             if (cachedImage?.loaded && 'chunks' in cachedImage) {
