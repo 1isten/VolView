@@ -201,10 +201,11 @@ export const useDICOMStore = defineStore('dicom', {
               const windowWidths = [];
               for (let s = 0; s < sortedChunks.length; s++) {
                 const chunk = sortedChunks[s];
-                const SopInstanceUID: string = chunk.metadata?.find(meta => meta[0] === '0008|0018')?.[1] || '';
-                const InstanceNumber: string = chunk.metadata?.find(meta => meta[0] === '0020|0013')?.[1] || '';
-                const WindowLevel: string = chunk.metadata?.find(meta => meta[0] === '0028|1050')?.[1] || '';
-                const WindowWidth: string = chunk.metadata?.find(meta => meta[0] === '0028|1051')?.[1] || '';
+                const tags = chunk.metadata && Array.isArray(chunk.metadata) ? Object.fromEntries(chunk.metadata) : {};
+                const SopInstanceUID = tags['0008|0018'] || '';
+                const InstanceNumber = tags['0020|0013'] || '';
+                const WindowLevel = tags['0028|1050'] || '';
+                const WindowWidth = tags['0028|1051'] || '';
                 // can get more tags here if needed...
                 filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10), uid: SopInstanceUID });
                 const [wl] = getWindowLevels({ WindowLevel, WindowWidth });

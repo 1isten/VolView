@@ -314,6 +314,10 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
         loadDataStore.layerExtension
       );
 
+      if (loadDataStore.currentSliceMetadata) {
+        loadDataStore.currentSliceMetadata = null;
+      }
+
       if (isVolumeResult(primaryDataSource)) {
         let selection = toDataSelection(primaryDataSource);
         if (isSession) {
@@ -802,16 +806,19 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   if (cachedFile?.dataID && cachedFile?.slice !== undefined) {
                     const cachedImage = imageCacheStore.imageById[cachedFile.dataID];
                     if (cachedImage?.loaded && 'chunks' in cachedImage) {
-                      const cachedDICOMFile = (cachedImage.chunks as any[])[cachedFile?.slice]?.dataBlob;
-                      if (cachedDICOMFile && cachedDICOMFile instanceof File && cachedDICOMFile.name === fileName) {
-                        // console.warn(`already fetched ${fileName}:`, filePath);
-                        return {
-                          name: fileName,
-                          path: filePath,
-                          type: FILE_EXT_TO_MIME.dcm,
-                          data: cachedDICOMFile,
-                          tags: cachedFile.tags,
-                        };
+                      const cachedChunk = (cachedImage.chunks as any[])[cachedFile?.isVolume ? 0 : cachedFile?.slice];
+                      if (cachedChunk) {
+                        const dataBlob = cachedChunk.dataBlob;
+                        if (dataBlob && dataBlob instanceof File && dataBlob.name === fileName) {
+                          // console.warn(`already fetched ${fileName}:`, filePath);
+                          return {
+                            name: fileName,
+                            path: filePath,
+                            type: FILE_EXT_TO_MIME.dcm,
+                            data: dataBlob,
+                            tags: cachedFile.tags,
+                          };
+                        }
                       }
                     }
                   }

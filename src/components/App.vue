@@ -59,7 +59,7 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams, useUrlSearchParams } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams, watchDebounced } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
@@ -234,6 +234,36 @@ export default defineComponent({
         loadDataStore.isBusUnselected = true;
       },
     } as unknown as EventHandlers), loadDataStore);
+
+    const currentSliceMetadata = computed(() => loadDataStore.currentSliceMetadata);
+    watchDebounced(currentSliceMetadata, async (currSliceMetadata, prevSliceMetadata) => {
+      const dcmjs = (window as any).dcmjs;
+      if (!dcmjs) {
+        return;
+      }
+      if (currSliceMetadata) {
+        if (currSliceMetadata?.file instanceof File) {
+          const arrayBuffer = await currSliceMetadata.file.arrayBuffer();
+          const DicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
+          if (DicomDict) {
+            const data = dcmjs.data.DicomMetaDictionary.naturalizeDataset(DicomDict.dict);
+            if (data && data.SOPInstanceUID === currSliceMetadata.SopInstanceUID) {
+              console.log(currSliceMetadata.dataID, data);
+              return;
+            }
+            // const tags = [];
+            // const metadata = { ...DicomDict.meta, ...DicomDict.dict };
+            // ...
+          }
+        } else if (prevSliceMetadata) {
+          // still dcm but just view switched...
+        }
+      } else {
+        // dcm tags cleared...
+      }
+    }, {
+      debounce: 100,
+    });
 
     watch(currentImageID, async (primarySelection) => {
       if (primarySelection) {

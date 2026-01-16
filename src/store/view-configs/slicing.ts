@@ -14,6 +14,7 @@ import { createViewConfigSerializer } from '@/src/store/view-configs/common';
 import { ViewConfig } from '@/src/io/state-file/schema';
 import { SliceConfig } from '@/src/store/view-configs/types';
 import { useImageStore } from '@/src/store/datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { useViewStore } from '@/src/store/views';
 
 import { useWindowingStore } from './windowing';
@@ -28,16 +29,19 @@ export const defaultSliceConfig = (): SliceConfig => ({
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
   const imageStore = useImageStore();
+  const imageCacheStore = useImageCacheStore();
   const viewStore = useViewStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
 
   const loadDataStore = useLoadDataStore();
   const windowingStore = useWindowingStore();
   const handleConfigUpdate = useDebounceFn((viewID: string, dataID: string, config: any) => {
+    let currentSliceMetadata: any = null;
     let volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
     if (volumeKeySuffix) {
       const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
       if (vol?.layoutName) {
+        currentSliceMetadata = Object.create(null);
         const view = viewStore.getViewsForData(dataID).find((v) => v.id === viewID && v.dataID === dataID);
         if (view && vol.layoutName.includes(view.name)) {
           const emitter = loadDataStore.$bus.emitter;
@@ -46,19 +50,36 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
           if (cachedFiles?.primarySelection) {
             const SeriesInstanceUID = cachedFiles.fileByPath[cachedFiles.fileNameToPath[cachedFiles.primarySelection]]?.tags?.SeriesInstanceUID;
             if (SeriesInstanceUID) {
-              const filePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.tags?.SeriesInstanceUID === SeriesInstanceUID && (v.isVolume ? v.dataID === dataID : v.slice === config.slice))?.[0];
-              if (filePath) {
-                cachedFiles.primarySelection = cachedFiles.fileByPath[filePath].name;
+              const cachedFilePath = Object.entries(cachedFiles.fileByPath).find(([, v]) => v.tags?.SeriesInstanceUID === SeriesInstanceUID && (v.isVolume ? v.dataID === dataID : v.slice === config.slice))?.[0];
+              const cachedFile = cachedFilePath ? cachedFiles.fileByPath[cachedFilePath] : null;
+              if (cachedFile) {
+                cachedFiles.primarySelection = cachedFile.name;
+                cachedFile.slice = config.slice;
                 const hashPos = volumeKeySuffix.indexOf('#');
                 if (hashPos !== -1) {
                   volumeKeySuffix = volumeKeySuffix.substring(0, hashPos);
-                  cachedFiles.fileByPath[filePath].slice = config.slice;
                 }
                 emitter?.emit('slicing', {
                   uid: volumeKeySuffix,
-                  slice: { i: cachedFiles.fileByPath[filePath]?.slice ?? config.slice },
-                  filePath,
+                  slice: { s: cachedFile.slice },
+                  filePath: cachedFilePath,
                 });
+                if (cachedFile.dataID && cachedFile.slice !== undefined) {
+                  const cachedImage = imageCacheStore.imageById[cachedFile.dataID];
+                  if (cachedImage?.loaded && 'chunks' in cachedImage) {
+                    const cachedChunk = (cachedImage.chunks as any[])[cachedFile?.isVolume ? 0 : cachedFile?.slice];
+                    if (cachedChunk) {
+                      const dataBlob = cachedChunk.dataBlob;
+                      if (dataBlob && dataBlob instanceof File && cachedChunk.metadata && Array.isArray(cachedChunk.metadata)) {
+                        const tags = Object.fromEntries(cachedChunk.metadata);
+                        const SopInstanceUID = tags['0008|0018'] || '';
+                        currentSliceMetadata.dataID = cachedFile.dataID;
+                        currentSliceMetadata.SopInstanceUID = SopInstanceUID;
+                        currentSliceMetadata.file = dataBlob;
+                      }
+                    }
+                  }
+                }
               }
             }
           } else if (sliceInfo) {
@@ -79,9 +100,30 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
               uid: volumeKeySuffix,
               slice,
             });
+            const cachedImage = imageCacheStore.imageById[dataID];
+            if (cachedImage?.loaded && 'chunks' in cachedImage) {
+              const cachedChunk = (cachedImage.chunks as any[])[config.slice]; // TODO: comfirm config.slice index is correct mapping to chunk index??
+              if (cachedChunk) {
+                const dataBlob = cachedChunk.dataBlob;
+                if (dataBlob && dataBlob instanceof File && cachedChunk.metadata && Array.isArray(cachedChunk.metadata)) {
+                  const tags = Object.fromEntries(cachedChunk.metadata);
+                  const SopInstanceUID = tags['0008|0018'] || '';
+                  currentSliceMetadata.dataID = dataID;
+                  currentSliceMetadata.SopInstanceUID = SopInstanceUID;
+                  currentSliceMetadata.file = dataBlob;
+                }
+              }
+            }
           }
         }
       }
+    }
+    if (currentSliceMetadata === null) {
+      loadDataStore.currentSliceMetadata = null; // not dcm
+    } else if (Object.keys(currentSliceMetadata).length === 0) {
+      loadDataStore.currentSliceMetadata = currentSliceMetadata; // same dcm, just view switched
+    } else if (loadDataStore.currentSliceMetadata?.SopInstanceUID !== currentSliceMetadata.SopInstanceUID) {
+      loadDataStore.currentSliceMetadata = currentSliceMetadata;
     }
   }, 0);
 
