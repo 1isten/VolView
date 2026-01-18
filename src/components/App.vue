@@ -238,7 +238,7 @@ export default defineComponent({
     const currentSliceMetadata = computed(() => loadDataStore.currentSliceMetadata);
     watchDebounced(currentSliceMetadata, async (currSliceMetadata, prevSliceMetadata) => {
       const dcmjs = (window as any).dcmjs;
-      if (!dcmjs) {
+      if (!dcmjs?.$utils) {
         return;
       }
       if (currSliceMetadata) {
@@ -246,14 +246,11 @@ export default defineComponent({
           const arrayBuffer = await currSliceMetadata.file.arrayBuffer();
           const DicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
           if (DicomDict) {
-            const data = dcmjs.data.DicomMetaDictionary.naturalizeDataset(DicomDict.dict);
-            if (data && data.SOPInstanceUID === currSliceMetadata.SopInstanceUID) {
-              console.log(currSliceMetadata.dataID, data);
-              return;
+            if (currSliceMetadata.SOPInstanceUID === DicomDict.dict['00080018']?.Value?.[0]) {
+              const tags = dcmjs.$utils.getTagsFromDicomDict?.(DicomDict);
+              console.log(currSliceMetadata.slice, tags);
+              // ...
             }
-            // const tags = [];
-            // const metadata = { ...DicomDict.meta, ...DicomDict.dict };
-            // ...
           }
         } else if (prevSliceMetadata) {
           // still dcm but just view switched...
