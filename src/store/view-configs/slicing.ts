@@ -83,14 +83,16 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
                 if (cachedFile.dataID && cachedFile.slice !== undefined) {
                   const cachedImage = imageCacheStore.imageById[cachedFile.dataID];
                   if (cachedImage?.loaded && 'chunks' in cachedImage) {
-                    const cachedChunk = (cachedImage.chunks as any[])[cachedFile?.isVolume ? 0 : cachedFile?.slice];
+                    const s = cachedFile?.isVolume ? 0 : cachedFile?.slice;
+                    const cachedChunk = (cachedImage.chunks as any[])[s];
                     if (cachedChunk) {
                       const dataBlob = cachedChunk.dataBlob;
                       if (dataBlob && dataBlob instanceof File && cachedChunk.metadata && Array.isArray(cachedChunk.metadata)) {
                         const tags = Object.fromEntries(cachedChunk.metadata);
-                        const SopInstanceUID = tags['0008|0018'] || '';
+                        const SOPInstanceUID = tags['0008|0018'] || '';
                         currentSliceMetadata.dataID = cachedFile.dataID;
-                        currentSliceMetadata.SopInstanceUID = SopInstanceUID;
+                        currentSliceMetadata.SOPInstanceUID = SOPInstanceUID;
+                        currentSliceMetadata.slice = s;
                         currentSliceMetadata.file = dataBlob;
                       }
                     }
@@ -105,14 +107,17 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
             });
             const cachedImage = imageCacheStore.imageById[dataID];
             if (cachedImage?.loaded && 'chunks' in cachedImage) {
-              const cachedChunk = (cachedImage.chunks as any[])[config.slice]; // TODO: comfirm config.slice index is correct mapping to chunk index??
+              // TODO: comfirm config.slice index is correct mapping to chunk index??
+              const s = config.slice;
+              const cachedChunk = (cachedImage.chunks as any[])[s];
               if (cachedChunk) {
                 const dataBlob = cachedChunk.dataBlob;
                 if (dataBlob && dataBlob instanceof File && cachedChunk.metadata && Array.isArray(cachedChunk.metadata)) {
                   const tags = Object.fromEntries(cachedChunk.metadata);
-                  const SopInstanceUID = tags['0008|0018'] || '';
+                  const SOPInstanceUID = tags['0008|0018'] || '';
                   currentSliceMetadata.dataID = dataID;
-                  currentSliceMetadata.SopInstanceUID = SopInstanceUID;
+                  currentSliceMetadata.SOPInstanceUID = SOPInstanceUID;
+                  currentSliceMetadata.slice = s;
                   currentSliceMetadata.file = dataBlob;
                 }
               }
@@ -125,7 +130,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
       loadDataStore.currentSliceMetadata = null; // not dcm
     } else if (Object.keys(currentSliceMetadata).length === 0) {
       loadDataStore.currentSliceMetadata = currentSliceMetadata; // same dcm, just view switched
-    } else if (loadDataStore.currentSliceMetadata?.SopInstanceUID !== currentSliceMetadata.SopInstanceUID) {
+    } else if (loadDataStore.currentSliceMetadata?.SOPInstanceUID !== currentSliceMetadata.SOPInstanceUID) {
       loadDataStore.currentSliceMetadata = currentSliceMetadata;
     }
   }, 0);

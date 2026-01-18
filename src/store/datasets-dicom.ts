@@ -202,12 +202,12 @@ export const useDICOMStore = defineStore('dicom', {
               for (let s = 0; s < sortedChunks.length; s++) {
                 const chunk = sortedChunks[s];
                 const tags = chunk.metadata && Array.isArray(chunk.metadata) ? Object.fromEntries(chunk.metadata) : {};
-                const SopInstanceUID = tags['0008|0018'] || '';
+                const SOPInstanceUID = tags['0008|0018'] || '';
                 const InstanceNumber = tags['0020|0013'] || '';
                 const WindowLevel = tags['0028|1050'] || '';
                 const WindowWidth = tags['0028|1051'] || '';
                 // can get more tags here if needed...
-                filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10), uid: SopInstanceUID });
+                filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10), uid: SOPInstanceUID });
                 const [wl] = getWindowLevels({ WindowLevel, WindowWidth });
                 if (wl) {
                   windowLevels.push(wl.level);
@@ -231,7 +231,7 @@ export const useDICOMStore = defineStore('dicom', {
                   if ((filesInOrder[i].chunk?.dataBlob instanceof File)) {
                     const fileName = filesInOrder[i].chunk.dataBlob.name;
                     const filePath = cachedFiles.fileNameToPath[fileName];
-                    if (filePath && cachedFiles.fileByPath[filePath].tags?.SopInstanceUID === filesInOrder[i].uid) {
+                    if (filePath && cachedFiles.fileByPath[filePath].tags?.SOPInstanceUID === filesInOrder[i].uid) {
                       cachedFiles.fileByPath[filePath].slice = s;
                       cachedFiles.fileByPath[filePath].dataID = id;
                     }

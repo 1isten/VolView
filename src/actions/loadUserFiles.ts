@@ -834,25 +834,27 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   try {
                     const DicomDict = dcmjs?.data.DicomMessage.readFile(buffer);
                     if (DicomDict) {
-                      const metadata = { ...DicomDict.meta, ...DicomDict.dict };
-                      const MediaStorageSopClassUID = metadata['00020002']?.Value?.[0] || '';
-                      const isVolume = MediaStorageSopClassUID && [
-                        '1.2.840.10008.5.1.4.1.1.12.1.1', // Enhanced XA Image Storage
-                        '1.2.840.10008.5.1.4.1.1.12.2.1', // Enhanced XRF Image Storage
+                      const SOPClassUID = DicomDict.meta['00020002']?.Value?.[0] || '';
+                      // Subset of those listed at:
+                      // http://dicom.nema.org/medical/dicom/current/output/html/part04.html#sect_B.5
+                      const isVolume = SOPClassUID ? [
                         '1.2.840.10008.5.1.4.1.1.2.1', // Enhanced CT Image Storage
                         '1.2.840.10008.5.1.4.1.1.4.1', // Enhanced MR Image Storage
+                        '1.2.840.10008.5.1.4.1.1.12.1.1', // Enhanced XA Image Storage
+                        '1.2.840.10008.5.1.4.1.1.12.2.1', // Enhanced XRF Image Storage
                         '1.2.840.10008.5.1.4.1.1.88.22', // Enhanced SR
-                      ].includes(MediaStorageSopClassUID);
+                        // ...
+                      ].includes(SOPClassUID) : false;
                       return {
                         name: fileName,
                         path: filePath,
                         type: FILE_EXT_TO_MIME.dcm,
                         data: buffer,
                         tags: {
-                          SeriesInstanceUID: (metadata['0020000E'] || metadata['0020000e'])?.Value?.[0] ?? '',
-                          SopInstanceUID: (metadata['00080018'])?.Value?.[0] ?? '',
-                          InstanceNumber: (metadata['00200013'])?.Value?.[0] ?? '',
-                          MediaStorageSopClassUID,
+                          SOPClassUID,
+                          SeriesInstanceUID: DicomDict.dict['0020000E']?.Value?.[0] ?? '',
+                          SOPInstanceUID: DicomDict.dict['00080018']?.Value?.[0] ?? '',
+                          InstanceNumber: DicomDict.dict['00200013']?.Value?.[0] ?? '',
                         },
                         isVolume,
                       };
