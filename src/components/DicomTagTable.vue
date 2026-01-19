@@ -36,16 +36,17 @@ onMounted(() => {
   }
   const Tabulator = window.Tabulator;
   table.value = new Tabulator('#dicom-tag-table', {
-    height: '100%',
     data: tableData.value,
     dataTree: true,
     // dataTreeStartExpanded: true,
     columns: [
-      { title: 'Tag', field: 'tag', width: 150, responsive: 0 }, // never hide this column
-      { title: 'VR', field: 'vr', width: 75 },
-      { title: 'Name', field: 'name', width: 150 },
+      { title: 'Tag', field: 'tag', width: 140 },
+      { title: 'VR', field: 'vr', width: 60 },
+      { title: 'Keyword', field: 'name', width: 200 },
       { title: 'Value', field: 'Value', width: 200 },
     ],
+    layout: 'fitDataStretch',
+    height: '100%',
   });
 });
 
@@ -82,6 +83,9 @@ watch(keyword, value => {
 }
 .tabulator .tabulator-tableholder .tabulator-table {
   background-color: rgb(var(--v-theme-neutral));
+}
+.tabulator .tabulator-header {
+  background-color: rgb(var(--v-theme-background), 0);
 }
 .tabulator .tabulator-header .tabulator-col,
 .tabulator .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
