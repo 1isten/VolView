@@ -1,3 +1,4 @@
+// npx esbuild public/dcmjs.utils.js --minify --outfile=public/dcmjs.utils.min.js
 if (typeof window.dcmjs !== undefined) {
   window.dcmjs.$utils = {
     getTagsFromDicomDict(DicomDict = {}, nested = true, parent) {
@@ -11,7 +12,7 @@ if (typeof window.dcmjs !== undefined) {
       Object.keys(data).sort((a, b) => a.localeCompare(b)).forEach(tag => {
         const punctuatedTag = dcmjs.data.DicomMetaDictionary.punctuateTag(tag);
         const entry = dcmjs.data.DicomMetaDictionary.dictionary[punctuatedTag];
-        const naturalName = entry ? entry.name : punctuatedTag;
+        const naturalName = entry ? entry.name : 'Unknown Tag & Data';
         const { Value, vr, InlineBinary, BulkDataURI } = data[tag];
 
         const item = {
@@ -22,7 +23,10 @@ if (typeof window.dcmjs !== undefined) {
           Value,
         };
         if (nested) {
-          delete item._path;
+          if (item._path) {
+            item.id = item._path.toString();
+            delete item._path;
+          }
         }
         let shouldPush = true;
 
@@ -35,27 +39,30 @@ if (typeof window.dcmjs !== undefined) {
         }
         if (vr === 'SQ' && Array.isArray(item.Value)) {
           if (nested) {
-            item.children = [];
+            item._children = [];
           } else {
             tags.push({ ...item, Value: '' });
             shouldPush = false;
           }
           item.Value.forEach((childItem, i) => {
-            const itemDelimitationTag = '(FFFE,E000)' + ` #${i + 1}`;
+            const itemDelimitationTag = '(FFFE,E000)' + (nested ? '' : ` #${i + 1}`);
             const itemDelimitationItem = {
               _path: [...(item._path || []), itemDelimitationTag],
               tag: itemDelimitationTag,
-              name: 'Item',
+              name: 'Item' + (nested ? ` #${i + 1}` : ''),
               vr: '',
               Value: '',
             };
-            const children = this.getTagsFromDicomDict({ dict: childItem }, nested, itemDelimitationItem);
+            const _children = this.getTagsFromDicomDict({ dict: childItem }, nested, itemDelimitationItem);
             if (nested) {
-              delete itemDelimitationItem._path;
-              itemDelimitationItem.children = children;
-              item.children.push(itemDelimitationItem);
+              if (itemDelimitationItem._path) {
+                itemDelimitationItem.id = itemDelimitationItem._path.toString();
+                delete itemDelimitationItem._path;
+              }
+              itemDelimitationItem._children = _children;
+              item._children.push(itemDelimitationItem);
             } else {
-              tags.push(itemDelimitationItem, ...children);
+              tags.push(itemDelimitationItem, ..._children);
             }
           });
           item.Value = '';
