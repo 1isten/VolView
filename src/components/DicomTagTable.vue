@@ -27,7 +27,7 @@ watch(tableData, data => {
   } else {
     table.value.clearData();
   }
-  console.log({ table: table.value, tags: data });
+  // console.log({ table: table.value, tags: data });
 });
 
 onMounted(() => {
@@ -45,8 +45,9 @@ onMounted(() => {
       { title: 'Keyword', field: 'name', width: 200 },
       { title: 'Value', field: 'Value', width: 200 },
     ],
-    layout: 'fitDataStretch',
     height: '100%',
+    layout: 'fitDataStretch',
+    resizableColumnFit:true,
   });
 });
 

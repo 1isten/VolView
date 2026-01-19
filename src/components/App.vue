@@ -9,16 +9,20 @@
           app
           clipped
           touchless
-          width="350"
+          :width="drawerWidth"
           id="left-nav"
           location="end"
           :mobile-breakpoint="0"
           disable-resize-watcher
           disable-route-watcher
           :temporary="temporaryDrawer"
+          style="transition: none !important;"
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
+        <div ref="drawerResizeHandle" id="drawer-resize-handle" :class="{ 'drawer-resize-handle-disabled': !leftSideBar }" :style="`width: ${drawerResizerWidth}px; ${drawerResizeHandleStyle}`" @dblclick="resetDrawerWidth">
+          <!-- <div style="width: 2px; background-color: rgb(var(--v-theme-primary), 0.5);"></div> -->
+        </div>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
             <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
@@ -57,9 +61,9 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref, watch } from 'vue';
+import { computed, defineComponent, onMounted, ref, MaybeRefOrGetter, useTemplateRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams, useUrlSearchParams } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams, useDraggable } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
@@ -363,6 +367,40 @@ export default defineComponent({
     const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
     const leftSideBar = ref(false);
 
+    const drawerWidthMin = 350;
+    const drawerWidthMax = 1024;
+    const drawerWidth = ref(drawerWidthMin);
+    const drawerResizerWidth = 8;
+    const drawerResizerInitialX = computed(() => display.width.value - drawerWidthMin - (drawerResizerWidth / 2));
+    const drawerResizerFinalX = computed(() => display.width.value - drawerWidthMax - (drawerResizerWidth / 2));
+    const drawerResizeHandle = useTemplateRef('drawerResizeHandle') as MaybeRefOrGetter<HTMLElement>;
+    const { x: drawerResizeHandleX, style: drawerResizeHandleStyle } = useDraggable(drawerResizeHandle, {
+      axis: 'x',
+      initialValue: { x: drawerResizerInitialX.value, y: 0 },
+      preventDefault: true,
+    });
+    watch(display.width, (dw) => {
+      if (dw > 0) {
+        drawerResizeHandleX.value = dw - drawerWidth.value - (drawerResizerWidth / 2);
+      }
+    }, {
+      immediate: false,
+      once: true,
+    });
+    function resetDrawerWidth() {
+      drawerWidth.value = drawerWidthMin;
+      drawerResizeHandleX.value = drawerResizerInitialX.value;
+    }
+
+    watch(drawerResizeHandleX, (x: number) => {
+      if (x > drawerResizerInitialX.value) {
+        drawerResizeHandleX.value = drawerResizerInitialX.value;
+      } else if (x < drawerResizerFinalX.value) {
+        drawerResizeHandleX.value = drawerResizerFinalX.value;
+      }
+      drawerWidth.value = Math.round(display.width.value - drawerResizeHandleX.value - (drawerResizerWidth / 2));
+    });
+
     watch(display.mobile, (isMobile) => {
       if (noDrawer.value) {
         leftSideBar.value = false;
@@ -384,6 +422,11 @@ export default defineComponent({
       },
       temporaryDrawer,
       leftSideBar,
+      drawerWidth,
+      drawerResizeHandle,
+      drawerResizerWidth,
+      drawerResizeHandleStyle,
+      resetDrawerWidth,
 
       loadUserPromptedFiles,
       loadFiles,
@@ -440,5 +483,21 @@ export default defineComponent({
   box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.4);
   padding: 64px;
   visibility: hidden;
+}
+
+#drawer-resize-handle {
+  position: fixed;
+  z-index: 1005;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  cursor: ew-resize;
+}
+#drawer-resize-handle.drawer-resize-handle-disabled {
+  display: none !important;
+  cursor: default !important;
+  pointer-events: none !important;
 }
 </style>
