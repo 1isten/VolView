@@ -3,7 +3,8 @@
     <div class="position-relative flex-shrink-0 pa-1 d-flex">
       <div class="w-100 px-1 my-auto d-flex align-center">
         <v-text-field
-          :placeholder="'Search...'"
+          v-model.trim="searchKeyword"
+          :placeholder="searchPlaceholder"
           density="compact"
           variant="underlined"
           hide-details
@@ -17,7 +18,7 @@
     <div class="position-relative flex-grow-1">
       <div class="position-absolute top-0 left-0 w-100 h-100 pa-1 overflow-hidden border-t">
         <template v-if="true">
-          <dicom-tag-table :tags="tags" />
+          <dicom-tag-table :tags="tags" :filter-keyword="filterKeyword" />
         </template>
         <template v-else>
           <div class="empty-state ma-4 text-center">No data loaded</div>
@@ -28,14 +29,24 @@
 </template>
 
 <script setup>
-import { shallowRef, computed } from 'vue';
+import { shallowRef, ref, computed } from 'vue';
 import { watchDebounced } from '@vueuse/core';
 import { useLoadDataStore } from '@/src/store/load-data';
 import DicomTagTable from './DicomTagTable.vue';
 
 const loadDataStore = useLoadDataStore();
 
+const searchPlaceholder = 'Search...';
+const searchKeyword = ref('');
+const filterKeyword = ref('');
+
 const tags = shallowRef(null);
+const setTags = value => {
+  if (value === null || value?.length === 0) {
+    searchKeyword.value = '';
+  }
+  tags.value = value;
+}
 
 const currentSliceMetadata = computed(() => loadDataStore.currentSliceMetadata);
 watchDebounced(currentSliceMetadata, async (currSliceMetadata, prevSliceMetadata) => {
@@ -50,22 +61,29 @@ watchDebounced(currentSliceMetadata, async (currSliceMetadata, prevSliceMetadata
       if (DicomDict) {
         if (currSliceMetadata.SOPInstanceUID === DicomDict.dict['00080018']?.Value?.[0]) {
           try {
-            tags.value = dcmjs.$utils.getTagsFromDicomDict(DicomDict);
-            console.log(currSliceMetadata.slice, tags.value);
+            setTags(dcmjs.$utils.getTagsFromDicomDict(DicomDict));
+            // console.log(currSliceMetadata.slice, tags.value);
           } catch (error) {
-            tags.value = null;
+            setTags(null);
             console.error(error);
           }
         }
       }
     } else if (prevSliceMetadata) {
-      // tags.value = tags.value;
+      // setTags(tags.value);
     }
   } else {
-    tags.value = null;
+    setTags(null);
   }
 }, {
   debounce: 100,
+  immediate: true,
+});
+
+watchDebounced(searchKeyword, keyword => {
+  filterKeyword.value = keyword;
+}, {
+  debounce: 200,
   immediate: true,
 });
 </script>

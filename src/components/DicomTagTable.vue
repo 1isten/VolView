@@ -10,10 +10,13 @@ const props = defineProps({
     type: Array,
     default: null,
   },
+  filterKeyword: {
+    type: String,
+    default: '',
+  },
 });
 
 const table = shallowRef();
-
 const tableData = computed(() => props.tags || []);
 watch(tableData, data => {
   if (!table.value) {
@@ -44,6 +47,23 @@ onMounted(() => {
       { title: 'Value', field: 'Value', width: 200 },
     ],
   });
+});
+
+const keyword = computed(() => props.filterKeyword);
+watch(keyword, value => {
+  if (table.value) {
+    if (value) {
+      table.value.setFilter([
+        [
+          {field: 'tag', type: 'like', value },
+          {field: 'name', type: 'like', value },
+          // {field: 'vr', type: '=', value},
+        ]
+      ]);
+    } else {
+      table.value.clearFilter();
+    }
+  }
 });
 </script>
 
