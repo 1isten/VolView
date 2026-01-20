@@ -840,9 +840,12 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       const isVolume = SOPClassUID ? [
                         '1.2.840.10008.5.1.4.1.1.2.1', // Enhanced CT Image Storage
                         '1.2.840.10008.5.1.4.1.1.4.1', // Enhanced MR Image Storage
+                        '1.2.840.10008.5.1.4.1.1.4.3', // Enhanced MR Color Image
+                        '1.2.840.10008.5.1.4.1.1.6.2', // Enhanced US Volume
                         '1.2.840.10008.5.1.4.1.1.12.1.1', // Enhanced XA Image Storage
                         '1.2.840.10008.5.1.4.1.1.12.2.1', // Enhanced XRF Image Storage
                         '1.2.840.10008.5.1.4.1.1.88.22', // Enhanced SR
+                        '1.2.840.10008.5.1.4.1.1.130', // EnhancedPETImage
                         // ...
                       ].includes(SOPClassUID) : false;
                       return {
