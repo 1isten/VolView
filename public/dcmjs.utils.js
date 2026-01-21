@@ -63,7 +63,8 @@ if (typeof window.dcmjs !== undefined) {
               itemDelimitationItem._children = _children;
               pusher(item._children, itemDelimitationItem);
             } else {
-              pusher(tags, itemDelimitationItem, ..._children);
+              pusher(tags, itemDelimitationItem);
+              tags.push(..._children);
             }
           });
           item.Value = '';
