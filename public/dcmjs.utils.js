@@ -54,7 +54,7 @@ if (typeof window.dcmjs !== undefined) {
               vr: '',
               Value: '',
             };
-            const _children = this.getTagsFromDicomDict({ dict: childItem }, nested, itemDelimitationItem);
+            const _children = this.getTagsFromDicomDict({ dict: childItem }, nested, itemDelimitationItem, pusher);
             if (nested) {
               if (itemDelimitationItem._path) {
                 itemDelimitationItem.id = itemDelimitationItem._path.toString();
