@@ -18,7 +18,7 @@
           :temporary="temporaryDrawer"
           style="transition: none !important;"
         >
-          <module-panel @close="leftSideBar = false" />
+          <module-panel :left-side-bar="leftSideBar" @close="leftSideBar = false" />
         </v-navigation-drawer>
         <div ref="drawerResizeHandle" id="drawer-resize-handle" :class="{ 'drawer-resize-handle-disabled': !leftSideBar }" :style="`width: ${drawerResizerWidth}px; ${drawerResizeHandleStyle}`" @dblclick="resetDrawerWidth">
           <!-- <div style="width: 2px; background-color: rgb(var(--v-theme-primary), 0.5);"></div> -->

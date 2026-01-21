@@ -29,10 +29,17 @@
 </template>
 
 <script setup>
-import { shallowRef, ref, computed } from 'vue';
+import { shallowRef, ref, computed, watch } from 'vue';
 import { watchDebounced } from '@vueuse/core';
 import { useLoadDataStore } from '@/src/store/load-data';
 import DicomTagTable from './DicomTagTable.vue';
+
+const props = defineProps({
+  modulePanelOpened: {
+    type: Boolean,
+    default: false,
+  },
+});
 
 const loadDataStore = useLoadDataStore();
 
@@ -49,9 +56,12 @@ const setTags = value => {
 }
 
 const currentSliceMetadata = computed(() => loadDataStore.currentSliceMetadata);
-watchDebounced(currentSliceMetadata, async (currSliceMetadata, prevSliceMetadata) => {
+const watchHandler = async (currSliceMetadata, prevSliceMetadata) => {
   const dcmjs = window.dcmjs;
   if (!dcmjs?.$utils) {
+    return;
+  }
+  if (!props.modulePanelOpened) {
     return;
   }
   if (currSliceMetadata) {
@@ -75,7 +85,15 @@ watchDebounced(currentSliceMetadata, async (currSliceMetadata, prevSliceMetadata
   } else {
     setTags(null);
   }
-}, {
+};
+
+watch(() => props.modulePanelOpened, isOpened => {
+  if (isOpened) {
+    watchHandler(currentSliceMetadata.value);
+  }
+});
+
+watchDebounced(currentSliceMetadata, watchHandler, {
   debounce: 100,
   immediate: true,
 });

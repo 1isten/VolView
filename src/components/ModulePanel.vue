@@ -31,6 +31,7 @@
             :key="mod.name"
             v-show="modules[selectedModuleIndex] === mod"
             :is="mod.component"
+            :module-panel-opened="modulePanelOpened"
           />
         </v-window-item>
       </v-window>
@@ -100,7 +101,13 @@ const autoSwitchToAnnotationsTools = [
 export default defineComponent({
   name: 'ModulePanel',
   components: { ProbeView },
-  setup() {
+  props: {
+    leftSideBar: {
+      type: Boolean,
+      required: true,
+    },
+  },
+  setup(props) {
     const selectedModuleIndex = ref(1);
 
     const toolStore = useToolStore();
@@ -133,6 +140,7 @@ export default defineComponent({
     return {
       selectedModuleIndex,
       modules,
+      modulePanelOpened: computed(() => props.leftSideBar),
     };
   },
 });
