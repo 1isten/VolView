@@ -16,7 +16,7 @@
           disable-resize-watcher
           disable-route-watcher
           :temporary="temporaryDrawer"
-          style="transition: none !important;"
+          :style="isDrawerResizing ? 'transition: none !important;' : ''"
         >
           <module-panel :left-side-bar="leftSideBar" @close="leftSideBar = false" />
         </v-navigation-drawer>
@@ -63,7 +63,7 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, MaybeRefOrGetter, useTemplateRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams, useUrlSearchParams, useDraggable } from '@vueuse/core';
+import { UrlParams, useUrlSearchParams, useDraggable, useLocalStorage } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
@@ -369,12 +369,12 @@ export default defineComponent({
 
     const drawerWidthMin = 350;
     const drawerWidthMax = 1024;
-    const drawerWidth = ref(drawerWidthMin);
+    const drawerWidth = useLocalStorage('vv-drawer-width', drawerWidthMin);
     const drawerResizerWidth = 8;
     const drawerResizerInitialX = computed(() => display.width.value - drawerWidthMin - (drawerResizerWidth / 2));
     const drawerResizerFinalX = computed(() => display.width.value - drawerWidthMax - (drawerResizerWidth / 2));
     const drawerResizeHandle = useTemplateRef('drawerResizeHandle') as MaybeRefOrGetter<HTMLElement>;
-    const { x: drawerResizeHandleX, style: drawerResizeHandleStyle } = useDraggable(drawerResizeHandle, {
+    const { x: drawerResizeHandleX, style: drawerResizeHandleStyle, isDragging: isDrawerResizing } = useDraggable(drawerResizeHandle, {
       axis: 'x',
       initialValue: { x: drawerResizerInitialX.value, y: 0 },
       preventDefault: true,
@@ -384,8 +384,8 @@ export default defineComponent({
         drawerResizeHandleX.value = dw - drawerWidth.value - (drawerResizerWidth / 2);
       }
     }, {
-      immediate: false,
-      once: true,
+      immediate: true,
+      once: false,
     });
     function resetDrawerWidth() {
       drawerWidth.value = drawerWidthMin;
@@ -426,6 +426,7 @@ export default defineComponent({
       drawerResizeHandle,
       drawerResizerWidth,
       drawerResizeHandleStyle,
+      isDrawerResizing,
       resetDrawerWidth,
 
       loadUserPromptedFiles,
