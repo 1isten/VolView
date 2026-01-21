@@ -1,7 +1,7 @@
 // npx esbuild public/dcmjs.utils.js --minify --outfile=public/dcmjs.utils.min.js
 if (typeof window.dcmjs !== undefined) {
   window.dcmjs.$utils = {
-    getTagsFromDicomDict(DicomDict = {}, nested = true, parent) {
+    getTagsFromDicomDict(DicomDict = {}, nested = true, parent = null, pusher = (target = [], ...items) => target.push(...items)) {
       const tags = [];
 
       const data = {
@@ -28,6 +28,7 @@ if (typeof window.dcmjs !== undefined) {
             delete item._path;
           }
         }
+
         let shouldPush = true;
 
         if (item.Value === undefined) {
@@ -41,7 +42,7 @@ if (typeof window.dcmjs !== undefined) {
           if (nested) {
             item._children = [];
           } else {
-            tags.push({ ...item, Value: '' });
+            pusher(tags, { ...item, Value: '' });
             shouldPush = false;
           }
           item.Value.forEach((childItem, i) => {
@@ -60,9 +61,9 @@ if (typeof window.dcmjs !== undefined) {
                 delete itemDelimitationItem._path;
               }
               itemDelimitationItem._children = _children;
-              item._children.push(itemDelimitationItem);
+              pusher(item._children, itemDelimitationItem);
             } else {
-              tags.push(itemDelimitationItem, ..._children);
+              pusher(tags, itemDelimitationItem, ..._children);
             }
           });
           item.Value = '';
@@ -76,7 +77,7 @@ if (typeof window.dcmjs !== undefined) {
           item.Value = item.Value.join(String.fromCharCode(0x5c)); // '\\'
         }
         if (shouldPush) {
-          tags.push(item);
+          pusher(tags, item);
         }
       });
 
