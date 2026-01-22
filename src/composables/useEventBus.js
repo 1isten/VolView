@@ -27,6 +27,8 @@ export function useEventBus(handlers, loadDataStore) {
       return;
     }
 
+    const isInsideIframe = window.parent !== window;
+
     if (onloading) {
       emitter.on('loading', onloading);
     }
@@ -67,7 +69,7 @@ export function useEventBus(handlers, loadDataStore) {
           const port = ports[`comfyui-${pipelineId}`];
           if (port) {
             port.postMessage(msg);
-          } else if (window.parent !== window || blackboxTaskId || pipelineEmbedded === 'embedded') {
+          } else if (isInsideIframe || blackboxTaskId || pipelineEmbedded === 'embedded') {
             window.parent.postMessage(msg, '*');
           }
         }
@@ -80,7 +82,7 @@ export function useEventBus(handlers, loadDataStore) {
           type: 'slicing',
           payload,
         });
-      } else if (window.parent !== window) {
+      } else if (isInsideIframe) {
         window.parent.postMessage({
           type: 'volview:slicing',
           payload,
@@ -93,7 +95,7 @@ export function useEventBus(handlers, loadDataStore) {
         port.postMessage({
           type: 'close',
         });
-      } else if (window.parent !== window) {
+      } else if (isInsideIframe) {
         window.parent.postMessage({
           type: 'volview:close',
         }, '*');
@@ -109,7 +111,7 @@ export function useEventBus(handlers, loadDataStore) {
       window.$loadDataStore = loadDataStore.$state;
     }
 
-    if (window.parent !== window) {
+    if (isInsideIframe) {
       window.parent.postMessage('volview:LOAD', '*');
       window.addEventListener('message', (e) => {
         if (e.source !== window && e.data?.type) {
@@ -142,6 +144,10 @@ export function useEventBus(handlers, loadDataStore) {
           }
         }
       });
+      if (loadDataStore) {
+        // eslint-disable-next-line no-param-reassign
+        loadDataStore.isInsideIframe = true;
+      }
     } else {
       // window['__ports__'] = ports;
       window.addEventListener('message', (e) => {

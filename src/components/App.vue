@@ -1,5 +1,5 @@
 <template>
-  <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
+  <drag-and-drop :enabled="!disableDnD" @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
         <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
@@ -143,6 +143,9 @@ export default defineComponent({
       () => loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
     );
 
+    const isInsideIframe = computed(() => loadDataStore.isInsideIframe);
+    const hasProjectPort = computed(() => loadDataStore.hasProjectPort);
+
     const { currentImageID, currentImageMetadata, isImageLoading } = useCurrentImage();
     const defaultImageMetadataName = defaultImageMetadata().name;
     watch(currentImageMetadata, (newMetadata) => {
@@ -155,7 +158,7 @@ export default defineComponent({
       ) {
         prefix = `${newMetadata.name} - `;
       }
-      if (window.parent !== window) {
+      if (isInsideIframe.value) {
         window.parent.postMessage({
           type: 'volview:changetitle',
           payload: { title: `${prefix}VolView` },
@@ -281,6 +284,7 @@ export default defineComponent({
     const newMetadataNameTitle = computed(() => !!query.changeTitle);
     const layoutNameSettled = computed(() => !!query.layoutName);
     const liteMode = computed(() => query.uiMode === 'lite');
+    const disableDnD = computed(() => query.dnd === 'false' || query.dnd === '0' || isInsideIframe.value || hasProjectPort.value);
 
     onMounted(() => {
       const params = urlParams as any;
@@ -436,6 +440,7 @@ export default defineComponent({
       layout: visibleLayout,
 
       liteMode,
+      disableDnD,
     };
   },
 });

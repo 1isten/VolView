@@ -1,8 +1,15 @@
 <template>
   <div
+    v-if="enabled"
     v-on:dragover.prevent="onDragOver"
     v-on:dragleave="onDragLeave"
     v-on:drop.prevent="onDrop"
+    v-bind="$attrs"
+  >
+    <slot :dragHover="dragHover" />
+  </div>
+  <div
+    v-else
     v-bind="$attrs"
   >
     <slot :dragHover="dragHover" />
