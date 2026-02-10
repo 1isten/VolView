@@ -1,5 +1,5 @@
 <template>
-  <drag-and-drop :enabled="!disableDnD" @drop-files="loadFiles" id="app-container">
+  <drag-and-drop :enabled="!disableDnD" @drop-files="disableDnD ? loadUserSelectedFiles($event) : loadFiles($event)" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
         <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
@@ -33,8 +33,9 @@
               <welcome-page
                 v-if="!hasData"
                 :loading="showLoading"
+                :allow-drop="!disableDnD || isInsideIframe"
                 class="clickable"
-                @click="loadUserPromptedFiles"
+                @click="disableDnD ? loadUserSelectedFiles() : loadUserPromptedFiles()"
               >
               </welcome-page>
             </div>
@@ -286,6 +287,10 @@ export default defineComponent({
     const liteMode = computed(() => query.uiMode === 'lite');
     const disableDnD = computed(() => query.dnd === 'false' || query.dnd === '0' || isInsideIframe.value || hasProjectPort.value);
 
+    function loadUserSelectedFiles(files?: File[]) {
+      emitter.emit('userselectfiles', files);
+    }
+
     onMounted(() => {
       const params = urlParams as any;
       if (params.urls?.length > 0) {
@@ -433,6 +438,7 @@ export default defineComponent({
       isDrawerResizing,
       resetDrawerWidth,
 
+      loadUserSelectedFiles,
       loadUserPromptedFiles,
       loadFiles,
       hasData,
@@ -441,6 +447,8 @@ export default defineComponent({
 
       liteMode,
       disableDnD,
+      isInsideIframe,
+      hasProjectPort,
     };
   },
 });

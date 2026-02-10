@@ -15,6 +15,7 @@ export function useEventBus(handlers, loadDataStore) {
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
   const onunselect = handlers?.onunselect;
+  let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
   let onslicing;
@@ -41,6 +42,22 @@ export function useEventBus(handlers, loadDataStore) {
     if (onunselect) {
       emitter.on('unselect', onunselect);
     }
+    onuserselectfiles = files => {
+      if (projectId && datasetId) {
+        const port = ports[peerId.replace('volview-', 'tab-project-')];
+        if (port) {
+          port.postMessage({
+            type: 'userselectfiles',
+            payload: { files },
+          });
+        }
+      } else if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:userselectfiles',
+          payload: { files },
+        }, '*');
+      }
+    };
     onsavesession = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -76,12 +93,14 @@ export function useEventBus(handlers, loadDataStore) {
       }
     };
     onslicing = payload => {
-      const port = ports[peerId.replace('volview-', 'tab-project-')];
-      if (port) {
-        port.postMessage({
-          type: 'slicing',
-          payload,
-        });
+      if (projectId && datasetId) {
+        const port = ports[peerId.replace('volview-', 'tab-project-')];
+        if (port) {
+          port.postMessage({
+            type: 'slicing',
+            payload,
+          });
+        }
       } else if (isInsideIframe) {
         window.parent.postMessage({
           type: 'volview:slicing',
@@ -90,17 +109,20 @@ export function useEventBus(handlers, loadDataStore) {
       }
     };
     onclose = () => {
-      const port = ports[peerId.replace('volview-', 'tab-project-')];
-      if (port) {
-        port.postMessage({
-          type: 'close',
-        });
+      if (projectId && datasetId) {
+        const port = ports[peerId.replace('volview-', 'tab-project-')];
+        if (port) {
+          port.postMessage({
+            type: 'close',
+          });
+        }
       } else if (isInsideIframe) {
         window.parent.postMessage({
           type: 'volview:close',
         }, '*');
       }
     };
+    emitter.on('userselectfiles', onuserselectfiles);
     emitter.on('savesession', onsavesession);
     emitter.on('savesegmentation', onsavesegmentation);
     emitter.on('slicing', onslicing);
@@ -145,7 +167,6 @@ export function useEventBus(handlers, loadDataStore) {
         }
       });
       if (loadDataStore) {
-        // eslint-disable-next-line no-param-reassign
         loadDataStore.isInsideIframe = true;
       }
     } else {
@@ -201,13 +222,11 @@ export function useEventBus(handlers, loadDataStore) {
             };
           }
           if (loadDataStore) {
-            // eslint-disable-next-line no-param-reassign
             loadDataStore.hasProjectPort = true;
           }
         }
       })
       while (!window.$electron) {
-        // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
         await new Promise(r => setTimeout(r, 1000));
       }
       if (window.$electron && projectId) {
@@ -237,6 +256,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onunselect) {
       emitter.off('unselect', onunselect);
+    }
+    if (onuserselectfiles) {
+      emitter.off('userselectfiles', onuserselectfiles);
     }
     if (onsavesession) {
       emitter.off('savesession', onsavesession);

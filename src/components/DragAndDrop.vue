@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="enabled"
+    v-if="enabled || isInsideIframe"
     v-on:dragover.prevent="onDragOver"
     v-on:dragleave="onDragLeave"
     v-on:drop.prevent="onDrop"
@@ -17,6 +17,9 @@
 </template>
 
 <script>
+import { computed } from 'vue';
+import { useLoadDataStore } from '@/src/store/load-data';
+
 async function readAllDirEntries(dirEntry) {
   const reader = dirEntry.createReader();
   const allEntries = [];
@@ -104,12 +107,24 @@ export default {
         } else if (ev.dataTransfer.files.length) {
           this.$emit('drop-files', Array.from(ev.dataTransfer.files));
         }
+      } else if (this.isInsideIframe) {
+        if (ev.dataTransfer.files.length) {
+          this.$emit('drop-files', Array.from(ev.dataTransfer.files));
+        }
       }
     },
   },
   created() {
     // used to debounce dragover
     this.dragTimeout = null;
+  },
+  setup() {
+    const loadDataStore = useLoadDataStore();
+    const isInsideIframe = computed(() => loadDataStore.isInsideIframe);
+
+    return {
+      isInsideIframe,
+    };
   },
 };
 </script>

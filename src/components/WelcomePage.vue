@@ -7,9 +7,11 @@ import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 withDefaults(
   defineProps<{
     loading?: boolean;
+    allowDrop?: boolean;
   }>(),
   {
     loading: false,
+    allowDrop: false,
   }
 );
 
@@ -20,7 +22,7 @@ const dataSecurityDialog = ref(false);
 </script>
 
 <template>
-  <v-container v-bind="$attrs" class="page-container bg-black" style="pointer-events: none">
+  <v-container v-bind="$attrs" class="page-container bg-black" :data-allow-dnd="allowDrop">
     <v-col>
       <v-row justify="center">
         <v-card
@@ -30,7 +32,7 @@ const dataSecurityDialog = ref(false);
           color="transparent"
           class="text-center headline"
         >
-          <template v-if="false && !loading">
+          <template v-if="false">
             <div>
               <v-icon size="64">mdi-folder-open</v-icon>
             </div>
@@ -57,12 +59,18 @@ const dataSecurityDialog = ref(false);
               </v-btn>
             </div>
           </template>
-          <template v-else-if="false">
-            <div class="text-h6 my-4">Loading data...</div>
-            <v-progress-linear indeterminate />
-          </template>
           <template v-else-if="loading">
-            <v-progress-circular indeterminate color="blue" />
+            <!-- <div class="text-h6 my-4">Loading data...</div> -->
+            <!-- <v-progress-linear indeterminate /> -->
+            <v-progress-circular indeterminate color="info" />
+          </template>
+          <template v-else-if="allowDrop">
+            <div class="dnd-prompt-icon">
+              <v-icon size="64">mdi-folder-plus</v-icon>
+            </div>
+            <div class="dnd-prompt-text">
+              Add your local DICOM files.
+            </div>
           </template>
         </v-card>
       </v-row>
@@ -80,6 +88,20 @@ const dataSecurityDialog = ref(false);
   flex-flow: row;
   align-items: center;
   max-width: 100%;
+}
+.page-container[data-allow-dnd="false"] {
+  pointer-events: none;
+}
+
+.dnd-prompt-icon,
+.dnd-prompt-text {
+  user-select: none;
+  opacity: 60%;
+  transition: opacity 300ms;
+}
+.page-container[data-allow-dnd="true"]:hover .dnd-prompt-icon,
+.page-container[data-allow-dnd="true"]:hover .dnd-prompt-text {
+  opacity: 100%;
 }
 
 .vertical-offset-margin {
