@@ -454,7 +454,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
                   dataID = dataId;
                   viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                   viewStore.setActiveView(viewID);
-                  if (!viewStore.isActiveViewMaximized) {
+                  if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
                     viewStore.toggleActiveViewMaximized();
                   }
                 }
@@ -483,7 +483,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
               const viewID = viewStore.getViewsForData(selection).find((v) => v.name === defaultLayoutName?.replace(' Only', ''))?.id;
               if (viewID) {
                 viewStore.setActiveView(viewID);
-                if (!viewStore.isActiveViewMaximized) {
+                if (!viewStore.isActiveViewMaximized && useUrlSearchParams().changeLayout === 'auto') {
                   viewStore.toggleActiveViewMaximized();
                 }
               }
@@ -664,8 +664,8 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       if (v.name === defaultLayoutName.replace(' Only', '')) {
                         viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                         viewStore.setActiveView(viewID);
-                        if (!viewStore.isActiveViewMaximized) {
-                          viewStore.toggleActiveViewMaximized();
+                        if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
+                          // viewStore.toggleActiveViewMaximized();
                         }
                       }
                     });
@@ -693,8 +693,8 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       if (v.name === defaultLayoutName.replace(' Only', '')) {
                         viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                         viewStore.setActiveView(viewID);
-                        if (!viewStore.isActiveViewMaximized) {
-                          viewStore.toggleActiveViewMaximized();
+                        if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
+                          // viewStore.toggleActiveViewMaximized();
                         }
                       }
                     });
@@ -722,8 +722,8 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       if (v.name === defaultLayoutName.replace(' Only', '')) {
                         viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                         viewStore.setActiveView(viewID);
-                        if (!viewStore.isActiveViewMaximized) {
-                          viewStore.toggleActiveViewMaximized();
+                        if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
+                          // viewStore.toggleActiveViewMaximized();
                         }
                       }
                     });
