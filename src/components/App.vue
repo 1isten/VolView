@@ -288,6 +288,19 @@ export default defineComponent({
     const disableDnD = computed(() => query.dnd === 'false' || query.dnd === '0' || isInsideIframe.value || hasProjectPort.value);
 
     function loadUserSelectedFiles(files?: File[]) {
+      const firstFile = files?.[0];
+      if (firstFile?.name) {
+        const name = firstFile.name.toLowerCase();
+        if (
+          // allow drop nifti file
+          // name.endsWith('.nii') || name.endsWith('.nii.gz') ||
+          // ...
+          // allow drop zip file as it may be a state file
+          name.endsWith('.zip')
+        ) {
+          return loadFiles([firstFile]);
+        }
+      }
       emitter.emit('userselectfiles', files);
     }
 
