@@ -195,6 +195,10 @@ export const RECTANGLE_LABEL_DEFAULTS = {
   'Label 1': { color: 'red' },
 };
 
+export const CIRCLE_LABEL_DEFAULTS = {
+  'Label 1': { color: 'red' },
+};
+
 export const POLYGON_LABEL_DEFAULTS = {
   'Label 1': { color: 'red' },
 };
@@ -224,6 +228,7 @@ export const ACTION_TO_KEY = {
   decreaseBrushSize: '[',
   increaseBrushSize: ']',
   rectangle: 'r',
+  circle: 'o',
   crosshairs: 'c',
   temporaryCrosshairs: 'shift-c',
   crop: 'b',

@@ -83,6 +83,21 @@
         <rectangle-controls />
       </menu-control-button>
     </groupable-item>
+    <groupable-item
+      v-slot:default="{ active, toggle }"
+      :value="Tools.Circle"
+    >
+      <menu-control-button
+        icon="mdi-circle-outline"
+        :name="'Circle' + '' || ` [${nameToShortcut['Circle']}]`"
+        :mobileOnlyMenu="true"
+        :active="active"
+        :disabled="noCurrentImage || isObliqueLayout"
+        @click="toggle"
+      >
+        <circle-controls />
+      </menu-control-button>
+    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
       <menu-control-button
         icon="mdi-pentagon-outline"
@@ -127,7 +142,7 @@
 
 <script lang="ts">
 import { computed, defineComponent, ref, watch, onMounted } from 'vue';
-import { storeToRefs } from 'pinia';
+// import { storeToRefs } from 'pinia';
 import { onKeyDown, useMagicKeys } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
@@ -139,6 +154,7 @@ import CropControls from '@/src/components/tools/crop/CropControls.vue';
 import ResetViews from '@/src/components/tools/ResetViews.vue';
 import RulerControls from '@/src/components/RulerControls.vue';
 import RectangleControls from '@/src/components/RectangleControls.vue';
+import CircleControls from '@/src/components/CircleControls.vue';
 import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
@@ -155,6 +171,7 @@ export default defineComponent({
     ResetViews,
     RulerControls,
     RectangleControls,
+    CircleControls,
     PolygonControls,
     WindowLevelControls,
   },
@@ -207,6 +224,7 @@ export default defineComponent({
         Select: keyMap.select,
         Paint: keyMap.paint,
         Rectangle: keyMap.rectangle,
+        Circle: keyMap.circle,
         Polygon: keyMap.polygon,
         Ruler: keyMap.ruler,
         Crop: keyMap.crop,

@@ -8,6 +8,7 @@ import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
+import { useCircleStore } from './circles';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 
@@ -18,6 +19,7 @@ export const AnnotationToolStoreMap: Record<
 > = {
   [AnnotationToolType.Polygon]: usePolygonStore,
   [AnnotationToolType.Rectangle]: useRectangleStore,
+  [AnnotationToolType.Circle]: useCircleStore,
   [AnnotationToolType.Ruler]: useRulerStore,
 } as const;
 

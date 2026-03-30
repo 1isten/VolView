@@ -24,6 +24,10 @@ const MeasurementTools = [
     icon: 'mdi-vector-square',
   },
   {
+    type: AnnotationToolType.Circle,
+    icon: 'mdi-circle-outline',
+  },
+  {
     type: AnnotationToolType.Polygon,
     icon: 'mdi-pentagon-outline',
   },

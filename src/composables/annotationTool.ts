@@ -196,6 +196,7 @@ export const useHover = (
     Tools.Select,
     Tools.Ruler,
     Tools.Rectangle,
+    Tools.Circle,
     Tools.Polygon,
   ];
   const overlayInfo = computed(() => {

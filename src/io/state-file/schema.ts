@@ -369,6 +369,12 @@ const Rectangle = Ruler.extend({
 
 const Rectangles = makeToolEntry(Rectangle);
 
+const Circle = Ruler.extend({
+  fillColor: z.string().optional(),
+});
+
+const Circles = makeToolEntry(Circle);
+
 const Polygon = annotationTool.extend({
   points: z.array(Vector3),
 });
@@ -402,6 +408,7 @@ const Cropping = z.record(z.string(), LPSCroppingPlanes);
 const Tools = z.object({
   rulers: Rulers.optional(),
   rectangles: Rectangles.optional(),
+  circles: Circles.optional(),
   polygons: Polygons.optional(),
   crosshairs: Crosshairs.optional(),
   paint: Paint.optional(),
