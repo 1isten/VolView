@@ -5,6 +5,7 @@
   grid-template-rows: auto;
   z-index: 0; /* avoids partial obscuring of focus outline */
   background: black;
+  outline: none !important;
 }
 
 .vtk-container {
