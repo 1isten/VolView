@@ -157,7 +157,7 @@ export default defineComponent({
       anchor: computed(() => textProperties.value?.anchor ?? 'start'),
       first: firstPoint,
       second: secondPoint,
-      rulerLength: computed(() => length?.value?.toFixed(2) ?? ''),
+      rulerLength: computed(() => length?.value != null ? `${length.value.toFixed(2)} mm` : ''),
       ANNOTATION_TOOL_HANDLE_RADIUS,
     };
   },
