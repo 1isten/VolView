@@ -121,7 +121,8 @@ export default defineComponent({
 
     const { onHover: baseOnHover, overlayInfo } = useHover(
       currentTools,
-      slice
+      slice,
+      activeToolStore
     );
 
     const polygonStore = usePolygonStore();

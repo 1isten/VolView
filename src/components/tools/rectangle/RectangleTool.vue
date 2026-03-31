@@ -136,7 +136,7 @@ export default defineComponent({
       })
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice, activeToolStore);
 
     // Check if any polygon is actively being placed (has points)
     const polygonStore = usePolygonStore();

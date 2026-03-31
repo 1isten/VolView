@@ -137,7 +137,7 @@ export default defineComponent({
       }));
     });
 
-    const { onHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover, overlayInfo } = useHover(currentTools, slice, rulerStore);
 
     return {
       rulers: currentRulers,

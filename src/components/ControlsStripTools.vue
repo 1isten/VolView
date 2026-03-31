@@ -160,6 +160,10 @@ import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelCon
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useViewStore } from '@/src/store/views';
+import { getHoveredAnnotation } from '@/src/composables/annotationTool';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import { useAnnotationToolStore, AnnotationToolStoreMap } from '@/src/store/tools';
+import { AnnotationToolType } from '@/src/store/tools/types';
 
 export default defineComponent({
   components: {
@@ -202,6 +206,39 @@ export default defineComponent({
       paintMenu.value = false;
       cropMenu.value = false;
       windowingMenu.value = false;
+    });
+
+    onKeyDown(['Backspace', 'Delete'], () => {
+      // Delete selected annotations first
+      const selectionStore = useToolSelectionStore();
+      if (selectionStore.selection.length > 0) {
+        [...selectionStore.selection].forEach(({ id, type }) => {
+          const store = useAnnotationToolStore(type);
+          store.removeTool(id);
+        });
+        return;
+      }
+      // Otherwise delete the hovered annotation
+      const { toolID, toolStore: hoveredStore } = getHoveredAnnotation();
+      if (toolID && hoveredStore) {
+        hoveredStore.removeTool(toolID);
+      }
+    });
+
+    onKeyDown('a', (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      const selectionStore = useToolSelectionStore();
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      (Object.entries(AnnotationToolStoreMap) as [AnnotationToolType, () => any][]).forEach(
+        ([type, useStore]) => {
+          const store = useStore();
+          store.finishedTools
+            .filter((tool: any) => tool.imageID === imageID)
+            .forEach((tool: any) => selectionStore.addSelection(tool.id, type));
+        }
+      );
     });
 
     const keys = useMagicKeys();

@@ -2,11 +2,12 @@
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { WIDGET_PRIORITY } from '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { useToolStore } from '@/src/store/tools';
-import { Tools } from '@/src/store/tools/types';
+import { useToolStore, useAnnotationToolStore } from '@/src/store/tools';
+import { Tools, AnnotationToolType } from '@/src/store/tools/types';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/types';
 import { inject } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
+import { ToolID } from '@/src/types/annotation-tool';
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -14,34 +15,39 @@ if (!view) throw new Error('No VtkView');
 const selectionStore = useToolSelectionStore();
 const toolStore = useToolStore();
 
-const PLACING_TOOLS = [Tools.Ruler, Tools.Rectangle, Tools.Polygon];
+const PLACING_TOOLS = [Tools.Ruler, Tools.Rectangle, Tools.Circle, Tools.Polygon];
+
+const isToolPlacing = (id: ToolID, type: AnnotationToolType) => {
+  try {
+    const store = useAnnotationToolStore(type);
+    return store.toolByID[id]?.placing ?? false;
+  } catch {
+    return false;
+  }
+};
 
 onVTKEvent(
   view.interactor,
   'onLeftButtonPress',
   (event: any) => {
-    if (PLACING_TOOLS.includes(toolStore.currentTool)) {
-      // avoid bugs when starting a placing tool on an existing tool and right clicking and deleting existing tools
-      return;
-    }
-
+    const isPlacing = PLACING_TOOLS.includes(toolStore.currentTool);
     const withModifiers = !!(event.shiftKey || event.controlKey);
     const selectedData = view.widgetManager.getSelectedData();
     if ('widget' in selectedData) {
-      // clicked in empty space.
       const widget = selectedData.widget as vtkAnnotationToolWidget;
       const widgetState = widget.getWidgetState();
       const id = widgetState.getId();
       const type = widgetState.getToolType();
-      // preserve if we've used shift or ctrl
+      // Don't select the tool currently being placed
+      if (isToolPlacing(id, type)) return;
       if (withModifiers) {
         selectionStore.toggleSelection(id, type);
       } else {
         selectionStore.clearSelection();
         selectionStore.addSelection(id, type);
       }
-    } else if (!withModifiers) {
-      // if no modifiers, then deselect
+    } else if (!withModifiers && !isPlacing) {
+      // if no modifiers and not placing, then deselect
       selectionStore.clearSelection();
     }
   },

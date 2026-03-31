@@ -6,6 +6,7 @@ import {
   onMounted,
   readonly,
   ref,
+  shallowRef,
   unref,
   watch,
 } from 'vue';
@@ -134,11 +135,23 @@ export type OverlayInfo =
       displayXY: Vector2;
     };
 
+// Global state tracking the currently hovered annotation across all tool types.
+const globalHoveredToolID = ref<ToolID | null>(null);
+const globalHoveredToolStore = shallowRef<AnnotationToolStore | null>(null);
+
+export function getHoveredAnnotation() {
+  return {
+    toolID: globalHoveredToolID.value,
+    toolStore: globalHoveredToolStore.value,
+  };
+}
+
 // Maintains list of tools' hover states.
 // If one tool hovered, overlayInfo.visible === true with toolID and displayXY.
 export const useHover = (
   tools: Ref<Array<AnnotationTool>>,
-  currentSlice: Ref<number>
+  currentSlice: Ref<number>,
+  annotationToolStore?: AnnotationToolStore
 ) => {
   type Info = OverlayInfo;
   const toolHoverState = ref({}) as Ref<Record<ToolID, Info>>;
@@ -204,6 +217,17 @@ export const useHover = (
     if (!TOOLS_WITH_HOVER.includes(toolStore.currentTool))
       return { visible: false } as Info;
     return synchronousOverlayInfo.value;
+  });
+
+  // Update global hovered annotation state
+  watch(synchronousOverlayInfo, (info) => {
+    if (info.visible && annotationToolStore) {
+      globalHoveredToolID.value = info.toolID;
+      globalHoveredToolStore.value = annotationToolStore;
+    } else if (globalHoveredToolStore.value === annotationToolStore) {
+      globalHoveredToolID.value = null;
+      globalHoveredToolStore.value = null;
+    }
   });
 
   return { overlayInfo, onHover };
