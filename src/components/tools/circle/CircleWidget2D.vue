@@ -155,5 +155,6 @@ export default defineComponent({
     :color="tool.color"
     :stroke-width="tool.strokeWidth"
     :fill-color="tool.fillColor"
+    :fill-opacity="tool.fillOpacity"
   />
 </template>

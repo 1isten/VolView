@@ -12,10 +12,12 @@ const rectangleDefaults = () => ({
   id: '' as ToolID,
   name: 'Rectangle',
   fillColor: 'transparent',
+  fillOpacity: 0,
 });
 
 const newLabelDefault = {
   fillColor: 'transparent',
+  fillOpacity: 0,
 };
 
 export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {

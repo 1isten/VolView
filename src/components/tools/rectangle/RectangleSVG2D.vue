@@ -8,6 +8,7 @@
       :stroke="color"
       :stroke-width="strokeWidth"
       :fill="fillColor"
+      :fill-opacity="fillOpacity"
     />
     <circle
       v-if="first"
@@ -61,6 +62,7 @@ export default defineComponent({
     point2: Array as PropType<Array<number>>,
     color: String,
     fillColor: String,
+    fillOpacity: Number,
     strokeWidth: Number,
   },
   setup(props) {

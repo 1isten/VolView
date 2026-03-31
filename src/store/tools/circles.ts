@@ -12,10 +12,12 @@ const circleDefaults = () => ({
   id: '' as ToolID,
   name: 'Circle',
   fillColor: 'transparent',
+  fillOpacity: 0,
 });
 
 const newLabelDefault = {
   fillColor: 'transparent',
+  fillOpacity: 0,
 };
 
 export const useCircleStore = defineAnnotationToolStore('circles', () => {

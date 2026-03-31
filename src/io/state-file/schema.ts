@@ -365,12 +365,14 @@ const Rulers = makeToolEntry(Ruler);
 
 const Rectangle = Ruler.extend({
   fillColor: z.string().optional(),
+  fillOpacity: z.number().optional(),
 });
 
 const Rectangles = makeToolEntry(Rectangle);
 
 const Circle = Ruler.extend({
   fillColor: z.string().optional(),
+  fillOpacity: z.number().optional(),
 });
 
 const Circles = makeToolEntry(Circle);
