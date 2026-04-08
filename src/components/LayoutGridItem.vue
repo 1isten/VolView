@@ -18,8 +18,18 @@ const ItemComponent = computed(() => {
 
 const activeStyles = computed(() => {
   if (props.viewId) {
+    if (viewStore.visibleViews.length <= 1) {
+      return {
+        border: '1px solid rgba(255, 255, 255, 0.05)',
+      };
+    }
+    if (viewStore.activeView && viewStore.activeView === props.viewId) {
+      return {
+        border: '1px solid rgba(255, 255, 255, 0.95)',
+      };
+    }
     return {
-      border: '1px solid rgba(255, 255, 255, 0.05)',
+      border: '1px solid rgba(0, 0, 0, 0)',
     };
   }
   if (showDropTarget.value) {

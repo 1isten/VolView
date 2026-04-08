@@ -58,6 +58,9 @@
           </v-tooltip>
         </v-btn>
       </template>
+      <template v-else>
+        <span class="d-block mb-1"></span>
+      </template>
     </div>
     <div class="vtk-container" data-testid="two-view-container">
       <v-progress-linear
@@ -273,7 +276,15 @@ const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
 const viewStore = useViewStore();
-const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
+const isViewMaximized = computed(() => {
+  if (viewStore.currentLayoutName?.endsWith(' Only')) {
+    return true;
+  }
+  if (viewStore.visibleViews.length === 1 && viewStore.visibleViews[0].id === viewId.value) {
+    return viewStore.activeView === viewId.value;
+  }
+  return viewStore.isActiveViewMaximized;
+});
 
 const viewInfo = computed(() => viewStore.getView(viewId.value)!);
 const viewOptions = computed(

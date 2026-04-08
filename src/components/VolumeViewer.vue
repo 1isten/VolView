@@ -29,7 +29,7 @@
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
-          <div class="annotation-cell">
+          <div class="annotation-cell d-flex align-center">
             <v-btn
               class="pointer-events-all"
               dark
@@ -50,17 +50,18 @@
                 Reset Camera
               </v-tooltip>
             </v-btn>
-            <span class="image-metadata-name ml-3" v-if="isViewMaximized">{{ currentImageMetadata.name }}</span>
+            <span class="image-metadata-name ml-3" :style="{ visibility: isViewMaximized ? 'visible' : 'hidden' }">{{ currentImageMetadata.name }}</span>
           </div>
         </template>
         <template #top-right>
           <div class="annotation-cell">
-            <span>{{ presetName }}</span>
+            <ViewTypeSwitcher v-if="viewId" :view-id="viewId" :image-id="currentImageID" />
+            <span v-else>{{ presetName }}</span>
           </div>
         </template>
         <template #bottom-right>
           <div class="annotation-cell d-flex flex-column align-end" @click.stop v-if="isViewMaximized">
-            <div v-if="currentLayoutName === '3D Only'" class="vtk-gutter pa-1">
+            <div class="vtk-gutter pa-1">
               <v-btn class="pointer-events-all mt-1" dark icon size="medium" variant="text" @click="resetOrientation('X', true)" @contextmenu.prevent="resetOrientation('X', false)" @dblclick.stop>
                 <v-icon icon="mdi mdi-alpha-l-circle" size="medium" class="py-1" />
                 <v-tooltip
@@ -92,9 +93,6 @@
                 </v-tooltip>
               </v-btn>
             </div>
-          </div>
-          <div class="annotation-cell" @click.stop v-else>
-            <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
           </div>
         </template>
       </view-overlay-grid>
@@ -147,7 +145,15 @@ const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
 const viewStore = useViewStore();
-const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
+const isViewMaximized = computed(() => {
+  if (viewStore.currentLayoutName?.endsWith(' Only')) {
+    return true;
+  }
+  if (viewStore.visibleViews.length === 1 && viewStore.visibleViews[0].id === viewId.value) {
+    return viewStore.activeView === viewId.value;
+  }
+  return viewStore.isActiveViewMaximized;
+});
 
 const viewInfo = computed(() => viewStore.getView(viewId.value)!);
 const viewType = computed(() => viewInfo.value.type);
@@ -199,8 +205,6 @@ const presetName = computed(
 );
 
 // --- Custom support for rotating the scene --- //
-
-const currentLayoutName = computed(() => viewStore.currentLayoutName || '');
 
 function resetOrientation(mode: 'X' | 'Y' | 'Z', flip = false) {
   if (!vtkView.value) return;

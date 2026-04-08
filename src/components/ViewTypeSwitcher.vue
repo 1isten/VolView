@@ -21,9 +21,12 @@ const availableViewNames = computed(() =>
 );
 
 function updateView(newViewName: string) {
-  const selectedView = viewStore.availableViewsForSwitcher.find(
-    (v) => v.name === newViewName
-  );
+  const selectedView = viewStore.availableViewsForSwitcher.find((v) => {
+    if (newViewName === '3D') {
+      return v.type === '3D';
+    }
+    return v.name === newViewName;
+  });
   if (!selectedView) return;
   viewStore.replaceView(viewId.value, {
     ...selectedView,
@@ -39,32 +42,39 @@ function updateView(newViewName: string) {
     :items="availableViewNames"
     density="compact"
     hide-details
-    variant="solo"
+    variant="outlined"
     class="pointer-events-all view-type-select"
-  ></v-select>
+  >
+    <template v-slot:selection="{ item }">
+      {{ item.title === 'Volume' ? '3D' : item.value }}
+    </template>
+  </v-select>
 </template>
 
 <style scoped>
 .view-type-select {
-  max-width: 90px;
+  max-width: fit-content;
   font-size: 0.8125rem;
   margin-left: auto;
 }
 
 .view-type-select :deep(.v-field__input) {
-  padding: 0 4px;
+  padding: 2px 4px;
   min-height: 20px;
   text-align: right;
-  font-size: 0.8125rem;
+  font-size: 0.625rem;
+  font-weight: 500;
 }
 
 .view-type-select :deep(.v-field) {
+  padding-right: 0;
   min-height: 20px;
 }
 
 .view-type-select :deep(.v-field__append-inner) {
   padding-top: 0;
   padding-right: 2px;
+  margin-left: -6px;
 }
 
 .view-type-select :deep(.v-input__control) {
@@ -77,5 +87,9 @@ function updateView(newViewName: string) {
 
 .view-type-select :deep(.v-icon) {
   font-size: 0.875rem;
+}
+
+.view-type-select :deep(.v-field__outline) {
+  --v-field-border-opacity: 0.2;
 }
 </style>
