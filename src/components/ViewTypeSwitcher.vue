@@ -16,11 +16,19 @@ const viewName = computed(() => {
   return viewInfo?.name ?? '';
 });
 
-const availableViewNames = computed(() =>
-  viewStore.availableViewsForSwitcher.map((v) => v.type === '3D' ? v.type : v.name).reverse()
-);
+const availableViewNames = computed(() => {
+  const viewNames = viewStore.availableViewsForSwitcher.map((v) => v.type === '3D' ? v.type : v.name).reverse();
+  return [
+    ...viewNames,
+    'Remove',
+  ];
+});
 
 function updateView(newViewName: string) {
+  if (newViewName === 'Remove') {
+    viewStore.setDataForView(viewId.value, null);
+    return;
+  }
   const selectedView = viewStore.availableViewsForSwitcher.find((v) => {
     if (newViewName === '3D') {
       return v.type === '3D';
@@ -40,6 +48,8 @@ function updateView(newViewName: string) {
     :model-value="viewName"
     @update:model-value="updateView($event)"
     :items="availableViewNames"
+    :menu-props="{ location: 'bottom end' }"
+    :list-props="{ nav: true, density: 'compact' }"
     density="compact"
     hide-details
     variant="outlined"
@@ -47,6 +57,15 @@ function updateView(newViewName: string) {
   >
     <template v-slot:selection="{ item }">
       {{ item.title === 'Volume' ? '3D' : item.value }}
+    </template>
+    <template v-slot:item="{ props: itemProps, item }">
+      <template v-if="item.title === 'Remove'">
+        <v-divider></v-divider>
+        <v-list-item v-bind="itemProps" :title="item.title" :class="{ 'text-error': item.title === 'Remove' }"></v-list-item>
+      </template>
+      <template v-else>
+        <v-list-item v-bind="itemProps" :title="item.title"></v-list-item>
+      </template>
     </template>
   </v-select>
 </template>
