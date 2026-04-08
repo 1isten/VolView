@@ -61,6 +61,12 @@ interface Module {
 }
 
 const Modules: Module[] = [
+  {
+    name: 'DICOM Tags',
+    icon: 'table-search',
+    component: DicomTagBrowser,
+    disabled: false,
+  },
   /*
   {
     name: 'Data',
@@ -68,12 +74,6 @@ const Modules: Module[] = [
     component: DataBrowser,
   },
   */
-  {
-    name: 'DICOM Tags',
-    icon: 'table-search',
-    component: DicomTagBrowser,
-    disabled: false,
-  },
   {
     name: 'Annotations',
     icon: 'pencil',
