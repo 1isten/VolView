@@ -31,7 +31,7 @@ import { ImageMetadata } from '@/src/types/image';
 import { View } from '@/src/core/vtk/types';
 import { watchImmediate } from '@vueuse/core';
 
-const SHOW_OVERLAY_DELAY = 250; // milliseconds
+const SHOW_OVERLAY_DELAY = 250 * 2; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis

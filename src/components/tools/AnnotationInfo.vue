@@ -43,8 +43,8 @@ const offset = computed(() => {
   return {
     // Tooltip location is above cursor and centered
     // Don't know how to get ref to parent v-tooltip element, so adding fudge padding.
-    x: (width.value + TOOLTIP_PADDING_X) / 2,
-    y: height.value + TOOLTIP_PADDING_Y,
+    x: (width.value + TOOLTIP_PADDING_X) / 8,
+    y: (height.value + TOOLTIP_PADDING_Y) / 4,
   };
 });
 </script>
@@ -52,13 +52,11 @@ const offset = computed(() => {
 <template>
   <v-tooltip
     ref="tooltip"
-    v-if="info.visible"
+    v-if="info.visible && !!label"
     v-model="visible"
-    :style="{
-      left: `${info.displayXY[0] - offset.x}px`,
-      top: `${info.displayXY[1] - offset.y}px`,
-      zIndex: 500, // stay under context menu
-    }"
+    location="bottom start"
+    :target="[info.displayXY[0] + offset.x, info.displayXY[1] - offset.y]"
+    :z-index="500"
     class="better-contrast"
   >
     <div class="tooltip-text font-weight-bold">{{ label }}</div>
