@@ -12,14 +12,17 @@ export enum Tools {
   WindowLevel = 'WindowLevel',
   Pan = 'Pan',
   Zoom = 'Zoom',
-  Crop = 'Crop',
-  Paint = 'Paint',
-  Select = 'Select',
   Crosshairs = 'Crosshairs',
-  Rectangle = 'Rectangle',
-  Circle = 'Circle',
-  Ruler = 'Ruler',
-  Polygon = 'Polygon',
+
+  Select = 'Select',
+  Paint = 'Paint',
+  Measurements = 'Measurements',
+    Ruler = 'Ruler',
+    Rectangle = 'Rectangle',
+    Circle = 'Circle',
+    Polygon = 'Polygon',
+
+  Crop = 'Crop',
 }
 
 export interface IActivatableTool {

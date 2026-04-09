@@ -5,10 +5,7 @@
     @update:model-value="setCurrentTool($event)"
   >
     <div class="my-1 tool-separator" />
-    <groupable-item
-      v-slot:default="{ active, toggle }"
-      :value="Tools.WindowLevel"
-    >
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.WindowLevel">
       <menu-control-button
         icon="mdi-circle-half-full"
         :name="'Window & Level' + '' || ` [${nameToShortcut['Window & Level']}]`"
@@ -37,10 +34,7 @@
         @click="toggle"
       />
     </groupable-item>
-    <groupable-item
-      v-slot:default="{ active, toggle }"
-      :value="Tools.Crosshairs"
-    >
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crosshairs">
       <control-button
         icon="mdi-crosshairs"
         :name="'Crosshairs' + '' || ` [${nameToShortcut['Crosshairs']}]`"
@@ -68,61 +62,79 @@
         @click="toggle"
       ></control-button>
     </groupable-item>
-    <groupable-item
-      v-slot:default="{ active, toggle }"
-      :value="Tools.Rectangle"
-    >
-      <menu-control-button
-        icon="mdi-vector-square"
-        :name="'Rectangle' + '' || ` [${nameToShortcut['Rectangle']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      >
-        <rectangle-controls />
-      </menu-control-button>
-    </groupable-item>
-    <groupable-item
-      v-slot:default="{ active, toggle }"
-      :value="Tools.Circle"
-    >
-      <menu-control-button
-        icon="mdi-circle-outline"
-        :name="'Circle' + '' || ` [${nameToShortcut['Circle']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      >
-        <circle-controls />
-      </menu-control-button>
-    </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
-      <menu-control-button
-        icon="mdi-pentagon-outline"
-        :name="'Polygon' + '' || ` [${nameToShortcut['Polygon']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      >
-        <polygon-controls />
-      </menu-control-button>
-    </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <menu-control-button
-        icon="mdi-ruler"
-        :name="'Ruler' + '' || ` [${nameToShortcut['Ruler']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      >
-        <ruler-controls />
-      </menu-control-button>
-    </groupable-item>
 
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Measurements">
+      <menu-control-button
+        icon="mdi-tape-measure"
+        :name="'Measurement Tools'"
+        :active="active || currentToolIsMeasurement"
+        :disabled="noCurrentImage || isObliqueLayout"
+        @click="currentToolIsMeasurement ? () => {} : toggle($event)"
+      >
+        <v-list density="comfortable" :rounded="true" active-class="tool-list-item-selected">
+          <v-list-item
+            append-icon="mdi-ruler"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Ruler"
+            @click.stop="setCurrentTool(Tools.Ruler)"
+          >
+            <v-list-item-title>
+              {{ 'Ruler' + '' || ` [${nameToShortcut['Ruler']}]` }}
+            </v-list-item-title>
+            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+              <div class="menu-content elevation-24">
+                <ruler-controls />
+              </div>
+            </v-menu>
+          </v-list-item>
+          <v-list-item
+            append-icon="mdi-vector-square"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Rectangle"
+            @click.stop="setCurrentTool(Tools.Rectangle)"
+          >
+            <v-list-item-title>
+              {{ 'Rectangle' + '' || ` [${nameToShortcut['Rectangle']}]` }}
+            </v-list-item-title>
+            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+              <div class="menu-content elevation-24">
+                <rectangle-controls />
+              </div>
+            </v-menu>
+          </v-list-item>
+          <v-list-item
+            append-icon="mdi-circle-outline"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Circle"
+            @click.stop="setCurrentTool(Tools.Circle)"
+          >
+            <v-list-item-title>
+              {{ 'Circle' + '' || ` [${nameToShortcut['Circle']}]` }}
+            </v-list-item-title>
+            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+              <div class="menu-content elevation-24">
+                <circle-controls />
+              </div>
+            </v-menu>
+          </v-list-item>
+          <v-list-item
+            append-icon="mdi-pentagon-outline"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Polygon"
+            @click.stop="setCurrentTool(Tools.Polygon)"
+          >
+            <v-list-item-title>
+              {{ 'Polygon' + '' || ` [${nameToShortcut['Polygon']}]` }}
+            </v-list-item-title>
+            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+              <div class="menu-content elevation-24">
+                <polygon-controls />
+              </div>
+            </v-menu>
+          </v-list-item>
+        </v-list>
+      </menu-control-button>
+    </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
       <menu-control-button
@@ -142,7 +154,7 @@
 
 <script lang="ts">
 import { computed, defineComponent, ref, watch, onMounted } from 'vue';
-// import { storeToRefs } from 'pinia';
+import { useDisplay } from 'vuetify';
 import { onKeyDown, useMagicKeys } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
@@ -438,8 +450,18 @@ export default defineComponent({
       }
     });
 
+    const display = useDisplay();
+
     return {
+      isMobile: display.mobile,
+
       currentTool,
+      currentToolIsMeasurement: computed(() => [
+        Tools.Ruler,
+        Tools.Rectangle,
+        Tools.Circle,
+        Tools.Polygon,
+      ].includes(currentTool.value)),
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
       isObliqueLayout,
@@ -456,6 +478,21 @@ export default defineComponent({
 <style>
 .tool-btn-selected {
   background-color: rgb(var(--v-theme-selection-bg-color));
+}
+
+.v-list-item--variant-text:not(.tool-list-item-selected) .v-list-item__overlay {
+  background-color: rgb(var(--v-theme-selection-bg-color), 0.3);
+}
+.v-list-item--variant-text.tool-list-item-selected .v-list-item__overlay {
+  background-color: rgb(var(--v-theme-selection-bg-color));
+  opacity: 0.7;
+  z-index: 0;
+}
+.v-list-item--variant-text.tool-list-item-selected:hover .v-list-item__overlay {
+  opacity: 1;
+}
+.v-list-item--variant-text.tool-list-item-selected .v-list-item__overlay ~ * {
+  z-index: 1;
 }
 </style>
 

@@ -11,6 +11,7 @@ export default defineComponent({
     size: { type: [Number, String], default: 40 },
     active: Boolean,
     disabled: Boolean,
+    tooltipDisabled: Boolean,
     mobileOnlyMenu: Boolean,
   },
   components: {
@@ -19,7 +20,7 @@ export default defineComponent({
   setup(props) {
     const display = useDisplay();
 
-    const showLeft = computed(() => !display.mobile.value);
+    const showLeft = computed(() => !display.mobile.value) && true;
 
     const menuOn = ref(false);
 
@@ -59,6 +60,7 @@ export default defineComponent({
         :name="name"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="disabled"
+        :tooltipDisabled="tooltipDisabled"
         :size="size"
         @click="$emit('click')"
         v-bind="props"

@@ -17,21 +17,24 @@ export const AnnotationToolStoreMap: Record<
   AnnotationToolType,
   () => AnnotationToolStore
 > = {
-  [AnnotationToolType.Polygon]: usePolygonStore,
+  [AnnotationToolType.Ruler]: useRulerStore,
   [AnnotationToolType.Rectangle]: useRectangleStore,
   [AnnotationToolType.Circle]: useCircleStore,
-  [AnnotationToolType.Ruler]: useRulerStore,
+  [AnnotationToolType.Polygon]: usePolygonStore,
 } as const;
 
 export const ToolStoreMap: Record<Tools, Maybe<() => IToolStore>> = {
-  [Tools.Pan]: null,
   [Tools.WindowLevel]: null,
+  [Tools.Pan]: null,
   [Tools.Zoom]: null,
-  [Tools.Select]: null,
-  [Tools.Crop]: useCropStore,
   [Tools.Crosshairs]: useCrosshairsToolStore,
+
+  [Tools.Select]: null,
   [Tools.Paint]: usePaintToolStore,
+  [Tools.Measurements]: null,
   ...AnnotationToolStoreMap,
+
+  [Tools.Crop]: useCropStore,
 } as const;
 
 export function useAnnotationToolStore(
