@@ -185,7 +185,7 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           />
-          <select-tool />
+          <select-tool :view-id="viewId" :image-id="currentImageID" />
           <svg class="overlay-no-events">
             <bounding-rectangle :points="selectionPoints" />
           </svg>

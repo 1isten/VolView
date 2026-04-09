@@ -285,6 +285,16 @@ export const useWidgetVisibility = <T extends vtkAbstractWidget>(
     () => visible.value,
     (visibility) => {
       widget.setVisibility(visibility);
+      widget.setContextVisibility(visibility);
+      // Remove/add from renderer to fully exclude from GPU pick buffer.
+      // setPickable alone is insufficient: handle representations always
+      // render in the pick buffer, causing the picker to return the wrong
+      // widget when overlapping tools exist on different slices.
+      if (visibility) {
+        view.renderer.addActor(widget);
+      } else {
+        view.renderer.removeActor(widget);
+      }
     }
   );
 

@@ -158,12 +158,44 @@ import CircleControls from '@/src/components/CircleControls.vue';
 import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useCurrentImage, getImageMetadata } from '@/src/composables/useCurrentImage';
 import { useViewStore } from '@/src/store/views';
 import { getHoveredAnnotation } from '@/src/composables/annotationTool';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, AnnotationToolStoreMap } from '@/src/store/tools';
 import { AnnotationToolType } from '@/src/store/tools/types';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
+import { ToolID } from '@/src/types/annotation-tool';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import { vec3 } from 'gl-matrix';
+import type { LPSAxis, LPSDirections } from '@/src/types/lps';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+
+type CopiedAnnotation = {
+  type: AnnotationToolType;
+  data: Record<string, any>;
+  // 2D screen offsets (in mm) from the source image center, along camera right/up
+  canvasPoints: { key: string; index?: number; dx: number; dy: number }[];
+};
+
+// Get camera right and up world-space vectors for a given view orientation.
+// Right = screen X direction, Up = VTK screen up direction.
+function getCameraVectors(viewOrientation: LPSAxis, lpsDirs: LPSDirections) {
+  switch (viewOrientation) {
+    case 'Axial':
+      return { right: lpsDirs.Left as vec3, up: lpsDirs.Anterior as vec3 };
+    case 'Coronal':
+      return { right: lpsDirs.Left as vec3, up: lpsDirs.Superior as vec3 };
+    case 'Sagittal':
+      return { right: lpsDirs.Posterior as vec3, up: lpsDirs.Superior as vec3 };
+    default:
+      return { right: lpsDirs.Left as vec3, up: lpsDirs.Anterior as vec3 };
+  }
+}
+
+let annotationClipboard: CopiedAnnotation[] = [];
 
 export default defineComponent({
   components: {
@@ -189,7 +221,7 @@ export default defineComponent({
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 
-    const { currentImageID } = useCurrentImage();
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
     const isObliqueLayout = computed(() => {
@@ -239,6 +271,133 @@ export default defineComponent({
             .forEach((tool: any) => selectionStore.addSelection(tool.id, type));
         }
       );
+    });
+
+    // Copy selected annotations (Ctrl+C / Cmd+C)
+    onKeyDown('c', (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const selectionStore = useToolSelectionStore();
+      if (selectionStore.selection.length === 0) return;
+      e.preventDefault();
+      annotationClipboard = selectionStore.selection.map(({ id, type }) => {
+        const store = useAnnotationToolStore(type);
+        const tool = store.toolByID[id] as any;
+        if (!tool) return null;
+        const { id: _id, placing: _placing, ...data } = JSON.parse(JSON.stringify(tool)); // eslint-disable-line @typescript-eslint/no-unused-vars
+
+        // Determine source view orientation from the tool's frameOfReference
+        const srcMeta = getImageMetadata(data.imageID);
+        const srcAxisInfo = frameOfReferenceToImageSliceAndAxis(
+          data.frameOfReference, srcMeta,
+          { allowOutOfBoundsSlice: true, allowNonIntegralSlice: true }
+        );
+        if (!srcAxisInfo) return null;
+
+        // Get camera right/up vectors to decompose world offset from image center
+        const { right: srcRight, up: srcUp } = getCameraVectors(srcAxisInfo.axis, srcMeta.lpsOrientation);
+        const srcCenter = vtkBoundingBox.getCenter(srcMeta.worldBounds);
+
+        const canvasPoints: CopiedAnnotation['canvasPoints'] = [];
+        const toCanvas = (worldPt: number[]) => {
+          const offset: vec3 = [
+            worldPt[0] - srcCenter[0],
+            worldPt[1] - srcCenter[1],
+            worldPt[2] - srcCenter[2],
+          ];
+          return {
+            dx: vec3.dot(offset, srcRight),
+            dy: vec3.dot(offset, srcUp),
+          };
+        };
+        if (data.firstPoint) {
+          canvasPoints.push({ key: 'firstPoint', ...toCanvas(data.firstPoint) });
+        }
+        if (data.secondPoint) {
+          canvasPoints.push({ key: 'secondPoint', ...toCanvas(data.secondPoint) });
+        }
+        if (data.points) {
+          data.points.forEach((pt: number[], i: number) => {
+            canvasPoints.push({ key: 'points', index: i, ...toCanvas(pt) });
+          });
+        }
+
+        return { type, data, canvasPoints } as CopiedAnnotation;
+      }).filter((item): item is CopiedAnnotation => item !== null);
+    });
+
+    // Paste annotations (Ctrl+V / Cmd+V)
+    onKeyDown('v', (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (annotationClipboard.length === 0) return;
+      e.preventDefault();
+
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+
+      // Get current slice/frameOfReference from the active view
+      const activeViewId = viewStore.activeView;
+      if (!activeViewId) return;
+      const activeView = viewStore.getView(activeViewId);
+      if (!activeView || activeView.type !== '2D') return;
+
+      const { orientation } = activeView.options;
+      const { viewDirection } = get2DViewingVectors(orientation);
+      const { slice } = useSliceConfig(activeViewId, imageID);
+      const frameOfReference = useFrameOfReference(
+        viewDirection,
+        slice,
+        currentImageMetadata
+      );
+
+      // Target camera vectors and image center
+      const tgtMeta = currentImageMetadata.value;
+      const { right: tgtRight, up: tgtUp } = getCameraVectors(orientation, tgtMeta.lpsOrientation);
+      const tgtCenter = vtkBoundingBox.getCenter(tgtMeta.worldBounds);
+
+      // Compute slice offset: shift from image center's slice to the target slice
+      const planeNormal = frameOfReference.value.planeNormal;
+      const planeOrigin = frameOfReference.value.planeOrigin;
+      const sliceShift = vec3.dot(
+        [planeOrigin[0] - tgtCenter[0], planeOrigin[1] - tgtCenter[1], planeOrigin[2] - tgtCenter[2]],
+        planeNormal
+      );
+
+      const selectionStore = useToolSelectionStore();
+      selectionStore.clearSelection();
+
+      annotationClipboard.forEach(({ type, data, canvasPoints }) => {
+        const store = useAnnotationToolStore(type);
+        const remappedData = { ...data };
+
+        // Rebuild world points: imageCenter + dx*right + dy*up + sliceShift*normal
+        const toWorld = (dx: number, dy: number) => {
+          const w: [number, number, number] = [
+            tgtCenter[0] + dx * tgtRight[0] + dy * tgtUp[0] + sliceShift * planeNormal[0],
+            tgtCenter[1] + dx * tgtRight[1] + dy * tgtUp[1] + sliceShift * planeNormal[1],
+            tgtCenter[2] + dx * tgtRight[2] + dy * tgtUp[2] + sliceShift * planeNormal[2],
+          ];
+          return w;
+        };
+
+        canvasPoints.forEach(({ key, index, dx, dy }) => {
+          const worldPt = toWorld(dx, dy);
+          if (key === 'points' && index !== undefined) {
+            if (!remappedData.points) remappedData.points = [];
+            remappedData.points[index] = worldPt;
+          } else {
+            remappedData[key] = worldPt;
+          }
+        });
+
+        const newId = store.addTool({
+          ...remappedData,
+          imageID,
+          slice: slice.value,
+          frameOfReference: frameOfReference.value,
+          placing: false,
+        }) as ToolID;
+        selectionStore.addSelection(newId, type);
+      });
     });
 
     const keys = useMagicKeys();
