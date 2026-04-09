@@ -319,6 +319,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
       }
 
       if (isVolumeResult(primaryDataSource)) {
+        let isAxialPrimary: boolean | undefined;
         let selection = toDataSelection(primaryDataSource);
         if (isSession) {
           //
@@ -341,18 +342,25 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             const vol = volumes[selection];
             if (vol) {
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false) {
+              if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
                 viewStore.setLayoutByName(layoutName.toString(), true);
               } else if (vol.layoutName) {
                 viewStore.setLayoutByName(vol.layoutName, true);
               }
+              if (vol.slices?.length === 1) {
+                s = 0;
+                dataID = selection;
+              }
             } else { // maybe not dcm, like nifti etc.
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false) {
+              if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
+                if (layoutName === 'Axial Primary') {
+                  isAxialPrimary = true;
+                }
                 viewStore.setLayoutByName(layoutName.toString(), true);
               }
             }
@@ -360,7 +368,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             const vol = volumes[selection];
             if (vol) {
               const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false) {
+              if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
                 viewStore.setLayoutByName(layoutName.toString(), true);
@@ -379,7 +387,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
               const vol = volumes[volumeKey];
               if (vol) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false) {
+                if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                   //
                 } else if (layoutName && options.changeLayout !== 'auto') {
                   viewStore.setLayoutByName(layoutName.toString(), true);
@@ -401,7 +409,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
               const vol = volumes[volumeKey];
               if (vol) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false) {
+                if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                   //
                 } else if (layoutName && options.changeLayout !== 'auto') {
                   viewStore.setLayoutByName(layoutName.toString(), true);
@@ -442,7 +450,28 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
               return;
             }
             const defaultLayoutName = dataID ? imageCacheStore.getImageDefaultLayoutName(dataID) : '';
-            viewStore.getViewsForData(selection).forEach(v => {
+            viewStore.getViewsForData(selection).forEach((v) => {
+              const viewId = v.id as string;
+              const dataId = v.dataID as string;
+              if (defaultLayoutName) {
+                if (viewId === viewStore.activeView) {
+                  viewID = viewId;
+                  dataID = dataId;
+                  if (v.name !== defaultLayoutName.replace(' Only', '')) {
+                    const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
+                    if (defaultView) {
+                      viewStore.replaceView(viewID, {
+                        ...defaultView,
+                        dataID,
+                      });
+                    }
+                  }
+                } else {
+                  return;
+                }
+              }
+            });
+            viewStore.getViewsForData(selection).forEach((v) => {
               const viewId = v.id as string;
               const dataId = v.dataID as string;
               if (savedSessionFile && savedSession?.metadata?.activeView) {
@@ -455,7 +484,7 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
                   viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                   viewStore.setActiveView(viewID);
                   if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
-                    viewStore.toggleActiveViewMaximized();
+                    // viewStore.toggleActiveViewMaximized();
                   }
                 }
               }
@@ -466,12 +495,14 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
                 }, true);
               }
             });
-            if (defaultLayoutName) {
-              const button = document.querySelector('button.reset-views-reset-all-cameras') as HTMLButtonElement | null;
-              if (button) {
-                button.click();
+            setTimeout(() => {
+              if (defaultLayoutName) {
+                const button = document.querySelector('button.reset-views-reset-all-cameras') as HTMLButtonElement | null;
+                if (button) {
+                  button.click();
+                }
               }
-            }
+            }, 1);
           });
         } else {
           requestAnimationFrame(() => {
@@ -490,7 +521,11 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             }
           });
         }
-        viewStore.setDataForAllViews(selection);
+        if (isAxialPrimary) {
+          viewStore.setDataForAllViews(selection);
+        } else {
+          viewStore.setDataForActiveView(selection);
+        }
         autoLayerDicoms(primaryDataSource, succeeded);
         autoLayerByName(
           primaryDataSource,
@@ -637,12 +672,12 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
               const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
               if (defaultLayoutName) {
                 const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false) {
+                if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                   //
                 } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                   viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                 }
-                viewStore.setDataForAllViews(dataID);
+                viewStore.setDataForActiveView(dataID);
                 return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
               }
             }
@@ -654,13 +689,29 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                 const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
                   const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                  if (options.changeLayout === false) {
+                  if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                     //
                   } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                     viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                   }
                   requestAnimationFrame(() => {
                     viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (viewID === viewStore.activeView) {
+                        if (v.name !== defaultLayoutName.replace(' Only', '')) {
+                          const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
+                          if (defaultView) {
+                            viewStore.replaceView(viewID, {
+                              ...defaultView,
+                              dataID,
+                            });
+                          }
+                        }
+                      }
+                    });
+                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (viewID !== viewStore.activeView) {
+                        return;
+                      }
                       if (v.name === defaultLayoutName.replace(' Only', '')) {
                         viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                         viewStore.setActiveView(viewID);
@@ -670,7 +721,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       }
                     });
                   });
-                  viewStore.setDataForAllViews(dataID);
+                  viewStore.setDataForActiveView(dataID);
                   return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
                 }
               }
@@ -683,13 +734,29 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                 const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
                   const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                  if (options.changeLayout === false) {
+                  if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                     //
                   } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                     viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                   }
                   requestAnimationFrame(() => {
                     viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (viewID === viewStore.activeView) {
+                        if (v.name !== defaultLayoutName.replace(' Only', '')) {
+                          const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
+                          if (defaultView) {
+                            viewStore.replaceView(viewID, {
+                              ...defaultView,
+                              dataID,
+                            });
+                          }
+                        }
+                      }
+                    });
+                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (viewID !== viewStore.activeView) {
+                        return;
+                      }
                       if (v.name === defaultLayoutName.replace(' Only', '')) {
                         viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                         viewStore.setActiveView(viewID);
@@ -699,7 +766,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       }
                     });
                   });
-                  viewStore.setDataForAllViews(dataID);
+                  viewStore.setDataForActiveView(dataID);
                   return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
                 }
               }
@@ -712,13 +779,29 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                 const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
                   const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                  if (options.changeLayout === false) {
+                  if (options.changeLayout === false || viewStore.currentLayoutName === null) {
                     //
                   } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
                     viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
                   }
                   requestAnimationFrame(() => {
                     viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (viewID === viewStore.activeView) {
+                        if (v.name !== defaultLayoutName.replace(' Only', '')) {
+                          const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
+                          if (defaultView) {
+                            viewStore.replaceView(viewID, {
+                              ...defaultView,
+                              dataID,
+                            });
+                          }
+                        }
+                      }
+                    });
+                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
+                      if (viewID !== viewStore.activeView) {
+                        return;
+                      }
                       if (v.name === defaultLayoutName.replace(' Only', '')) {
                         viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                         viewStore.setActiveView(viewID);
@@ -728,7 +811,7 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                       }
                     });
                   });
-                  viewStore.setDataForAllViews(dataID);
+                  viewStore.setDataForActiveView(dataID);
                   return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
                 }
               }

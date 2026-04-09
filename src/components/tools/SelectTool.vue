@@ -2,46 +2,118 @@
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { WIDGET_PRIORITY } from '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { useToolStore } from '@/src/store/tools';
-import { Tools } from '@/src/store/tools/types';
+import { useToolStore, useAnnotationToolStore } from '@/src/store/tools';
+import { Tools, AnnotationToolType } from '@/src/store/tools/types';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/types';
-import { inject } from 'vue';
+import { inject, toRefs, computed } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
+import { ToolID } from '@/src/types/annotation-tool';
+import { useViewStore } from '@/src/store/views';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import type { LPSAxis } from '@/src/types/lps';
+
+const props = defineProps<{
+  viewId: string;
+  imageId?: string | null;
+}>();
+
+const { viewId, imageId } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const selectionStore = useToolSelectionStore();
 const toolStore = useToolStore();
+const viewStore = useViewStore();
+const { currentImageMetadata } = useCurrentImage();
 
-const PLACING_TOOLS = [Tools.Ruler, Tools.Rectangle, Tools.Polygon];
+const viewAxis = computed(() => {
+  const v = viewStore.getView(viewId.value);
+  return v?.type === '2D' ? (v.options as { orientation: LPSAxis }).orientation : null;
+});
+const sliceInfo = useSliceInfo(viewId, imageId);
+const currentSlice = computed(() => sliceInfo.value?.slice);
+
+const PLACING_TOOLS = [Tools.Ruler, Tools.Rectangle, Tools.Circle, Tools.Polygon];
+
+const isToolPlacing = (id: ToolID, type: AnnotationToolType) => {
+  try {
+    const store = useAnnotationToolStore(type);
+    return store.toolByID[id]?.placing ?? false;
+  } catch {
+    return false;
+  }
+};
+
+const isToolVisibleInView = (id: ToolID, type: AnnotationToolType) => {
+  try {
+    const store = useAnnotationToolStore(type);
+    const tool = store.toolByID[id];
+    if (!tool) return false;
+    if (viewAxis.value && !doesToolFrameMatchViewAxis(viewAxis.value, tool, currentImageMetadata)) return false;
+    if (currentSlice.value != null && tool.slice !== currentSlice.value) return false;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// When the GPU picker returns a tool not visible on the current slice,
+// find a visible tool of the same type at this slice (same canvas position).
+const findVisibleToolAtSamePosition = (pickedId: ToolID, type: AnnotationToolType): ToolID | null => {
+  try {
+    const store = useAnnotationToolStore(type);
+    const pickedTool = store.toolByID[pickedId] as any;
+    if (!pickedTool) return null;
+    const tools = store.tools as any[];
+    for (const t of tools) {
+      if (t.id === pickedId) continue;
+      if (t.placing || t.hidden) continue;
+      if (!isToolVisibleInView(t.id, type)) continue;
+      // Same type, visible on this slice — must be the one under the cursor
+      return t.id as ToolID;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 onVTKEvent(
   view.interactor,
   'onLeftButtonPress',
   (event: any) => {
-    if (PLACING_TOOLS.includes(toolStore.currentTool)) {
-      // avoid bugs when starting a placing tool on an existing tool and right clicking and deleting existing tools
-      return;
-    }
-
+    const isPlacing = PLACING_TOOLS.includes(toolStore.currentTool);
     const withModifiers = !!(event.shiftKey || event.controlKey);
     const selectedData = view.widgetManager.getSelectedData();
+    let handled = false;
     if ('widget' in selectedData) {
-      // clicked in empty space.
       const widget = selectedData.widget as vtkAnnotationToolWidget;
       const widgetState = widget.getWidgetState();
-      const id = widgetState.getId();
+      let id = widgetState.getId() as ToolID;
       const type = widgetState.getToolType();
-      // preserve if we've used shift or ctrl
-      if (withModifiers) {
-        selectionStore.toggleSelection(id, type);
-      } else {
-        selectionStore.clearSelection();
-        selectionStore.addSelection(id, type);
+      // Don't select the tool currently being placed
+      if (isToolPlacing(id, type)) return;
+      // If picked tool is not visible in this view, find the visible one
+      if (!isToolVisibleInView(id, type)) {
+        const visibleId = findVisibleToolAtSamePosition(id, type);
+        if (visibleId) {
+          id = visibleId;
+        }
       }
-    } else if (!withModifiers) {
-      // if no modifiers, then deselect
+      if (isToolVisibleInView(id, type)) {
+        handled = true;
+        if (withModifiers) {
+          selectionStore.toggleSelection(id, type);
+        } else {
+          selectionStore.clearSelection();
+          selectionStore.addSelection(id, type);
+        }
+      }
+    }
+    if (!handled && !withModifiers && !isPlacing) {
       selectionStore.clearSelection();
     }
   },

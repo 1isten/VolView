@@ -15,12 +15,12 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import vtkRectangleWidget, {
-  vtkRectangleViewWidget,
+import { useCircleStore } from '@/src/store/tools/circles';
+import vtkCircleWidget, {
+  vtkCircleViewWidget,
   InteractionState,
-} from '@/src/vtk/RectangleWidget';
-import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
+} from '@/src/vtk/CircleWidget';
+import CircleSVG2D from '@/src/components/tools/circle/CircleSVG2D.vue';
 import {
   useRightClickContextMenu,
   useHoverEvent,
@@ -33,39 +33,30 @@ import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { Maybe } from '@/src/types';
 import { whenever } from '@vueuse/core';
 
-const useStore = useRectangleStore;
-const vtkWidgetFactory = vtkRectangleWidget;
-type WidgetView = vtkRectangleViewWidget;
-const SVG2DComponent = RectangleSVG2D;
+const useStore = useCircleStore;
+const vtkWidgetFactory = vtkCircleWidget;
+type WidgetView = vtkCircleViewWidget;
+const SVG2DComponent = CircleSVG2D;
 
 export default defineComponent({
-  name: 'RectangleWidget2D',
+  name: 'CircleWidget2D',
   emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
       required: true,
     },
-    viewId: {
-      type: String,
-      required: true,
-    },
+    viewId: { type: String, required: true },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    isPlacing: {
-      type: Boolean,
-      default: false,
-    },
+    isPlacing: { type: Boolean, default: false },
     imageId: String as PropType<Maybe<string>>,
   },
-  components: {
-    SVG2DComponent,
-  },
+  components: { SVG2DComponent },
   setup(props, { emit }) {
     const { toolId, viewId, viewDirection, imageId, isPlacing } = toRefs(props);
-
     const view = inject(VtkViewContext);
     if (!view) throw new Error('No VtkView');
 
@@ -96,8 +87,6 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- reset on slice/image changes --- //
-
     watch([slice, imageId], () => {
       const isPlaced = widget.getWidgetState().getIsPlaced();
       if (!isPlaced) {
@@ -109,14 +98,8 @@ export default defineComponent({
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
-
     useHoverEvent(emit, widget);
-
-    // --- right click handling --- //
-
     useRightClickContextMenu(emit, widget);
-
-    // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
     widget.setManipulator(manipulator);
@@ -130,12 +113,8 @@ export default defineComponent({
       );
     });
 
-    // --- visibility --- //
-
     const isVisible = computed(() => tool.value?.slice === slice.value);
     useWidgetVisibility(widget, isVisible, view);
-
-    // --- handle pick visibility --- //
 
     const visibleStates = reactive({
       firstPoint: false,
@@ -156,12 +135,12 @@ export default defineComponent({
     return {
       tool,
       slice,
-      firstPoint: computed(() => {
-        return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
-      }),
-      secondPoint: computed(() => {
-        return visibleStates.secondPoint ? tool.value?.secondPoint : undefined;
-      }),
+      firstPoint: computed(() =>
+        visibleStates.firstPoint ? tool.value?.firstPoint : undefined
+      ),
+      secondPoint: computed(() =>
+        visibleStates.secondPoint ? tool.value?.secondPoint : undefined
+      ),
     };
   },
 });

@@ -6,6 +6,7 @@ import {
   onMounted,
   readonly,
   ref,
+  shallowRef,
   unref,
   watch,
 } from 'vue';
@@ -30,7 +31,7 @@ import { ImageMetadata } from '@/src/types/image';
 import { View } from '@/src/core/vtk/types';
 import { watchImmediate } from '@vueuse/core';
 
-const SHOW_OVERLAY_DELAY = 250; // milliseconds
+const SHOW_OVERLAY_DELAY = 250 * 2; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
@@ -134,11 +135,23 @@ export type OverlayInfo =
       displayXY: Vector2;
     };
 
+// Global state tracking the currently hovered annotation across all tool types.
+const globalHoveredToolID = ref<ToolID | null>(null);
+const globalHoveredToolStore = shallowRef<AnnotationToolStore | null>(null);
+
+export function getHoveredAnnotation() {
+  return {
+    toolID: globalHoveredToolID.value,
+    toolStore: globalHoveredToolStore.value,
+  };
+}
+
 // Maintains list of tools' hover states.
 // If one tool hovered, overlayInfo.visible === true with toolID and displayXY.
 export const useHover = (
   tools: Ref<Array<AnnotationTool>>,
-  currentSlice: Ref<number>
+  currentSlice: Ref<number>,
+  annotationToolStore?: AnnotationToolStore
 ) => {
   type Info = OverlayInfo;
   const toolHoverState = ref({}) as Ref<Record<ToolID, Info>>;
@@ -196,6 +209,7 @@ export const useHover = (
     Tools.Select,
     Tools.Ruler,
     Tools.Rectangle,
+    Tools.Circle,
     Tools.Polygon,
   ];
   const overlayInfo = computed(() => {
@@ -203,6 +217,17 @@ export const useHover = (
     if (!TOOLS_WITH_HOVER.includes(toolStore.currentTool))
       return { visible: false } as Info;
     return synchronousOverlayInfo.value;
+  });
+
+  // Update global hovered annotation state
+  watch(synchronousOverlayInfo, (info) => {
+    if (info.visible && annotationToolStore) {
+      globalHoveredToolID.value = info.toolID;
+      globalHoveredToolStore.value = annotationToolStore;
+    } else if (globalHoveredToolStore.value === annotationToolStore) {
+      globalHoveredToolID.value = null;
+      globalHoveredToolStore.value = null;
+    }
   });
 
   return { overlayInfo, onHover };
@@ -260,6 +285,16 @@ export const useWidgetVisibility = <T extends vtkAbstractWidget>(
     () => visible.value,
     (visibility) => {
       widget.setVisibility(visibility);
+      widget.setContextVisibility(visibility);
+      // Remove/add from renderer to fully exclude from GPU pick buffer.
+      // setPickable alone is insufficient: handle representations always
+      // render in the pick buffer, causing the picker to return the wrong
+      // widget when overlapping tools exist on different slices.
+      if (visibility) {
+        view.renderer.addActor(widget);
+      } else {
+        view.renderer.removeActor(widget);
+      }
     }
   );
 

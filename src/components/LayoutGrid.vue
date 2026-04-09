@@ -6,7 +6,7 @@
         v-else
         class="layout-item"
         :view-id="item.viewId"
-        @pointerdown.capture="onFocusView(item.viewId)"
+        @pointerdown.capture="onFocusView(item.viewId, $event)"
         @dblclick="maximize(item.viewId)"
       />
     </div>
@@ -27,7 +27,13 @@ export default defineComponent({
     LayoutGridItem,
   },
   methods: {
-    onFocusView(id: string) {
+    onFocusView(id: string, e: PointerEvent) {
+      if (useViewStore().activeView !== id) {
+        // Prevent the pointerdown from reaching the VTK interactor
+        // so that clicking an inactive view only activates it
+        // without starting annotation placement.
+        e.stopPropagation();
+      }
       useViewStore().setActiveView(id);
     },
     maximize(id: string) {

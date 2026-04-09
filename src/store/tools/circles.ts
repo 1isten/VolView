@@ -1,16 +1,16 @@
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
+import { CIRCLE_LABEL_DEFAULTS } from '@/src/config';
 import { ToolID } from '@/src/types/annotation-tool';
 
 import { useAnnotationTool } from './useAnnotationTool';
 
-const rectangleDefaults = () => ({
+const circleDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,
   secondPoint: [0, 0, 0] as Vector3,
   id: '' as ToolID,
-  name: 'Rectangle',
+  name: 'Circle',
   fillColor: 'transparent',
   fillOpacity: 0,
 });
@@ -20,10 +20,10 @@ const newLabelDefault = {
   fillOpacity: 0,
 };
 
-export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
+export const useCircleStore = defineAnnotationToolStore('circles', () => {
   const toolAPI = useAnnotationTool({
-    toolDefaults: rectangleDefaults,
-    initialLabels: RECTANGLE_LABEL_DEFAULTS,
+    toolDefaults: circleDefaults,
+    initialLabels: CIRCLE_LABEL_DEFAULTS,
     newLabelDefault,
   });
 
@@ -36,11 +36,11 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
 
   function serialize(state: StateFile) {
     if (!state.manifest.tools) return;
-    state.manifest.tools.rectangles = toolAPI.serializeTools();
+    state.manifest.tools.circles = toolAPI.serializeTools();
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    toolAPI.deserializeTools(manifest.tools?.rectangles, dataIDMap);
+    toolAPI.deserializeTools(manifest.tools?.circles, dataIDMap);
   }
 
   return {

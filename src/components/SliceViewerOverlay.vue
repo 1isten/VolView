@@ -31,7 +31,15 @@ const props = defineProps<Props>();
 const { viewId, imageId, currentImageData, baseRep: sliceRep, slicingMode, hover } = toRefs(props);
 
 const viewStore = useViewStore();
-const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
+const isViewMaximized = computed(() => {
+  if (viewStore.currentLayoutName?.endsWith(' Only')) {
+    return true;
+  }
+  if (viewStore.visibleViews.length === 1 && viewStore.visibleViews[0].id === viewId.value) {
+    return viewStore.activeView === viewId.value;
+  }
+  return viewStore.isActiveViewMaximized;
+});
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -152,25 +160,22 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
       </div>
     </template>
     <template v-slot:top-right>
-      <div class="annotation-cell">
-        <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
+      <div class="annotation-cell d-flex align-center" @dblclick.stop>
+        <ViewTypeSwitcher
+          v-if="
+            !viewId.includes('-coronal') &&
+            !viewId.includes('-sagittal') &&
+            !viewId.includes('-axial') &&
+            !viewId.includes('-multi-oblique')
+          "
+          :view-id="viewId"
+          :image-id="imageId"
+        />
+        <dicom-quick-info-button v-else :image-id="imageId"></dicom-quick-info-button>
       </div>
     </template>
     <template #bottom-right>
-      <div
-        v-if="
-          false &&
-          !viewId.includes('-coronal') &&
-          !viewId.includes('-sagittal') &&
-          !viewId.includes('-axial') &&
-          !viewId.includes('-multi-oblique')
-        "
-        class="annotation-cell"
-        @click.stop
-      >
-        <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
-      </div>
-      <div v-else class="annotation-cell" @click.stop>
+      <div class="annotation-cell" @click.stop>
         <div v-if="pointValue.value">
           {{ pointValue.value }}
         </div>

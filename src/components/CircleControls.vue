@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useCircleStore } from '@/src/store/tools/circles';
 import LabelControls from '@/src/components/LabelControls.vue';
 import FillColorControls from '@/src/components/FillColorControls.vue';
 
-const activeToolStore = useRectangleStore();
+const activeToolStore = useCircleStore();
 </script>
 
 <template>

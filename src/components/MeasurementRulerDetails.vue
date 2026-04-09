@@ -16,7 +16,7 @@ const toolStore = useRulerStore();
     <v-col>
       Length:
       <span class="value">
-        {{ toolStore.lengthByID[tool.id].toFixed(2) }}mm
+        {{ toolStore.lengthByID[tool.id].toFixed(2) }} mm
       </span>
     </v-col>
   </v-row>

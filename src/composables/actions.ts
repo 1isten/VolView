@@ -1,6 +1,7 @@
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
+import { useCircleStore } from '../store/tools/circles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
 import { useViewStore } from '../store/views';
@@ -15,6 +16,7 @@ import { PaintMode } from '../core/tools/paint';
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
     [Tools.Rectangle]: useRectangleStore(),
+    [Tools.Circle]: useCircleStore(),
     [Tools.Ruler]: useRulerStore(),
     [Tools.Polygon]: usePolygonStore(),
   };
@@ -85,6 +87,7 @@ export const ACTION_TO_FUNC = {
   decreaseBrushSize: changeBrushSize(-1),
   increaseBrushSize: changeBrushSize(1),
   rectangle: setTool(Tools.Rectangle),
+  circle: setTool(Tools.Circle),
   crosshairs: setTool(Tools.Crosshairs),
   temporaryCrosshairs: NOOP, // behavior implemented elsewhere
   crop: setTool(Tools.Crop),

@@ -21,6 +21,9 @@ const layoutGridSize = computed({
 });
 
 const namedLayoutsList = computed(() => {
+  if (!props.defaultLayoutName) {
+    return [];
+  }
   return Object.keys(viewStore.namedLayouts);
 });
 
@@ -66,13 +69,13 @@ onBeforeMount(() => {
         <v-list-item
           v-for="name in namedLayoutsList"
           :key="name"
-          :active="viewStore.currentLayoutName === name && false"
+          :active="viewStore.currentLayoutName === name"
           @click="selectNamedLayout(name)"
         >
           <v-list-item-title>{{ name.replace(' Only', '') }}</v-list-item-title>
         </v-list-item>
       </v-list>
-      <!-- <v-divider class="my-2" /> -->
+      <v-divider class="my-2" />
     </div>
     <div class="grid-editor">
       <LayoutGridEditor v-model="layoutGridSize" />
@@ -94,6 +97,6 @@ onBeforeMount(() => {
   justify-content: center;
   align-items: center;
 
-  display: none !important;
+  /* display: none !important; */
 }
 </style>

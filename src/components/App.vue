@@ -26,7 +26,7 @@
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
             <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
-            <div class="d-flex flex-column flex-grow-1">
+            <div class="d-flex flex-column flex-grow-1" style="padding-top: 1px">
               <VtkRenderWindowParent>
                 <layout-grid v-show="hasData" :layout="layout" />
               </VtkRenderWindowParent>
@@ -70,6 +70,7 @@ import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
+import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
 import ControlsStrip from '@/src/components/ControlsStrip.vue';
@@ -178,6 +179,8 @@ export default defineComponent({
     */
 
     const viewStore = useViewStore();
+    const viewSliceStore = useViewSliceStore();
+
     const datasetStore = useDatasetStore();
     const { emitter } = useEventBus(({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -243,6 +246,27 @@ export default defineComponent({
       },
     } as unknown as EventHandlers), loadDataStore);
 
+    const activeView = computed(() => viewStore.activeView);
+    watch(activeView, (activeViewID) => {
+      if (activeViewID && currentImageID.value) {
+        const viewID = activeViewID;
+        const dataID = currentImageID.value;
+        const sliceConfig = viewSliceStore.getConfig(viewID, dataID);
+        if (sliceConfig) {
+          // trigger currentSliceMetadata update for DicomTagBrowser
+          viewSliceStore.updateConfig(viewID, dataID, { ...sliceConfig });
+        }
+      }
+    });
+    watch(currentImageID, (primarySelection) => {
+      if (!primarySelection) {
+        viewStore.setLayoutFromGrid([1, 1]);
+      }
+    }, {
+      immediate: true,
+      once: true,
+    });
+    /*
     watch(currentImageID, async (primarySelection) => {
       if (primarySelection) {
         const volumeKey = primarySelection;
@@ -263,6 +287,7 @@ export default defineComponent({
         }
       }
     });
+    */
 
     // --- parse URL -- //
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
@@ -283,7 +308,7 @@ export default defineComponent({
 
     const query = useUrlSearchParams();
     const newMetadataNameTitle = computed(() => !!query.changeTitle);
-    const layoutNameSettled = computed(() => !!query.layoutName);
+    // const layoutNameSettled = computed(() => !!query.layoutName);
     const liteMode = computed(() => query.uiMode === 'lite');
     const disableDnD = computed(() => query.dnd === 'false' || query.dnd === '0' || isInsideIframe.value || hasProjectPort.value);
 

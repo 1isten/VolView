@@ -46,6 +46,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   let freeHanding = false;
 
+  // Moving state: drag-to-move entire polygon
+  let moveStartCoords: Vector3 | null = null;
+  let moveHandleOrigins: Vector3[] = [];
+
   // Check if mouse is over line segment between handles
   const checkOverSegment = () => {
     // overSegment guards against clicking anywhere in view
@@ -186,7 +190,28 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    // Ignore clicks on this widget's segment or fill
+    // Move entire polygon when clicking on segment or fill
+    if (
+      !model.widgetState.getPlacing() &&
+      model.pickable &&
+      (checkOverSegment() || checkOverFill())
+    ) {
+      const worldCoords = getWorldCoords(event);
+      if (!worldCoords?.length) return macro.VOID;
+
+      moveStartCoords = worldCoords as Vector3;
+      const handles = model.widgetState.getHandles();
+      moveHandleOrigins = handles.map((h: any) =>
+        (h.getOrigin() as number[]).slice()
+      ) as Vector3[];
+      setDragging(true);
+      model._apiSpecificRenderWindow.setCursor('grabbing');
+      model._interactor.requestAnimation(publicAPI);
+      publicAPI.invokeStartInteractionEvent();
+      return macro.EVENT_ABORT;
+    }
+
+    // Ignore clicks on this widget's segment or fill (fallback)
     if (checkOverSegment() || checkOverFill()) {
       return macro.VOID;
     }
@@ -234,6 +259,29 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // --------------------------------------------------------------------------
 
   publicAPI.handleMouseMove = (event: vtkMouseEvent) => {
+    // Moving entire polygon
+    if (model._dragging && moveStartCoords) {
+      const worldCoords = getWorldCoords(event);
+      if (worldCoords?.length) {
+        const dx = worldCoords[0] - moveStartCoords[0];
+        const dy = worldCoords[1] - moveStartCoords[1];
+        const dz = worldCoords[2] - moveStartCoords[2];
+        const handles = model.widgetState.getHandles();
+        for (let i = 0; i < handles.length; i++) {
+          const orig = moveHandleOrigins[i];
+          if (orig) {
+            handles[i].setOrigin([
+              orig[0] + dx,
+              orig[1] + dy,
+              orig[2] + dz,
+            ]);
+          }
+        }
+        publicAPI.invokeInteractionEvent();
+      }
+      return macro.EVENT_ABORT;
+    }
+
     if (
       model.pickable &&
       model.dragable &&
@@ -300,6 +348,35 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   }
 
   publicAPI.handleLeftButtonRelease = (event: vtkMouseEvent) => {
+    // Finish moving entire polygon
+    if (model._dragging && moveStartCoords) {
+      const worldCoords = getWorldCoords(event);
+      if (worldCoords?.length) {
+        const dx = worldCoords[0] - moveStartCoords[0];
+        const dy = worldCoords[1] - moveStartCoords[1];
+        const dz = worldCoords[2] - moveStartCoords[2];
+        const handles = model.widgetState.getHandles();
+        for (let i = 0; i < handles.length; i++) {
+          const orig = moveHandleOrigins[i];
+          if (orig) {
+            handles[i].setOrigin([
+              orig[0] + dx,
+              orig[1] + dy,
+              orig[2] + dz,
+            ]);
+          }
+        }
+      }
+      moveStartCoords = null;
+      moveHandleOrigins = [];
+      model._apiSpecificRenderWindow.setCursor('pointer');
+      model._interactor.cancelAnimation(publicAPI);
+      setDragging(false);
+      model._widgetManager.enablePicking();
+      publicAPI.invokeEndInteractionEvent();
+      return macro.EVENT_ABORT;
+    }
+
     if (
       !model.activeState ||
       !model.activeState.getActive() ||

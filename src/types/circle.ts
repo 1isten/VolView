@@ -1,6 +1,6 @@
 import { Ruler } from './ruler';
 
-export type Rectangle = Ruler & {
+export type Circle = Ruler & {
   fillColor: string;
   fillOpacity: number;
 };

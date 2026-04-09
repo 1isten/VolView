@@ -13,6 +13,7 @@
   >
     <v-icon :size="iconSize">{{ icon }}</v-icon>
     <v-tooltip
+      :disabled="tooltipDisabled"
       :location="tooltipLocation"
       activator="parent"
       transition="slide-x-transition"
@@ -32,6 +33,7 @@ export default {
     size: { type: [Number, String], default: 40 },
     buttonClass: [String, Array, Object],
     tooltipLocation: { type: String, default: 'left' },
+    tooltipDisabled: { type: Boolean, default: false },
   },
 
   computed: {

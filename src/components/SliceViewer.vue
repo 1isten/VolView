@@ -58,6 +58,9 @@
           </v-tooltip>
         </v-btn>
       </template>
+      <template v-else>
+        <span class="d-block mb-1"></span>
+      </template>
     </div>
     <div class="vtk-container" data-testid="two-view-container">
       <v-progress-linear
@@ -177,7 +180,12 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           />
-          <select-tool />
+          <circle-tool
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          />
+          <select-tool :view-id="viewId" :image-id="currentImageID" />
           <svg class="overlay-no-events">
             <bounding-rectangle :points="selectionPoints" />
           </svg>
@@ -223,6 +231,7 @@ import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
 import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
 import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
+import CircleTool from '@/src/components/tools/circle/CircleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
 import SegmentPlot from '@/src/components/SegmentPlot.vue';
@@ -267,7 +276,15 @@ const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
 const viewStore = useViewStore();
-const isViewMaximized = computed(() => viewStore.isActiveViewMaximized || viewStore.currentLayoutName?.endsWith(' Only'));
+const isViewMaximized = computed(() => {
+  if (viewStore.currentLayoutName?.endsWith(' Only')) {
+    return true;
+  }
+  if (viewStore.visibleViews.length === 1 && viewStore.visibleViews[0].id === viewId.value) {
+    return viewStore.activeView === viewId.value;
+  }
+  return viewStore.isActiveViewMaximized;
+});
 
 const viewInfo = computed(() => viewStore.getView(viewId.value)!);
 const viewOptions = computed(

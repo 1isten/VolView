@@ -371,10 +371,11 @@ export const useViewStore = defineStore('view', () => {
   }
 
   // initialization
-
+  /*
   firstLayout.views.forEach((viewInit) => {
     layoutSlots.value.push(addView(viewInit));
   });
+  */
 
   watch(disabledViewTypes, () => {
     applyDisabledViewTypesFilter();

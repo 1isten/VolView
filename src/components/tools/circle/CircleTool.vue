@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
-    <svg class="overlay-no-events" data-testid="rectangle-tool-container">
-      <rectangle-widget-2D
+    <svg class="overlay-no-events" data-testid="circle-tool-container">
+      <circle-widget-2D
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"
@@ -27,7 +27,7 @@ import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useCircleStore } from '@/src/store/tools/circles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
   useCurrentTools,
@@ -42,29 +42,19 @@ import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { ToolID } from '@/src/types/annotation-tool';
 import { watchImmediate } from '@vueuse/core';
-import RectangleWidget2D from './RectangleWidget2D.vue';
+import CircleWidget2D from './CircleWidget2D.vue';
 
-const useActiveToolStore = useRectangleStore;
-const toolType = Tools.Rectangle;
+const useActiveToolStore = useCircleStore;
+const toolType = Tools.Circle;
 
 export default defineComponent({
-  name: 'RectangleTool',
+  name: 'CircleTool',
   props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
-    viewDirection: {
-      type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
+    viewId: { type: String, required: true },
+    viewDirection: { type: String as PropType<LPSAxisDir>, required: true },
     imageId: String as PropType<Maybe<string>>,
   },
-  components: {
-    RectangleWidget2D,
-    AnnotationContextMenu,
-    AnnotationInfo,
-  },
+  components: { CircleWidget2D, AnnotationContextMenu, AnnotationInfo },
   setup(props) {
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
@@ -73,12 +63,9 @@ export default defineComponent({
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice ?? 0);
-
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
-
-    // --- active tool management --- //
 
     const frameOfReference = useFrameOfReference(
       viewDirection,
@@ -95,7 +82,8 @@ export default defineComponent({
           frameOfReference: frameOfReference.value,
           slice: slice.value,
           label: activeLabel.value,
-          ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
+          ...(activeLabel.value &&
+            activeToolStore.labels[activeLabel.value]),
         };
       })
     );
@@ -104,9 +92,7 @@ export default defineComponent({
       [isToolActive, currentImageID] as const,
       ([active, imageID]) => {
         placingTool.remove();
-        if (active && imageID) {
-          placingTool.add();
-        }
+        if (active && imageID) placingTool.add();
       }
     );
 
@@ -121,24 +107,24 @@ export default defineComponent({
       }
     };
 
-    // --- //
-
     const { contextMenu, openContextMenu: baseOpenContextMenu } =
       useContextMenu();
 
     const currentTools = useCurrentTools(
       activeToolStore,
       viewAxis,
-      // only show this view's placing tool
       computed(() => {
         if (placingTool.id.value) return [placingTool.id.value];
         return [];
       })
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice, activeToolStore);
+    const { onHover: baseOnHover, overlayInfo } = useHover(
+      currentTools,
+      slice,
+      activeToolStore
+    );
 
-    // Check if any polygon is actively being placed (has points)
     const polygonStore = usePolygonStore();
     const isAnyPolygonPlacing = () => {
       return polygonStore.tools.some(
@@ -146,7 +132,6 @@ export default defineComponent({
       );
     };
 
-    // Suppress hover/context menu when a polygon is actively being placed
     const onHover = (id: ToolID, event: any) => {
       if (isAnyPolygonPlacing()) {
         baseOnHover(id, { ...event, hovering: false });
@@ -156,9 +141,7 @@ export default defineComponent({
     };
 
     const openContextMenu = (id: ToolID, event: any) => {
-      if (isAnyPolygonPlacing()) {
-        return;
-      }
+      if (isAnyPolygonPlacing()) return;
       baseOpenContextMenu(id, event);
     };
 

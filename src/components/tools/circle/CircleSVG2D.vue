@@ -1,10 +1,10 @@
 <template>
   <g>
-    <rect
-      :x="rectangle.x"
-      :y="rectangle.y"
-      :width="rectangle.width"
-      :height="rectangle.height"
+    <ellipse
+      :cx="ellipse.cx"
+      :cy="ellipse.cy"
+      :rx="ellipse.rx"
+      :ry="ellipse.ry"
       :stroke="color"
       :stroke-width="strokeWidth"
       :fill="fillColor"
@@ -60,11 +60,10 @@ import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import {
-  computeRectangleMeasurements,
-  type RectangleMeasurements,
+  computeEllipseMeasurements,
+  type EllipseMeasurements,
 } from '@/src/utils/roiStats';
 import { useImageCacheStore } from '@/src/store/image-cache';
-
 import {
   PropType,
   computed,
@@ -80,24 +79,20 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { useResizeObserver } from '@vueuse/core';
 import type { Maybe } from '@/src/types';
 
-type SVGPoint = {
-  x: number;
-  y: number;
-};
+type SVGPoint = { x: number; y: number };
 
 function fmtNum(n: number, decimals = 2): string {
   if (Math.abs(n) >= 1000) return n.toFixed(0);
   return n.toFixed(decimals);
 }
 
-function buildRectStatsLines(m: RectangleMeasurements): string[] {
+function buildEllipseStatsLines(m: EllipseMeasurements): string[] {
   return [
     `Mean: ${fmtNum(m.mean)} Median: ${fmtNum(m.median)}`,
     `SDev: ${fmtNum(m.sdev)} Sum: ${fmtNum(m.sum, 0)}`,
     `Max: ${fmtNum(m.max, 0)} Min: ${fmtNum(m.min, 0)}`,
     `P: ${fmtNum(m.perimeter)} mm`,
     `Area: ${fmtNum(m.area)} mm\u00B2`,
-    `W: ${fmtNum(m.width)} mm H: ${fmtNum(m.height)} mm`,
   ];
 }
 
@@ -131,29 +126,22 @@ export default defineComponent({
       if (pt1) {
         const point2D = worldToSVG(pt1, viewRenderer);
         if (point2D) {
-          firstPoint.value = {
-            x: point2D[0],
-            y: point2D[1],
-          };
+          firstPoint.value = { x: point2D[0], y: point2D[1] };
         }
       } else {
         firstPoint.value = null;
       }
-
       if (pt2) {
         const point2D = worldToSVG(pt2, viewRenderer);
         if (point2D) {
-          secondPoint.value = {
-            x: point2D[0],
-            y: point2D[1],
-          };
+          secondPoint.value = { x: point2D[0], y: point2D[1] };
         }
       } else {
         secondPoint.value = null;
       }
     };
 
-    const rectangle = computed(() => {
+    const ellipse = computed(() => {
       const [firstX, firstY] = [
         firstPoint.value?.x ?? 0,
         firstPoint.value?.y ?? 0,
@@ -163,32 +151,32 @@ export default defineComponent({
         secondPoint.value?.y ?? firstY,
       ];
       return {
-        x: Math.min(firstX, secondX),
-        y: Math.min(firstY, secondY),
-        width: Math.abs(firstX - secondX),
-        height: Math.abs(firstY - secondY),
+        cx: (firstX + secondX) / 2,
+        cy: (firstY + secondY) / 2,
+        rx: Math.abs(firstX - secondX) / 2,
+        ry: Math.abs(firstY - secondY) / 2,
       };
     });
 
     // --- measurements --- //
 
-    const measurements = computed<RectangleMeasurements | null>(() => {
+    const measurements = computed<EllipseMeasurements | null>(() => {
       const p1 = unref(point1) as Vector3 | undefined;
       const p2 = unref(point2) as Vector3 | undefined;
       if (!p1 || !p2) return null;
       const image = imageCacheStore.getVtkImageData(imageId.value);
-      return computeRectangleMeasurements(image, p1, p2);
+      return computeEllipseMeasurements(image, p1, p2);
     });
 
     const statsLines = computed(() => {
       if (!measurements.value) return [];
-      return buildRectStatsLines(measurements.value);
+      return buildEllipseStatsLines(measurements.value);
     });
 
     const statsBox = computed(() => {
-      const rect = rectangle.value;
-      const x = rect.x + rect.width + 6;
-      const y = rect.y;
+      const e = ellipse.value;
+      const x = e.cx + e.rx + 6;
+      const y = e.cy - e.ry;
       const lineCount = statsLines.value.length;
       return {
         x,
@@ -200,13 +188,7 @@ export default defineComponent({
 
     const camera = vtkFieldRef(view.renderer, 'activeCamera');
     onVTKEvent(camera, 'onModified', updatePoints);
-
-    watch([point1, point2], updatePoints, {
-      deep: true,
-      immediate: true,
-    });
-
-    // --- resize --- //
+    watch([point1, point2], updatePoints, { deep: true, immediate: true });
 
     const container = vtkFieldRef(view.renderWindowView, 'container');
     useResizeObserver(container, () => {
@@ -216,7 +198,7 @@ export default defineComponent({
     return {
       first: firstPoint,
       second: secondPoint,
-      rectangle,
+      ellipse,
       measurements,
       statsLines,
       statsBox,

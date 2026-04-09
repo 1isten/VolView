@@ -120,6 +120,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       @click="loadUserPromptedFiles"
     />
     <control-button
+      :disabled="!hasData"
       size="40"
       icon="mdi-content-save-all"
       name="Save session"
@@ -131,6 +132,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       <template v-slot:activator="{ props }">
         <div>
           <control-button
+            :disabled="!hasData"
             v-bind="props"
             size="40"
             icon="mdi-view-dashboard"

@@ -4,6 +4,7 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import { SegmentMask } from '@/src/types/segment';
+import { standardizeColor } from './utils';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -188,15 +189,19 @@ export const TOOL_COLORS = [
 export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
 
 export const RULER_LABEL_DEFAULTS = {
-  'Label 1': { color: 'red' },
+  'Label 1': { color: standardizeColor('red') },
 };
 
 export const RECTANGLE_LABEL_DEFAULTS = {
-  'Label 1': { color: 'red' },
+  'Label 1': { color: standardizeColor('red') },
+};
+
+export const CIRCLE_LABEL_DEFAULTS = {
+  'Label 1': { color: standardizeColor('red') },
 };
 
 export const POLYGON_LABEL_DEFAULTS = {
-  'Label 1': { color: 'red' },
+  'Label 1': { color: standardizeColor('red') },
 };
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
@@ -224,6 +229,7 @@ export const ACTION_TO_KEY = {
   decreaseBrushSize: '[',
   increaseBrushSize: ']',
   rectangle: 'r',
+  circle: 'o',
   crosshairs: 'c',
   temporaryCrosshairs: 'shift-c',
   crop: 'b',

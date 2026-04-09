@@ -262,7 +262,7 @@ export default defineComponent({
       computed(() => (placingTool.id.value ? [placingTool.id.value] : []))
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice, activeToolStore);
 
     const onHover = (id: ToolID, event: any) => {
       if (shouldSuppressInteraction(id)) {
