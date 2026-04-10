@@ -17,6 +17,7 @@
 import { computed, defineComponent, PropType, toRefs } from 'vue';
 import { Layout } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
+import { useLoadDataStore } from '@/src/store/load-data';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import LayoutGridItem from '@/src/components/LayoutGridItem.vue';
@@ -25,24 +26,6 @@ export default defineComponent({
   name: 'LayoutGrid',
   components: {
     LayoutGridItem,
-  },
-  methods: {
-    onFocusView(id: string, e: PointerEvent) {
-      if (useViewStore().activeView !== id) {
-        // Prevent the pointerdown from reaching the VTK interactor
-        // so that clicking an inactive view only activates it
-        // without starting annotation placement.
-        e.stopPropagation();
-      }
-      useViewStore().setActiveView(id);
-    },
-    maximize(id: string) {
-      const currentTool = useToolStore().currentTool;
-      if (currentTool !== Tools.Polygon) {
-        useViewStore().setActiveView(id);
-        useViewStore().toggleActiveViewMaximized();
-      }
-    },
   },
   props: {
     layout: {
@@ -53,6 +36,7 @@ export default defineComponent({
   setup(props) {
     const { layout } = toRefs(props);
     const viewStore = useViewStore();
+    const loadDataStore = useLoadDataStore();
 
     const flexFlow = computed(() => {
       return layout.value.direction === 'column' ? 'flex-column' : 'flex-row';
@@ -72,6 +56,24 @@ export default defineComponent({
     });
 
     return {
+      onFocusView(id: string, e: PointerEvent) {
+        if (viewStore.activeView !== id) {
+          // Prevent the pointerdown from reaching the VTK interactor
+          // so that clicking an inactive view only activates it
+          // without starting annotation placement.
+          e.stopPropagation();
+        }
+        viewStore.setActiveView(id);
+        loadDataStore.$bus.emitter?.emit('activeview', JSON.parse(JSON.stringify(viewStore.getView(id))));
+      },
+      maximize(id: string) {
+        const currentTool = useToolStore().currentTool;
+        if (currentTool !== Tools.Polygon) {
+          viewStore.setActiveView(id);
+          viewStore.toggleActiveViewMaximized();
+        }
+      },
+
       items,
       flexFlow,
     };

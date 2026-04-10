@@ -18,6 +18,7 @@ export function useEventBus(handlers, loadDataStore) {
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
+  let onactiveview;
   let onslicing;
   let onclose;
 
@@ -92,6 +93,14 @@ export function useEventBus(handlers, loadDataStore) {
         }
       }
     };
+    onactiveview = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:activeview',
+          payload,
+        }, '*');
+      }
+    };
     onslicing = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -125,6 +134,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('userselectfiles', onuserselectfiles);
     emitter.on('savesession', onsavesession);
     emitter.on('savesegmentation', onsavesegmentation);
+    emitter.on('activeview', onactiveview);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
@@ -265,6 +275,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onsavesegmentation) {
       emitter.off('savesegmentation', onsavesegmentation);
+    }
+    if (onactiveview) {
+      emitter.off('activeview', onactiveview);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

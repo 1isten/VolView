@@ -347,14 +347,14 @@ export default defineComponent({
       if (!imageID) return;
 
       // Get current slice/frameOfReference from the active view
-      const activeViewId = viewStore.activeView;
-      if (!activeViewId) return;
-      const activeView = viewStore.getView(activeViewId);
+      const activeViewID = viewStore.activeView;
+      if (!activeViewID) return;
+      const activeView = viewStore.getView(activeViewID);
       if (!activeView || activeView.type !== '2D') return;
 
       const { orientation } = activeView.options;
       const { viewDirection } = get2DViewingVectors(orientation);
-      const { slice } = useSliceConfig(activeViewId, imageID);
+      const { slice } = useSliceConfig(activeViewID, imageID);
       const frameOfReference = useFrameOfReference(
         viewDirection,
         slice,

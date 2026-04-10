@@ -1,5 +1,6 @@
 import { useMessageStore } from '@/src/store/messages';
-import { Maybe } from '@/src/types';
+import type { Maybe } from '@/src/types';
+import type { ViewInfo } from '@/src/types/views';
 import { logError } from '@/src/utils/loggers';
 import { defineStore } from 'pinia';
 import { computed, ref, shallowRef, watch } from 'vue';
@@ -7,7 +8,7 @@ import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
 
-import { LPSAxisDir } from '@/src/types/lps';
+import type { LPSAxisDir } from '@/src/types/lps';
 
 export interface LoadEventOptions {
   uid?: string; // shortcut for volumeKeyUID
@@ -97,6 +98,7 @@ export type Events = {
   // ...
 
   // emit to outside
+  onactiveview?: ViewInfo;
   onslicing?: {
     uid: string;
     slice: number;
