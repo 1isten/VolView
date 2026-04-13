@@ -53,8 +53,15 @@ const onDelete = () => {
           @update:model-value="$emit('update:color', $event)"
           mode="rgb"
           label="Color"
+          class="label-color-editor"
         />
       </div>
     </v-card-item>
   </v-card>
 </template>
+
+<style scoped>
+.label-color-editor :deep(.v-color-picker-canvas) {
+  min-height: 150px;
+}
+</style>
