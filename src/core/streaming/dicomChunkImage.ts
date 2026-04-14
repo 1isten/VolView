@@ -232,15 +232,17 @@ export default class DicomChunkImage
     });
     this.onChunksUpdated();
 
-    if (this.getModality() !== 'SEG') {
-      await this.reallocateImage({ legacy: true });
+    const modality = this.getModality();
+
+    if (modality !== 'SEG') {
+      await this.reallocateImage({ legacy: modality === 'PT' ? false : true });
     }
 
     this.registerChunkListeners();
     this.processNewChunks(newChunks);
 
     // Update data range with already loaded chunks after reallocating image
-    if (this.getModality() !== 'SEG') {
+    if (modality !== 'SEG') {
       this.updateDataRangeFromChunks();
     }
   }
