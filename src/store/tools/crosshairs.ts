@@ -1,8 +1,11 @@
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import {
+  useCurrentImage,
+  getImageMetadata,
+} from '@/src/composables/useCurrentImage';
 import vtkCrosshairsWidget from '@/src/vtk/CrosshairsWidget';
 import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { computed, ref, unref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -20,7 +23,10 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   const handle = widgetState.getHandle();
 
   const active = ref(false);
-  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
+  const {
+    // currentImageID,
+    currentImageMetadata,
+  } = useCurrentImage('global');
 
   // world-space
   const position = ref<Vector3>([0, 0, 0]);
@@ -38,9 +44,11 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
 
-  const otherViews = computed(() => {
+  // const otherViews = computed(() => {
+  const all2DViews = computed(() => {
     return viewStore
-      .getViewsForData(unref(currentImageID))
+      // .getViewsForData(unref(currentImageID))
+      .getAllViews()
       .filter((view): view is ViewInfo2D => view.type === '2D');
   });
 
@@ -53,17 +61,31 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   }
 
   // update the slicing
-  watch(imagePosition, (indexPos) => {
+  // watch(imagePosition, (indexPos) => {
+  // for all 2D views, including those showing different images
+  watch(position, (worldPos) => {
     if (!active.value) {
       return;
     }
+    /*
     const imageID = unref(currentImageID);
     if (!imageID) {
       return;
     }
     const { lpsOrientation } = unref(currentImageMetadata);
+    */
+    // otherViews.value.forEach((view) => {
+    all2DViews.value.forEach((view) => {
+      const imageID = view.dataID;
+      if (!imageID) return;
 
-    otherViews.value.forEach((view) => {
+      const metadata = getImageMetadata(imageID);
+      const { lpsOrientation } = metadata;
+
+      // transform world position to this image's index space
+      const indexPos = vec3.create();
+      vec3.transformMat4(indexPos, worldPos, metadata.worldToIndex);
+
       const { orientation } = view.options;
       const { viewDirection } = get2DViewingVectors(orientation);
       const axis = getLPSAxisFromDir(viewDirection);
