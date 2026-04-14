@@ -56,12 +56,13 @@ export default defineComponent({
     });
 
     return {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       onFocusView(id: string, e: PointerEvent) {
         if (viewStore.activeView !== id) {
           // Prevent the pointerdown from reaching the VTK interactor
           // so that clicking an inactive view only activates it
           // without starting annotation placement.
-          e.stopPropagation();
+          // e.stopPropagation();
         }
         viewStore.setActiveView(id);
         loadDataStore.$bus.emitter?.emit('activeview', JSON.parse(JSON.stringify(viewStore.getView(id))));
