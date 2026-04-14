@@ -250,6 +250,13 @@ export default defineComponent({
       paintMenu.value = false;
       cropMenu.value = false;
       windowingMenu.value = false;
+
+      // Cancel in-progress annotation drawing
+      const tool = currentTool.value as string;
+      if (tool in AnnotationToolStoreMap) {
+        const store = useAnnotationToolStore(tool as AnnotationToolType);
+        store.cancelPlacing();
+      }
     });
 
     onKeyDown(['Backspace', 'Delete'], () => {

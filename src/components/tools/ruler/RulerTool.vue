@@ -20,7 +20,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
+import { computed, defineComponent, onUnmounted, PropType, toRefs, watch } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -101,6 +101,17 @@ export default defineComponent({
         placingTool.add();
       }
     });
+
+    // Cancel in-progress drawing on Escape
+    watch(
+      () => rulerStore.cancelPlacingSignal,
+      () => {
+        if (isToolActive.value && imageId.value && placingTool.id.value) {
+          placingTool.remove();
+          placingTool.add();
+        }
+      }
+    );
 
     onUnmounted(() => {
       placingTool.remove();

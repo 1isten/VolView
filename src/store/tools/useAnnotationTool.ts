@@ -210,6 +210,9 @@ export const useAnnotationTool = <
       .forEach((tool) => addTool(tool));
   }
 
+  const cancelPlacingSignal = ref(0);
+  const cancelPlacing = () => (cancelPlacingSignal.value += 1);
+
   return {
     ...labels,
     toolIDs,
@@ -220,6 +223,8 @@ export const useAnnotationTool = <
     removeTool,
     updateTool,
     jumpToTool,
+    cancelPlacing,
+    cancelPlacingSignal,
     serializeTools,
     deserializeTools,
   };

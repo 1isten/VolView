@@ -84,7 +84,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
+import { computed, defineComponent, onUnmounted, PropType, toRefs, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
@@ -213,6 +213,17 @@ export default defineComponent({
         placingTool.add();
       }
     });
+
+    // Cancel in-progress drawing on Escape
+    watch(
+      () => activeToolStore.cancelPlacingSignal,
+      () => {
+        if (isToolActive.value && imageId.value && placingTool.id.value) {
+          placingTool.remove();
+          placingTool.add();
+        }
+      }
+    );
 
     onUnmounted(() => {
       placingTool.remove();
