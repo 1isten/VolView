@@ -92,6 +92,7 @@ onVTKEvent(
     if ('widget' in selectedData) {
       const widget = selectedData.widget as vtkAnnotationToolWidget;
       const widgetState = widget.getWidgetState();
+      if (!widgetState) return;
       let id = widgetState.getId() as ToolID;
       const type = widgetState.getToolType();
       // Don't select the tool currently being placed
