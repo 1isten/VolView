@@ -19,12 +19,17 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import {
+  // useCurrentImage,
+  getImageMetadata,
+} from '@/src/composables/useCurrentImage';
 import { clampValue } from '@/src/utils';
 import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import CrosshairsWidget2D from './CrosshairsWidget2D.vue';
 import CrosshairSVG2D from './CrosshairSVG2D.vue';
+
+import { vec3 } from 'gl-matrix';
 
 export default defineComponent({
   name: 'CrosshairsTool',
@@ -47,22 +52,36 @@ export default defineComponent({
     const { viewId, imageId, viewDirection } = toRefs(props);
 
     const toolStore = useToolStore();
-    const { position, imagePosition } = storeToRefs(useCrosshairsToolStore());
+    // const { position, imagePosition } = storeToRefs(useCrosshairsToolStore());
+    const crosshairsStore = useCrosshairsToolStore();
+    const { position } = storeToRefs(crosshairsStore);
 
     const sliceInfo = useSliceInfo(viewId, imageId);
 
-    const { currentImageMetadata } = useCurrentImage();
+    // const { currentImageMetadata } = useCurrentImage();
     const active = computed(() => toolStore.currentTool === Tools.Crosshairs);
     const isVisible = computed(() => {
       if (!sliceInfo.value) return false;
 
-      const { lpsOrientation, dimensions } = currentImageMetadata.value;
+      // const { lpsOrientation, dimensions } = currentImageMetadata.value;
+
+      const id = imageId.value;
+      if (!id) return false;
+
+      const metadata = getImageMetadata(id);
+      const { lpsOrientation, dimensions } = metadata;
       const axis = getLPSAxisFromDir(viewDirection.value);
       const index = lpsOrientation[axis];
+
+      // transform world position to this view's image index space
+      const indexPos = vec3.create();
+      vec3.transformMat4(indexPos, position.value, metadata.worldToIndex);
+
       // Since the image rectangle is inflated by 0.5,
       // clamp to the allowed range for the slice.
       const crosshairsSlice = clampValue(
-        imagePosition.value[index],
+        // imagePosition.value[index],
+        indexPos[index],
         0,
         dimensions[index] - 1
       );
