@@ -182,5 +182,6 @@ export default defineComponent({
     :placing="tool.placing"
     :finishable="editState.finishable"
     :show-handles="showHandles"
+    :image-id="imageId"
   />
 </template>

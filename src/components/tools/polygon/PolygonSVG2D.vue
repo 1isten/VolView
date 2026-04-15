@@ -23,6 +23,29 @@
       :stroke-width="strokeWidth"
       fill="none"
     />
+    <!-- Measurement overlay -->
+    <g v-if="measurements && handlePoints.length >= 3 && !placing">
+      <rect
+        :x="statsBox.x"
+        :y="statsBox.y"
+        :width="statsBox.width"
+        :height="statsBox.height"
+        fill="rgba(0,0,0,0.7)"
+        rx="3"
+        ry="3"
+      />
+      <text
+        v-for="(line, idx) in statsLines"
+        :key="idx"
+        :x="statsBox.x + 4"
+        :y="statsBox.y + 12 + idx * 14"
+        fill="white"
+        font-size="11px"
+        font-family="monospace"
+      >
+        {{ line }}
+      </text>
+    </g>
   </g>
 </template>
 
@@ -31,6 +54,11 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import {
+  computePolygonMeasurements,
+  type PolygonMeasurements,
+} from '@/src/utils/roiStats';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import {
   PropType,
   defineComponent,
@@ -47,6 +75,21 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 
 const POINT_RADIUS = ANNOTATION_TOOL_HANDLE_RADIUS;
 const FINISHABLE_POINT_RADIUS = POINT_RADIUS;
+
+function fmtNum(n: number, decimals = 2): string {
+  if (Math.abs(n) >= 1000) return n.toFixed(0);
+  return n.toFixed(decimals);
+}
+
+function buildPolygonStatsLines(m: PolygonMeasurements): string[] {
+  return [
+    `Mean: ${fmtNum(m.mean)} Median: ${fmtNum(m.median)}`,
+    `SDev: ${fmtNum(m.sdev)} Sum: ${fmtNum(m.sum, 0)}`,
+    `Max: ${fmtNum(m.max, 0)} Min: ${fmtNum(m.min, 0)}`,
+    `P: ${fmtNum(m.perimeter)} mm`,
+    `Area: ${fmtNum(m.area)} mm\u00B2`,
+  ];
+}
 
 export default defineComponent({
   props: {
@@ -79,9 +122,13 @@ export default defineComponent({
       type: Number,
       default: 0,
     },
+    imageId: {
+      type: String as PropType<Maybe<string>>,
+      default: undefined,
+    },
   },
   setup(props) {
-    const { points, movePoint, placing, finishable, showHandles } =
+    const { points, movePoint, placing, finishable, showHandles, imageId } =
       toRefs(props);
 
     const view = inject(VtkViewContext);
@@ -155,12 +202,52 @@ export default defineComponent({
       updatePoints();
     });
 
+    // --- measurements --- //
+
+    const imageCacheStore = useImageCacheStore();
+
+    const measurements = computed<PolygonMeasurements | null>(() => {
+      if (points.value.length < 3 || placing.value) return null;
+      const image = imageCacheStore.getVtkImageData(imageId.value);
+      return computePolygonMeasurements(image, points.value);
+    });
+
+    const statsLines = computed(() => {
+      if (!measurements.value) return [];
+      return buildPolygonStatsLines(measurements.value);
+    });
+
+    const statsBox = computed(() => {
+      if (!measurements.value || handlePoints.value.length < 3) {
+        return { x: 0, y: 0, width: 0, height: 0 };
+      }
+      // Find rightmost point for positioning
+      let maxX = -Infinity;
+      let maxXY = 0;
+      for (const { point } of handlePoints.value) {
+        if (point[0] > maxX) {
+          maxX = point[0];
+          maxXY = point[1];
+        }
+      }
+      const lineCount = statsLines.value.length;
+      return {
+        x: maxX + 6,
+        y: maxXY,
+        width: 220,
+        height: lineCount * 14 + 6,
+      };
+    });
+
     return {
       devicePixelRatio,
       handlePoints,
       linePoints,
       firstHandleVisibility,
       handleVisibility,
+      measurements,
+      statsLines,
+      statsBox,
     };
   },
 });

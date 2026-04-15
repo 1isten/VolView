@@ -1,5 +1,5 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
 
@@ -270,6 +270,186 @@ export function computeEllipseMeasurements(
   }
 
   const values = collectEllipseValues(image, p1, p2);
+  const stats = computeStats(values);
+  return { ...geo, ...stats };
+}
+
+// --- Polygon --- //
+
+export interface PolygonMeasurements extends ROIStats {
+  area: number;
+  perimeter: number;
+}
+
+/**
+ * Point-in-polygon test using ray casting algorithm.
+ */
+function pointInPolygon(x: number, y: number, poly: Vector2[]): boolean {
+  let inside = false;
+  let j = poly.length - 1;
+  for (let i = 0; i < poly.length; i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (
+      yi > y !== yj > y &&
+      x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+    ) {
+      inside = !inside;
+    }
+    j = i;
+  }
+  return inside;
+}
+
+/**
+ * Collect voxel values inside a polygon defined by world-space vertices,
+ * on a single slice. Works for any view orientation.
+ */
+function collectPolygonValues(
+  image: vtkImageData,
+  points: Vector3[]
+): number[] {
+  if (points.length < 3) return [];
+
+  const dims = image.getDimensions() as [number, number, number];
+  const scalars = image.getPointData().getScalars();
+  const rawData = scalars.getData() as number[];
+  const numComp = scalars.getNumberOfComponents();
+
+  // Convert all polygon vertices to IJK space
+  const ijkPoints = points.map((p) => worldPointToIndex(image, p as vec3));
+
+  // Detect slice axis from first two distinct points
+  // All points should share the same slice, so use min delta across all axes
+  const deltas = [0, 1, 2].map((axis) => {
+    let minVal = Infinity;
+    let maxVal = -Infinity;
+    for (const ijk of ijkPoints) {
+      minVal = Math.min(minVal, ijk[axis]);
+      maxVal = Math.max(maxVal, ijk[axis]);
+    }
+    return maxVal - minVal;
+  });
+  let sliceAxis = 0;
+  if (deltas[1] < deltas[sliceAxis]) sliceAxis = 1;
+  if (deltas[2] < deltas[sliceAxis]) sliceAxis = 2;
+
+  const inPlane = [0, 1, 2].filter((a) => a !== sliceAxis) as [number, number];
+  const [axisA, axisB] = inPlane;
+
+  const sliceVal = Math.round(ijkPoints[0][sliceAxis]);
+  if (sliceVal < 0 || sliceVal >= dims[sliceAxis]) return [];
+
+  // Build 2D polygon in IJK in-plane coordinates
+  const poly2D: Vector2[] = ijkPoints.map(
+    (ijk) => [Math.round(ijk[axisA]), Math.round(ijk[axisB])] as Vector2
+  );
+
+  // Compute bounding box in IJK
+  let aMin = Infinity;
+  let aMax = -Infinity;
+  let bMin = Infinity;
+  let bMax = -Infinity;
+  for (const [a, b] of poly2D) {
+    if (a < aMin) aMin = a;
+    if (a > aMax) aMax = a;
+    if (b < bMin) bMin = b;
+    if (b > bMax) bMax = b;
+  }
+  aMin = Math.max(0, aMin);
+  aMax = Math.min(dims[axisA] - 1, aMax);
+  bMin = Math.max(0, bMin);
+  bMax = Math.min(dims[axisB] - 1, bMax);
+
+  const values: number[] = [];
+  const ijk: [number, number, number] = [0, 0, 0];
+  ijk[sliceAxis] = sliceVal;
+
+  for (let b = bMin; b <= bMax; b++) {
+    ijk[axisB] = b;
+    for (let a = aMin; a <= aMax; a++) {
+      if (pointInPolygon(a, b, poly2D)) {
+        ijk[axisA] = a;
+        const idx = flatIndex(dims, ijk[0], ijk[1], ijk[2]);
+        values.push(rawData[idx * numComp]);
+      }
+    }
+  }
+  return values;
+}
+
+/**
+ * Compute geometric measurements for a polygon in world space.
+ * Uses Shoelace formula for area, edge-length sum for perimeter.
+ */
+function computePolygonGeometry(points: Vector3[]) {
+  if (points.length < 3) return { area: 0, perimeter: 0 };
+
+  // Detect the 2D plane from the 3D points (same approach as for voxels)
+  const deltas = [0, 1, 2].map((axis) => {
+    let minVal = Infinity;
+    let maxVal = -Infinity;
+    for (const p of points) {
+      minVal = Math.min(minVal, p[axis]);
+      maxVal = Math.max(maxVal, p[axis]);
+    }
+    return maxVal - minVal;
+  });
+  let sliceAxis = 0;
+  if (deltas[1] < deltas[sliceAxis]) sliceAxis = 1;
+  if (deltas[2] < deltas[sliceAxis]) sliceAxis = 2;
+  const inPlane = [0, 1, 2].filter((a) => a !== sliceAxis) as [number, number];
+  const [axisA, axisB] = inPlane;
+
+  const pts2D = points.map((p) => [p[axisA], p[axisB]] as Vector2);
+
+  // Shoelace formula for area
+  let area = 0;
+  for (let i = 0; i < pts2D.length; i++) {
+    const [x1, y1] = pts2D[i];
+    const [x2, y2] = pts2D[(i + 1) % pts2D.length];
+    area += x1 * y2 - x2 * y1;
+  }
+  area = Math.abs(area) / 2;
+
+  // Perimeter: sum of edge lengths
+  let perimeter = 0;
+  for (let i = 0; i < pts2D.length; i++) {
+    const [x1, y1] = pts2D[i];
+    const [x2, y2] = pts2D[(i + 1) % pts2D.length];
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    perimeter += Math.sqrt(dx * dx + dy * dy);
+  }
+
+  return { area, perimeter };
+}
+
+/**
+ * Compute full measurements for a polygon annotation.
+ */
+export function computePolygonMeasurements(
+  image: vtkImageData | null | undefined,
+  points: Vector3[]
+): PolygonMeasurements | null {
+  if (points.length < 3) return null;
+
+  const geo = computePolygonGeometry(points);
+
+  if (!image) {
+    return {
+      ...geo,
+      mean: 0,
+      median: 0,
+      sdev: 0,
+      sum: 0,
+      max: 0,
+      min: 0,
+      count: 0,
+    };
+  }
+
+  const values = collectPolygonValues(image, points);
   const stats = computeStats(values);
   return { ...geo, ...stats };
 }
