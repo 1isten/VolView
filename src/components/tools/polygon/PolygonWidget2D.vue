@@ -176,6 +176,8 @@ export default defineComponent({
     :points="tool.points"
     :color="tool.color"
     :stroke-width="tool.strokeWidth"
+    :fill-color="tool.fillColor"
+    :fill-opacity="tool.fillOpacity"
     :move-point="editState.movePoint"
     :placing="tool.placing"
     :finishable="editState.finishable"

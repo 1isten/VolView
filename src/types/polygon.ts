@@ -6,4 +6,6 @@ export type Polygon = {
    * Points is in image index space.
    */
   points: Array<Vector3>;
+  fillColor: string;
+  fillOpacity: number;
 } & AnnotationTool;

@@ -17,6 +17,8 @@ const toolDefaults = () => ({
   points: [] as Array<Vector3>,
   id: '' as ToolID,
   name: 'Polygon',
+  fillColor: 'transparent',
+  fillOpacity: 0,
 });
 
 const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {

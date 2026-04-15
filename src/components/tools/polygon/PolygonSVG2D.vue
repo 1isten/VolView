@@ -11,6 +11,12 @@
       :r="radius"
       :visibility="index === 0 ? firstHandleVisibility : handleVisibility"
     />
+    <polygon
+      :points="linePoints"
+      stroke="none"
+      :fill="fillColor"
+      :fill-opacity="fillOpacity"
+    />
     <polyline
       :points="linePoints"
       :stroke="color"
@@ -64,6 +70,14 @@ export default defineComponent({
     showHandles: {
       type: Boolean,
       default: false,
+    },
+    fillColor: {
+      type: String,
+      default: 'transparent',
+    },
+    fillOpacity: {
+      type: Number,
+      default: 0,
     },
   },
   setup(props) {
