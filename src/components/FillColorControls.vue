@@ -90,7 +90,8 @@ const fillOpacity = computed({
             :model-value="fillColor"
             @update:model-value="fillColor = $event"
             mode="rgb"
-            hide-inputs
+            label="Color"
+            class="label-color-editor"
           />
         </v-menu>
         <v-slider
@@ -118,5 +119,9 @@ const fillOpacity = computed({
   border-radius: 4px;
   border: 2px solid rgba(255, 255, 255, 0.4);
   cursor: pointer;
+}
+
+.label-color-editor :deep(.v-color-picker-canvas) {
+  min-height: 150px;
 }
 </style>
