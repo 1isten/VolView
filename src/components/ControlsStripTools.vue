@@ -282,11 +282,31 @@ export default defineComponent({
       const selectionStore = useToolSelectionStore();
       const imageID = currentImageID.value;
       if (!imageID) return;
+
+      // Only select annotations visible on the active view's current slice
+      const activeViewID = viewStore.activeView;
+      if (!activeViewID) return;
+      const activeView = viewStore.getView(activeViewID);
+      if (!activeView || activeView.type !== '2D') return;
+
+      const { orientation } = activeView.options;
+      const { slice } = useSliceConfig(activeViewID, imageID);
+      const currentSlice = slice.value;
+      const metadata = currentImageMetadata.value;
+
       (Object.entries(AnnotationToolStoreMap) as [AnnotationToolType, () => any][]).forEach(
         ([type, useStore]) => {
           const store = useStore();
           store.finishedTools
-            .filter((tool: any) => tool.imageID === imageID)
+            .filter((tool: any) => {
+              if (tool.imageID !== imageID) return false;
+              const axisInfo = frameOfReferenceToImageSliceAndAxis(
+                tool.frameOfReference,
+                metadata
+              );
+              if (!axisInfo) return false;
+              return axisInfo.axis === orientation && tool.slice === currentSlice;
+            })
             .forEach((tool: any) => selectionStore.addSelection(tool.id, type));
         }
       );
