@@ -214,15 +214,14 @@ export default defineComponent({
             if (Array.isArray(options.uid)) {
               options.uid = `[${options.uid[0]}]`;
             }
-            const decodedPaths = window.atob(options.uid.startsWith('[') && options.uid.endsWith(']') ? options.uid.slice(1, -1) : options.uid.toString()).split(' ');
+            const decodedPaths = (window.atob(options.uid.startsWith('[') && options.uid.endsWith(']') ? options.uid.slice(1, -1) : options.uid.toString()).split(' ')).map(decodeURIComponent);
             // console.warn('[atob]', options.uid, '->', decodedPaths);
-            urlParams.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
-
+            urlParams.urls = decodedPaths.map(decodedPath => `h3://localhost/file/${encodeURIComponent(decodedPath)}`);
           } else {
             const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
             // console.warn('[atob]', options.uid, '->', decodedPath);
             const qs = urlParams.urls[0]?.split('?')[1];
-            urlParams.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+            urlParams.urls = [`h3://localhost/file/${encodeURIComponent(decodedPath)}` + (qs ? `?${qs}` : '')];
           }
         }
 
@@ -337,14 +336,14 @@ export default defineComponent({
             if (Array.isArray(params.uid)) {
               params.uid = `[${params.uid[0]}]`;
             }
-            const decodedPaths = window.atob(params.uid.startsWith('[') && params.uid.endsWith(']') ? params.uid.slice(1, -1) : params.uid.toString()).split(' ');
+            const decodedPaths = (window.atob(params.uid.startsWith('[') && params.uid.endsWith(']') ? params.uid.slice(1, -1) : params.uid.toString()).split(' ')).map(decodeURIComponent);
             // console.warn('[atob]', params.uid, '->', decodedPaths);
-            params.urls = decodedPaths.map(path => `h3://localhost/file/${decodeURIComponent(path)}`);
+            params.urls = decodedPaths.map(decodedPath => `h3://localhost/file/${encodeURIComponent(decodedPath)}`);
           } else {
             const decodedPath = decodeURIComponent(window.atob(params.uid.toString()));
             // console.warn('[atob]', params.uid, '->', decodedPath);
             const qs = params.urls[0]?.split('?')[1];
-            params.urls = [`h3://localhost/file/${decodedPath}` + (qs ? `?${qs}` : '')];
+            params.urls = [`h3://localhost/file/${encodeURIComponent(decodedPath)}` + (qs ? `?${qs}` : '')];
           }
         }
       } else if ('open-folder' in params) {
