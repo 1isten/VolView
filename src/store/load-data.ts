@@ -95,6 +95,58 @@ export type Events = {
   onload: LoadEvent;
   onunload: void;
   onunselect: void;
+  onsetslice?: {
+    slice?: number;
+    delta?: number;
+    instanceDelta?: number;
+    dicomTag?: string;
+    tag?: string;
+    value?: string | number;
+    match?: 'equals' | 'contains';
+    direction?: 'first' | 'last' | 'forward' | 'backward' | 'nearest';
+    viewID?: string;
+    dataID?: string;
+  };
+  onsetwindowlevel?: {
+    width?: number;
+    level?: number;
+    widthDelta?: number;
+    levelDelta?: number;
+    widthScale?: number;
+    reset?: boolean;
+    applyDicom?: boolean;
+    viewID?: string;
+    dataID?: string;
+  };
+  onsetactiveview?: {
+    viewID?: string;
+    name?: string;
+    orientation?: string;
+    type?: '2D' | '3D';
+    maximized?: boolean;
+    maximize?: boolean;
+  };
+  onsetactiveviewtype?: {
+    viewID?: string;
+    name?: string;
+    orientation?: string;
+    type?: '2D' | '3D';
+  };
+  onsetactiveviewmaximized?: {
+    viewID?: string;
+    maximized?: boolean;
+  };
+  oncaptureactiveview?: {
+    requestId?: string;
+    includeImage?: boolean;
+    includeHistogram?: boolean;
+    includePixels?: boolean;
+    maxWidth?: number;
+    maxHeight?: number;
+    bins?: number;
+    pixelWidth?: number;
+    pixelHeight?: number;
+  };
   // ...
 
   // emit to outside

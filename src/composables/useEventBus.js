@@ -15,10 +15,18 @@ export function useEventBus(handlers, loadDataStore) {
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
   const onunselect = handlers?.onunselect;
+  const onsetslice = handlers?.onsetslice;
+  const onsetwindowlevel = handlers?.onsetwindowlevel;
+  const onsetactiveview = handlers?.onsetactiveview;
+  const onsetactiveviewtype = handlers?.onsetactiveviewtype;
+  const onsetactiveviewmaximized = handlers?.onsetactiveviewmaximized;
+  const oncaptureactiveview = handlers?.oncaptureactiveview;
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
   let onactiveview;
+  let onfrontendstate;
+  let onactiveviewsnapshot;
   let onslicing;
   let onclose;
 
@@ -42,6 +50,24 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onunselect) {
       emitter.on('unselect', onunselect);
+    }
+    if (onsetslice) {
+      emitter.on('setslice', onsetslice);
+    }
+    if (onsetwindowlevel) {
+      emitter.on('setwindowlevel', onsetwindowlevel);
+    }
+    if (onsetactiveview) {
+      emitter.on('setactiveview', onsetactiveview);
+    }
+    if (onsetactiveviewtype) {
+      emitter.on('setactiveviewtype', onsetactiveviewtype);
+    }
+    if (onsetactiveviewmaximized) {
+      emitter.on('setactiveviewmaximized', onsetactiveviewmaximized);
+    }
+    if (oncaptureactiveview) {
+      emitter.on('captureactiveview', oncaptureactiveview);
     }
     onuserselectfiles = files => {
       if (projectId && datasetId) {
@@ -101,6 +127,22 @@ export function useEventBus(handlers, loadDataStore) {
         }, '*');
       }
     };
+    onfrontendstate = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:state',
+          payload,
+        }, '*');
+      }
+    };
+    onactiveviewsnapshot = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:activeviewsnapshot',
+          payload,
+        }, '*');
+      }
+    };
     onslicing = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -135,6 +177,8 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('savesession', onsavesession);
     emitter.on('savesegmentation', onsavesegmentation);
     emitter.on('activeview', onactiveview);
+    emitter.on('frontendstate', onfrontendstate);
+    emitter.on('activeviewsnapshot', onactiveviewsnapshot);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
@@ -166,6 +210,30 @@ export function useEventBus(handlers, loadDataStore) {
                 }
                 case 'unselect': {
                   window.$bus.emitter.emit(type);
+                  break;
+                }
+                case 'set-slice': {
+                  window.$bus.emitter.emit('setslice', payload);
+                  break;
+                }
+                case 'set-window-level': {
+                  window.$bus.emitter.emit('setwindowlevel', payload);
+                  break;
+                }
+                case 'set-active-view': {
+                  window.$bus.emitter.emit('setactiveview', payload);
+                  break;
+                }
+                case 'set-active-view-type': {
+                  window.$bus.emitter.emit('setactiveviewtype', payload);
+                  break;
+                }
+                case 'set-active-view-maximized': {
+                  window.$bus.emitter.emit('setactiveviewmaximized', payload);
+                  break;
+                }
+                case 'capture-active-view': {
+                  window.$bus.emitter.emit('captureactiveview', payload);
                   break;
                 }
                 // ...
@@ -267,6 +335,24 @@ export function useEventBus(handlers, loadDataStore) {
     if (onunselect) {
       emitter.off('unselect', onunselect);
     }
+    if (onsetslice) {
+      emitter.off('setslice', onsetslice);
+    }
+    if (onsetwindowlevel) {
+      emitter.off('setwindowlevel', onsetwindowlevel);
+    }
+    if (onsetactiveview) {
+      emitter.off('setactiveview', onsetactiveview);
+    }
+    if (onsetactiveviewtype) {
+      emitter.off('setactiveviewtype', onsetactiveviewtype);
+    }
+    if (onsetactiveviewmaximized) {
+      emitter.off('setactiveviewmaximized', onsetactiveviewmaximized);
+    }
+    if (oncaptureactiveview) {
+      emitter.off('captureactiveview', oncaptureactiveview);
+    }
     if (onuserselectfiles) {
       emitter.off('userselectfiles', onuserselectfiles);
     }
@@ -278,6 +364,12 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onactiveview) {
       emitter.off('activeview', onactiveview);
+    }
+    if (onfrontendstate) {
+      emitter.off('frontendstate', onfrontendstate);
+    }
+    if (onactiveviewsnapshot) {
+      emitter.off('activeviewsnapshot', onactiveviewsnapshot);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

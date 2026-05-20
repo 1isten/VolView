@@ -85,6 +85,7 @@ function onDrop(event: DragEvent) {
   <div
     class="grid-item"
     :style="activeStyles"
+    :data-volview-view-id="viewId"
     @dragenter="onDragEnter"
     @dragleave="onDragLeave"
     @drop="onDrop"

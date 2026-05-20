@@ -186,6 +186,8 @@ export const useViewStore = defineStore('view', () => {
     }
 
     delete viewByID[id];
+
+    return newViewId;
   }
 
   function applyLayoutChange(

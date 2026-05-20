@@ -27,7 +27,7 @@
           <div class="fill-height d-flex flex-row flex-grow-1">
             <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
             <div class="d-flex flex-column flex-grow-1" style="padding-top: 1px">
-              <VtkRenderWindowParent>
+              <VtkRenderWindowParent ref="vtkRenderWindowParent">
                 <layout-grid v-show="hasData" :layout="layout" />
               </VtkRenderWindowParent>
               <welcome-page
@@ -70,7 +70,6 @@ import { useDisplay } from 'vuetify';
 import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
-import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
 import ControlsStrip from '@/src/components/ControlsStrip.vue';
@@ -102,6 +101,7 @@ import { normalizeUrlParams } from '@/src/utils/urlParams';
 import { normalize as normalizePath } from '@/src/utils/path';
 
 import { useEventBus } from '@/src/composables/useEventBus';
+import { useVolViewFrontendBridge } from '@/src/composables/useVolViewFrontendBridge';
 
 export default defineComponent({
   name: 'App',
@@ -177,11 +177,18 @@ export default defineComponent({
       n: 1,
     });
     */
-
-    const viewStore = useViewStore();
-    const viewSliceStore = useViewSliceStore();
-
+  
     const datasetStore = useDatasetStore();
+    const viewStore = useViewStore();
+
+    const vtkRenderWindowParent = ref<any>(null);
+    const frontendBridge = useVolViewFrontendBridge({
+      currentImageID,
+      currentImageMetadata,
+      isImageLoading,
+      vtkRenderWindowParent,
+    });
+
     const { emitter } = useEventBus(({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       onloading(payload?: any) {
@@ -243,28 +250,11 @@ export default defineComponent({
         }
         loadDataStore.isBusUnselected = true;
       },
+      ...frontendBridge.handlers,
     } as unknown as EventHandlers), loadDataStore);
 
-    const activeView = computed(() => viewStore.activeView);
-    watch(activeView, (activeViewID) => {
-      if (activeViewID && currentImageID.value) {
-        const viewID = activeViewID;
-        const dataID = currentImageID.value;
-        const sliceConfig = viewSliceStore.getConfig(viewID, dataID);
-        if (sliceConfig) {
-          // trigger currentSliceMetadata update for DicomTagBrowser
-          viewSliceStore.updateConfig(viewID, dataID, { ...sliceConfig });
-        }
-      }
-    });
-    watch(currentImageID, (primarySelection) => {
-      if (!primarySelection) {
-        viewStore.setLayoutFromGrid([1, 1]);
-      }
-    }, {
-      immediate: true,
-      once: true,
-    });
+    frontendBridge.start(emitter);
+
     /*
     watch(currentImageID, async (primarySelection) => {
       if (primarySelection) {
@@ -474,6 +464,8 @@ export default defineComponent({
       drawerResizeHandleStyle,
       isDrawerResizing,
       resetDrawerWidth,
+
+      vtkRenderWindowParent,
 
       loadUserSelectedFiles,
       loadUserPromptedFiles,

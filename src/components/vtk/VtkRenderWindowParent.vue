@@ -23,6 +23,8 @@ onUnmounted(() => {
 });
 
 provide(VtkRenderWindowParentContext, api);
+
+defineExpose(api);
 </script>
 
 <template><slot /></template>
