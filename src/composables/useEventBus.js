@@ -21,12 +21,14 @@ export function useEventBus(handlers, loadDataStore) {
   const onsetactiveviewtype = handlers?.onsetactiveviewtype;
   const onsetactiveviewmaximized = handlers?.onsetactiveviewmaximized;
   const oncaptureactiveview = handlers?.oncaptureactiveview;
+  const onsamplecurrentsliceroi = handlers?.onsamplecurrentsliceroi;
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
   let onactiveview;
   let onfrontendstate;
   let onactiveviewsnapshot;
+  let oncurrentsliceroisample;
   let onslicing;
   let onclose;
 
@@ -68,6 +70,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (oncaptureactiveview) {
       emitter.on('captureactiveview', oncaptureactiveview);
+    }
+    if (onsamplecurrentsliceroi) {
+      emitter.on('samplecurrentsliceroi', onsamplecurrentsliceroi);
     }
     onuserselectfiles = files => {
       if (projectId && datasetId) {
@@ -143,6 +148,14 @@ export function useEventBus(handlers, loadDataStore) {
         }, '*');
       }
     };
+    oncurrentsliceroisample = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:currentsliceroisample',
+          payload,
+        }, '*');
+      }
+    };
     onslicing = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -179,6 +192,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('activeview', onactiveview);
     emitter.on('frontendstate', onfrontendstate);
     emitter.on('activeviewsnapshot', onactiveviewsnapshot);
+    emitter.on('currentsliceroisample', oncurrentsliceroisample);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
@@ -234,6 +248,10 @@ export function useEventBus(handlers, loadDataStore) {
                 }
                 case 'capture-active-view': {
                   window.$bus.emitter.emit('captureactiveview', payload);
+                  break;
+                }
+                case 'sample-current-slice-roi': {
+                  window.$bus.emitter.emit('samplecurrentsliceroi', payload);
                   break;
                 }
                 // ...
@@ -353,6 +371,9 @@ export function useEventBus(handlers, loadDataStore) {
     if (oncaptureactiveview) {
       emitter.off('captureactiveview', oncaptureactiveview);
     }
+    if (onsamplecurrentsliceroi) {
+      emitter.off('samplecurrentsliceroi', onsamplecurrentsliceroi);
+    }
     if (onuserselectfiles) {
       emitter.off('userselectfiles', onuserselectfiles);
     }
@@ -370,6 +391,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onactiveviewsnapshot) {
       emitter.off('activeviewsnapshot', onactiveviewsnapshot);
+    }
+    if (oncurrentsliceroisample) {
+      emitter.off('currentsliceroisample', oncurrentsliceroisample);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

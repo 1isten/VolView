@@ -6,6 +6,14 @@ import { useLoadDataStore } from '@/src/store/load-data';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
+import { indexPointToWorld } from '@/src/utils/imageSpace';
+import {
+  computeEllipseMeasurements,
+  computePolygonMeasurements,
+  computeRectangleMeasurements,
+} from '@/src/utils/roiStats';
+import type { Vector3 } from '@kitware/vtk.js/types';
+import { vec3 } from 'gl-matrix';
 
 type BridgeEmitter = {
   emit: (event: string, payload?: any) => void;
@@ -16,6 +24,46 @@ type BridgeOptions = {
   currentImageMetadata: Readonly<Ref<any>>;
   isImageLoading: Readonly<Ref<boolean>>;
   vtkRenderWindowParent: Ref<any>;
+};
+
+type RoiPoint = [number, number] | { x?: number; y?: number };
+
+type RoiSamplePayload = {
+  requestId?: string;
+  roi?: any;
+  type?: string;
+  shape?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  cx?: number;
+  cy?: number;
+  centerX?: number;
+  centerY?: number;
+  radius?: number;
+  radiusX?: number;
+  radiusY?: number;
+  rx?: number;
+  ry?: number;
+  diameter?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  left?: number;
+  top?: number;
+  right?: number;
+  bottom?: number;
+  points?: RoiPoint[];
+  includePixels?: boolean;
+  bins?: number;
+  pixelWidth?: number;
+  pixelHeight?: number;
+  maxSamples?: number;
+  viewID?: string;
+  dataID?: string;
+  component?: number;
 };
 
 export function useVolViewFrontendBridge(options: BridgeOptions) {
@@ -53,6 +101,9 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     },
     oncaptureactiveview(payload: { requestId?: string; includeImage?: boolean; includeHistogram?: boolean; includePixels?: boolean; maxWidth?: number; maxHeight?: number; bins?: number; pixelWidth?: number; pixelHeight?: number }) {
       void captureActiveView(payload);
+    },
+    onsamplecurrentsliceroi(payload: RoiSamplePayload) {
+      sampleCurrentSliceRoi(payload);
     },
   };
 
@@ -397,6 +448,410 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     };
   }
 
+  function toFiniteNumber(value: any) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function clampNumber(value: any, fallback: number, min: number, max: number) {
+    const number = Number(value);
+    const safe = Number.isFinite(number) ? number : fallback;
+    return Math.max(min, Math.min(max, Math.round(safe)));
+  }
+
+  function pointInPolygon(x: number, y: number, points: Array<[number, number]>) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const [xi, yi] = points[i];
+      const [xj, yj] = points[j];
+      const intersects = (yi > y) !== (yj > y)
+        && x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+      if (intersects) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInEllipse(x: number, y: number, ellipse: { cx: number; cy: number; rx: number; ry: number }) {
+    if (ellipse.rx <= 0 || ellipse.ry <= 0) return false;
+    const dx = (x - ellipse.cx) / ellipse.rx;
+    const dy = (y - ellipse.cy) / ellipse.ry;
+    return dx * dx + dy * dy <= 1;
+  }
+
+  function normalizeRoiShape(payload: RoiSamplePayload, sourceWidth: number, sourceHeight: number) {
+    const roi = payload.roi && typeof payload.roi === 'object' ? payload.roi : payload;
+    const pointsInput = Array.isArray(roi?.points) ? roi.points : Array.isArray(roi?.polygon) ? roi.polygon : null;
+    const shapeType = normalizeText(roi?.type || roi?.shape || (pointsInput ? 'polygon' : 'rectangle'));
+
+    if (shapeType === 'polygon' || pointsInput) {
+      const points: Array<[number, number]> = (pointsInput || [])
+        .map((point: RoiPoint) => {
+          if (Array.isArray(point)) {
+            const x = toFiniteNumber(point[0]);
+            const y = toFiniteNumber(point[1]);
+            return x === null || y === null ? null : [x, y] as [number, number];
+          }
+          const x = toFiniteNumber(point?.x);
+          const y = toFiniteNumber(point?.y);
+          return x === null || y === null ? null : [x, y] as [number, number];
+        })
+        .filter((point: [number, number] | null): point is [number, number] => !!point);
+      if (points.length < 3) {
+        throw new Error('ROI polygon requires at least three finite points');
+      }
+      const left = Math.max(0, Math.min(sourceWidth, Math.floor(Math.min(...points.map(point => point[0])))));
+      const top = Math.max(0, Math.min(sourceHeight, Math.floor(Math.min(...points.map(point => point[1])))));
+      const right = Math.max(0, Math.min(sourceWidth, Math.ceil(Math.max(...points.map(point => point[0])))));
+      const bottom = Math.max(0, Math.min(sourceHeight, Math.ceil(Math.max(...points.map(point => point[1])))));
+      if (right <= left || bottom <= top) {
+        throw new Error('ROI polygon does not overlap the current slice');
+      }
+      return {
+        type: 'polygon',
+        points,
+        boundingBox: { x: left, y: top, width: right - left, height: bottom - top },
+        contains: (x: number, y: number) => pointInPolygon(x + 0.5, y + 0.5, points),
+      };
+    }
+
+    if (shapeType === 'circle' || shapeType === 'ellipse') {
+      const centerX = toFiniteNumber(roi?.cx ?? roi?.centerX);
+      const centerY = toFiniteNumber(roi?.cy ?? roi?.centerY);
+      const radius = toFiniteNumber(roi?.radius);
+      let rx = toFiniteNumber(roi?.rx ?? roi?.radiusX ?? radius);
+      let ry = toFiniteNumber(roi?.ry ?? roi?.radiusY ?? radius);
+      let x = toFiniteNumber(roi?.x ?? roi?.left ?? roi?.x1);
+      let y = toFiniteNumber(roi?.y ?? roi?.top ?? roi?.y1);
+      const right = toFiniteNumber(roi?.right ?? roi?.x2);
+      const bottom = toFiniteNumber(roi?.bottom ?? roi?.y2);
+      let width = toFiniteNumber(roi?.width ?? roi?.diameter);
+      let height = toFiniteNumber(roi?.height ?? roi?.diameter);
+      if (centerX !== null && centerY !== null && rx !== null && ry !== null) {
+        x = centerX - rx;
+        y = centerY - ry;
+        width = rx * 2;
+        height = ry * 2;
+      } else {
+        if (x === null || y === null) {
+          throw new Error('ROI circle/ellipse requires center plus radius/rx/ry, or x/y plus width/height');
+        }
+        if (width === null && right !== null) width = right - x;
+        if (height === null && bottom !== null) height = bottom - y;
+        if (shapeType === 'circle' && width !== null && height === null) height = width;
+        if (shapeType === 'circle' && height !== null && width === null) width = height;
+        if (width !== null) rx = Math.abs(width) / 2;
+        if (height !== null) ry = Math.abs(height) / 2;
+      }
+      if (x === null || y === null || width === null || height === null || rx === null || ry === null || rx <= 0 || ry <= 0) {
+        throw new Error('ROI circle/ellipse requires positive radius or non-zero width and height');
+      }
+      const rawLeft = Math.min(x, x + width);
+      const rawRight = Math.max(x, x + width);
+      const rawTop = Math.min(y, y + height);
+      const rawBottom = Math.max(y, y + height);
+      const clippedLeft = Math.max(0, Math.min(sourceWidth, rawLeft));
+      const clippedRight = Math.max(0, Math.min(sourceWidth, rawRight));
+      const clippedTop = Math.max(0, Math.min(sourceHeight, rawTop));
+      const clippedBottom = Math.max(0, Math.min(sourceHeight, rawBottom));
+      if (clippedRight <= clippedLeft || clippedBottom <= clippedTop) {
+        throw new Error('ROI circle/ellipse does not overlap the current slice');
+      }
+      const left = Math.max(0, Math.min(sourceWidth - 1, Math.floor(clippedLeft)));
+      const top = Math.max(0, Math.min(sourceHeight - 1, Math.floor(clippedTop)));
+      const integerRight = Math.max(left + 1, Math.min(sourceWidth, Math.ceil(clippedRight)));
+      const integerBottom = Math.max(top + 1, Math.min(sourceHeight, Math.ceil(clippedBottom)));
+      const ellipse = {
+        cx: (rawLeft + rawRight) / 2,
+        cy: (rawTop + rawBottom) / 2,
+        rx: Math.abs(rawRight - rawLeft) / 2,
+        ry: Math.abs(rawBottom - rawTop) / 2,
+      };
+      return {
+        type: 'ellipse',
+        ellipse,
+        rectangle: {
+          x: clippedLeft,
+          y: clippedTop,
+          width: clippedRight - clippedLeft,
+          height: clippedBottom - clippedTop,
+        },
+        boundingBox: { x: left, y: top, width: integerRight - left, height: integerBottom - top },
+        contains: (sampleX: number, sampleY: number) => pointInEllipse(sampleX, sampleY, ellipse),
+      };
+    }
+
+    const x = toFiniteNumber(roi?.x ?? roi?.left ?? roi?.x1);
+    const y = toFiniteNumber(roi?.y ?? roi?.top ?? roi?.y1);
+    const right = toFiniteNumber(roi?.right ?? roi?.x2);
+    const bottom = toFiniteNumber(roi?.bottom ?? roi?.y2);
+    let width = toFiniteNumber(roi?.width);
+    let height = toFiniteNumber(roi?.height);
+    if (x === null || y === null) {
+      throw new Error('ROI rectangle requires x and y');
+    }
+    if (width === null && right !== null) width = right - x;
+    if (height === null && bottom !== null) height = bottom - y;
+    if (width === null || height === null || width === 0 || height === 0) {
+      throw new Error('ROI rectangle requires non-zero width and height');
+    }
+    const rawLeft = Math.min(x, x + width);
+    const rawRight = Math.max(x, x + width);
+    const rawTop = Math.min(y, y + height);
+    const rawBottom = Math.max(y, y + height);
+    const clippedLeft = Math.max(0, Math.min(sourceWidth, rawLeft));
+    const clippedRight = Math.max(0, Math.min(sourceWidth, rawRight));
+    const clippedTop = Math.max(0, Math.min(sourceHeight, rawTop));
+    const clippedBottom = Math.max(0, Math.min(sourceHeight, rawBottom));
+    if (clippedRight <= clippedLeft || clippedBottom <= clippedTop) {
+      throw new Error('ROI rectangle does not overlap the current slice');
+    }
+    const left = Math.max(0, Math.min(sourceWidth - 1, Math.floor(clippedLeft)));
+    const top = Math.max(0, Math.min(sourceHeight - 1, Math.floor(clippedTop)));
+    const integerRight = Math.max(left + 1, Math.min(sourceWidth, Math.ceil(clippedRight)));
+    const integerBottom = Math.max(top + 1, Math.min(sourceHeight, Math.ceil(clippedBottom)));
+    return {
+      type: 'rectangle',
+      rectangle: {
+        x: clippedLeft,
+        y: clippedTop,
+        width: clippedRight - clippedLeft,
+        height: clippedBottom - clippedTop,
+      },
+      boundingBox: { x: left, y: top, width: integerRight - left, height: integerBottom - top },
+      contains: (sampleX: number, sampleY: number) => {
+        const centerX = sampleX + 0.5;
+        const centerY = sampleY + 0.5;
+        return centerX >= clippedLeft && centerX < clippedRight && centerY >= clippedTop && centerY < clippedBottom;
+      },
+    };
+  }
+
+  function compactMeasurements(measurements: any) {
+    if (!measurements) return null;
+    return {
+      mean: measurements.mean,
+      median: measurements.median,
+      sdev: measurements.sdev,
+      stddev: measurements.sdev,
+      sum: measurements.sum,
+      max: measurements.max,
+      min: measurements.min,
+      count: measurements.count,
+      area: measurements.area,
+      perimeter: measurements.perimeter,
+      width: measurements.width,
+      height: measurements.height,
+    };
+  }
+
+  function summarizeSampleValues(sampleValues: number[], bins = 64) {
+    if (!sampleValues.length) {
+      return null;
+    }
+    let min = Infinity;
+    let max = -Infinity;
+    let sum = 0;
+    for (const value of sampleValues) {
+      min = Math.min(min, value);
+      max = Math.max(max, value);
+      sum += value;
+    }
+    const mean = sum / sampleValues.length;
+    const variance = sampleValues.reduce((acc, value) => acc + ((value - mean) ** 2), 0) / sampleValues.length;
+    const binCount = Math.max(2, Math.min(256, Math.round(bins || 64)));
+    const counts = Array.from({ length: binCount }, () => 0);
+    const span = max - min || 1;
+    for (const value of sampleValues) {
+      const bin = Math.min(binCount - 1, Math.max(0, Math.floor(((value - min) / span) * binCount)));
+      counts[bin] += 1;
+    }
+    return {
+      min,
+      max,
+      mean,
+      stddev: Math.sqrt(variance),
+      histogram: {
+        bins: binCount,
+        min,
+        max,
+        counts,
+      },
+    };
+  }
+
+  function getSliceRoiSample(payload: RoiSamplePayload = {}) {
+    const { viewID, dataID } = getActiveViewData(payload);
+    const view = viewID ? viewStore.getView(viewID) : null;
+    if (!viewID || !dataID || !view || view.type === '3D') {
+      throw new Error('ROI sampling requires an active 2D VolView pane with image data');
+    }
+    const image = imageCacheStore.imageById[dataID];
+    const imageData = image?.getVtkImageData?.();
+    const scalars = imageData?.getPointData?.().getScalars?.();
+    const values = scalars?.getData?.();
+    if (!imageData || !scalars || !values?.length) {
+      throw new Error('ROI sampling requires scalar image data for the current slice');
+    }
+
+    const dimensions = imageData.getDimensions?.() || [];
+    const metadata = image.getImageMetadata?.();
+    const axisIndex = getPlaneAxisIndex(view, metadata);
+    const sliceConfig = viewSliceStore.getConfig(viewID, dataID);
+    const slice = Math.max(0, Math.min(dimensions[axisIndex] - 1, Math.round(sliceConfig?.slice ?? 0)));
+    const components = scalars.getNumberOfComponents?.() || 1;
+    const component = clampNumber(payload.component, 0, 0, Math.max(0, components - 1));
+    const scalarType = scalars.getDataType?.() || values.constructor?.name || 'unknown';
+    const xAxis = (axisIndex + 1) % 3;
+    const yAxis = (axisIndex + 2) % 3;
+    const sourceWidth = dimensions[xAxis] || 0;
+    const sourceHeight = dimensions[yAxis] || 0;
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error('ROI sampling requires a non-empty current slice plane');
+    }
+
+    const roi = normalizeRoiShape(payload, sourceWidth, sourceHeight);
+    const pointToWorld = (x: number, y: number) => {
+      const ijk = vec3.fromValues(0, 0, 0);
+      ijk[axisIndex] = slice;
+      ijk[xAxis] = x;
+      ijk[yAxis] = y;
+      return Array.from(indexPointToWorld(imageData, ijk)) as Vector3;
+    };
+    const measurements = (() => {
+      const normalizedRoi: any = roi;
+      if (normalizedRoi.type === 'polygon' && Array.isArray(normalizedRoi.points)) {
+        return computePolygonMeasurements(imageData, normalizedRoi.points.map(([x, y]: [number, number]) => pointToWorld(x, y)));
+      }
+      if (normalizedRoi.type === 'ellipse' && normalizedRoi.ellipse) {
+        const { cx, cy, rx, ry } = normalizedRoi.ellipse;
+        return computeEllipseMeasurements(imageData, pointToWorld(cx - rx, cy - ry), pointToWorld(cx + rx, cy + ry));
+      }
+      if (normalizedRoi.rectangle) {
+        const { x, y, width, height } = normalizedRoi.rectangle;
+        return computeRectangleMeasurements(imageData, pointToWorld(x, y), pointToWorld(x + width, y + height));
+      }
+      return null;
+    })();
+    const candidatePixelCount = roi.boundingBox.width * roi.boundingBox.height;
+    const maxSamples = clampNumber(payload.maxSamples, 262144, 1, 1048576);
+    const sampleStride = Math.max(1, Math.ceil(candidatePixelCount / maxSamples));
+    const sampleValues: number[] = [];
+
+    function scalarAt(x: number, y: number) {
+      const ijk = [0, 0, 0];
+      ijk[axisIndex] = slice;
+      ijk[xAxis] = x;
+      ijk[yAxis] = y;
+      return Number(values[((ijk[2] * dimensions[1] + ijk[1]) * dimensions[0] + ijk[0]) * components + component]);
+    }
+
+    for (let offset = 0; offset < candidatePixelCount; offset += sampleStride) {
+      const x = roi.boundingBox.x + (offset % roi.boundingBox.width);
+      const y = roi.boundingBox.y + Math.floor(offset / roi.boundingBox.width);
+      if (!roi.contains(x, y)) continue;
+      const value = scalarAt(x, y);
+      if (Number.isFinite(value)) {
+        sampleValues.push(value);
+      }
+    }
+
+    const stats = summarizeSampleValues(sampleValues, Number(payload.bins) || 64);
+    const result: Record<string, any> = {
+      source: 'vtkImageData.scalars',
+      dataID,
+      viewID,
+      viewName: view.name,
+      orientation: (view.options as any)?.orientation ?? null,
+      coordinateSystem: 'current-slice-image-plane-index',
+      dimensions: dimensions.slice(0, 3),
+      axisIndex,
+      planeAxes: { x: xAxis, y: yAxis, slice: axisIndex },
+      slice,
+      scalarType,
+      components,
+      component,
+      sourceSize: {
+        width: sourceWidth,
+        height: sourceHeight,
+        pixels: sourceWidth * sourceHeight,
+      },
+      roi: {
+        type: roi.type,
+        rectangle: 'rectangle' in roi ? roi.rectangle : undefined,
+        ellipse: 'ellipse' in roi ? roi.ellipse : undefined,
+        points: 'points' in roi ? roi.points : undefined,
+        boundingBox: roi.boundingBox,
+      },
+      measurements: compactMeasurements(measurements),
+      measurementSource: 'VolView/src/utils/roiStats.ts',
+      sampled: sampleStride > 1,
+      sampleStride,
+      sampleCount: measurements?.count ?? sampleValues.length,
+      candidatePixelCount,
+      maxSamples,
+      valueRange: measurements ? {
+        min: measurements.min,
+        max: measurements.max,
+        mean: measurements.mean,
+        median: measurements.median,
+        sdev: measurements.sdev,
+        stddev: measurements.sdev,
+        sum: measurements.sum,
+        count: measurements.count,
+      } : stats ? {
+        min: stats.min,
+        max: stats.max,
+        mean: stats.mean,
+        stddev: stats.stddev,
+      } : null,
+      histogram: stats?.histogram ?? null,
+    };
+
+    if (payload.includePixels) {
+      const gridWidth = clampNumber(payload.pixelWidth, 64, 1, 128);
+      const gridHeight = clampNumber(payload.pixelHeight, 64, 1, 128);
+      const rows: Array<Array<number | null>> = [];
+      const gridValues: number[] = [];
+      for (let row = 0; row < gridHeight; row++) {
+        const sourceY = Math.min(
+          roi.boundingBox.y + roi.boundingBox.height - 1,
+          Math.max(roi.boundingBox.y, Math.round(((row + 0.5) / gridHeight) * roi.boundingBox.height - 0.5 + roi.boundingBox.y))
+        );
+        const valuesRow: Array<number | null> = [];
+        for (let col = 0; col < gridWidth; col++) {
+          const sourceX = Math.min(
+            roi.boundingBox.x + roi.boundingBox.width - 1,
+            Math.max(roi.boundingBox.x, Math.round(((col + 0.5) / gridWidth) * roi.boundingBox.width - 0.5 + roi.boundingBox.x))
+          );
+          const value = roi.contains(sourceX, sourceY) ? scalarAt(sourceX, sourceY) : NaN;
+          const safeValue = Number.isFinite(value) ? value : null;
+          valuesRow.push(safeValue);
+          if (safeValue !== null) {
+            gridValues.push(safeValue);
+          }
+        }
+        rows.push(valuesRow);
+      }
+      const gridStats = summarizeSampleValues(gridValues, Number(payload.bins) || 64);
+      result.roiPixelGrid = {
+        gridSize: {
+          width: gridWidth,
+          height: gridHeight,
+          pixels: gridWidth * gridHeight,
+        },
+        sampling: 'nearest-center-with-null-outside-roi',
+        valueRange: gridStats ? {
+          min: gridStats.min,
+          max: gridStats.max,
+          mean: gridStats.mean,
+        } : null,
+        rows,
+      };
+    }
+
+    return result;
+  }
+
   function loadImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
@@ -514,6 +969,29 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
       });
     } catch (err: any) {
       emitter?.emit('activeviewsnapshot', {
+        requestId: payload.requestId,
+        error: err?.message || String(err),
+      });
+    }
+  }
+
+  function sampleCurrentSliceRoi(payload: RoiSamplePayload = {}) {
+    try {
+      const { viewID, dataID } = getActiveViewData(payload);
+      const view = viewID ? viewStore.getView(viewID) : null;
+      const result: Record<string, any> = {
+        activeViewID: viewID ?? null,
+        activeViewDataID: dataID ?? null,
+        activeView: view ? jsonClone(view) : null,
+        capturedAt: Date.now(),
+        currentSliceRoi: getSliceRoiSample(payload),
+      };
+      emitter?.emit('currentsliceroisample', {
+        requestId: payload.requestId,
+        result,
+      });
+    } catch (err: any) {
+      emitter?.emit('currentsliceroisample', {
         requestId: payload.requestId,
         error: err?.message || String(err),
       });

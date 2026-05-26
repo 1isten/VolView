@@ -147,6 +147,18 @@ export type Events = {
     pixelWidth?: number;
     pixelHeight?: number;
   };
+  onsamplecurrentsliceroi?: {
+    requestId?: string;
+    roi?: any;
+    includePixels?: boolean;
+    bins?: number;
+    pixelWidth?: number;
+    pixelHeight?: number;
+    maxSamples?: number;
+    viewID?: string;
+    dataID?: string;
+    component?: number;
+  };
   // ...
 
   // emit to outside
