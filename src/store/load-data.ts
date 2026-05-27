@@ -159,6 +159,15 @@ export type Events = {
     dataID?: string;
     component?: number;
   };
+  onmanageannotation?: {
+    requestId?: string;
+    action?: 'create' | 'update' | 'delete' | 'list';
+    annotation?: any;
+    annotationId?: string;
+    type?: 'ruler' | 'rectangle' | 'circle' | 'polygon';
+    viewID?: string;
+    dataID?: string;
+  };
   // ...
 
   // emit to outside

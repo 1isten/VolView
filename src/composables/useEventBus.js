@@ -11,6 +11,15 @@ export function useEventBus(handlers, loadDataStore) {
   const emitter = inject('bus');
   const bus = { emitter };
 
+  const jsonClone = (value) => {
+    if (value == null) return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return null;
+    }
+  };
+
   const onloading = handlers?.onloading;
   const onload = handlers?.onload;
   const onunload = handlers?.onunload;
@@ -22,6 +31,7 @@ export function useEventBus(handlers, loadDataStore) {
   const onsetactiveviewmaximized = handlers?.onsetactiveviewmaximized;
   const oncaptureactiveview = handlers?.oncaptureactiveview;
   const onsamplecurrentsliceroi = handlers?.onsamplecurrentsliceroi;
+  const onmanageannotation = handlers?.onmanageannotation;
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
@@ -29,6 +39,7 @@ export function useEventBus(handlers, loadDataStore) {
   let onfrontendstate;
   let onactiveviewsnapshot;
   let oncurrentsliceroisample;
+  let onannotationresult;
   let onslicing;
   let onclose;
 
@@ -73,6 +84,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onsamplecurrentsliceroi) {
       emitter.on('samplecurrentsliceroi', onsamplecurrentsliceroi);
+    }
+    if (onmanageannotation) {
+      emitter.on('manageannotation', onmanageannotation);
     }
     onuserselectfiles = files => {
       if (projectId && datasetId) {
@@ -156,6 +170,14 @@ export function useEventBus(handlers, loadDataStore) {
         }, '*');
       }
     };
+    onannotationresult = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:annotationresult',
+          payload: jsonClone(payload),
+        }, '*');
+      }
+    };
     onslicing = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -193,6 +215,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('frontendstate', onfrontendstate);
     emitter.on('activeviewsnapshot', onactiveviewsnapshot);
     emitter.on('currentsliceroisample', oncurrentsliceroisample);
+    emitter.on('annotationresult', onannotationresult);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
@@ -252,6 +275,10 @@ export function useEventBus(handlers, loadDataStore) {
                 }
                 case 'sample-current-slice-roi': {
                   window.$bus.emitter.emit('samplecurrentsliceroi', payload);
+                  break;
+                }
+                case 'manage-annotation': {
+                  window.$bus.emitter.emit('manageannotation', payload);
                   break;
                 }
                 // ...
@@ -374,6 +401,9 @@ export function useEventBus(handlers, loadDataStore) {
     if (onsamplecurrentsliceroi) {
       emitter.off('samplecurrentsliceroi', onsamplecurrentsliceroi);
     }
+    if (onmanageannotation) {
+      emitter.off('manageannotation', onmanageannotation);
+    }
     if (onuserselectfiles) {
       emitter.off('userselectfiles', onuserselectfiles);
     }
@@ -394,6 +424,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (oncurrentsliceroisample) {
       emitter.off('currentsliceroisample', oncurrentsliceroisample);
+    }
+    if (onannotationresult) {
+      emitter.off('annotationresult', onannotationresult);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

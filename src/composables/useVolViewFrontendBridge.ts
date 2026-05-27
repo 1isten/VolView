@@ -3,17 +3,25 @@ import { NAME_TO_TAG, TAG_TO_NAME } from '@/src/core/dicomTags';
 import { getWindowLevels } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useLoadDataStore } from '@/src/store/load-data';
+import { useCircleStore } from '@/src/store/tools/circles';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
-import { indexPointToWorld } from '@/src/utils/imageSpace';
+import { indexPointToWorld, worldPointToIndex } from '@/src/utils/imageSpace';
+import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import {
   computeEllipseMeasurements,
   computePolygonMeasurements,
   computeRectangleMeasurements,
 } from '@/src/utils/roiStats';
+import type { LPSAxis } from '@/src/types/lps';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
+import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
 type BridgeEmitter = {
   emit: (event: string, payload?: any) => void;
@@ -66,6 +74,19 @@ type RoiSamplePayload = {
   component?: number;
 };
 
+type AnnotationType = 'ruler' | 'rectangle' | 'circle' | 'polygon';
+
+type AnnotationPayload = {
+  requestId?: string;
+  action?: 'create' | 'update' | 'delete' | 'list';
+  annotation?: Record<string, any>;
+  annotationId?: string;
+  id?: string;
+  type?: AnnotationType;
+  viewID?: string;
+  dataID?: string;
+};
+
 export function useVolViewFrontendBridge(options: BridgeOptions) {
   const {
     currentImageID,
@@ -76,6 +97,10 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
 
   const imageCacheStore = useImageCacheStore();
   const loadDataStore = useLoadDataStore();
+  const rulerStore = useRulerStore();
+  const rectangleStore = useRectangleStore();
+  const circleStore = useCircleStore();
+  const polygonStore = usePolygonStore();
   const viewStore = useViewStore();
   const viewSliceStore = useViewSliceStore();
   const windowingStore = useWindowingStore();
@@ -104,6 +129,9 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     },
     onsamplecurrentsliceroi(payload: RoiSamplePayload) {
       sampleCurrentSliceRoi(payload);
+    },
+    onmanageannotation(payload: AnnotationPayload) {
+      manageAnnotation(payload);
     },
   };
 
@@ -253,9 +281,19 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
       .filter((id: any) => !!id);
   }
 
+  function get2DViewOrientation(view: any): LPSAxis {
+    const orientation = String(view?.options?.orientation || view?.name || 'Axial');
+    if (orientation === 'Sagittal' || orientation === 'Coronal' || orientation === 'Axial') {
+      return orientation;
+    }
+    return 'Axial';
+  }
+
   function getPlaneAxisIndex(view: any, metadata: any) {
-    const orientation = view?.options?.orientation || view?.name || 'Axial';
-    const mapped = metadata?.lpsOrientation?.[orientation];
+    const orientation = get2DViewOrientation(view);
+    const { viewDirection } = get2DViewingVectors(orientation);
+    const viewAxis = getLPSAxisFromDir(viewDirection);
+    const mapped = metadata?.lpsOrientation?.[viewAxis];
     if (Number.isFinite(mapped)) {
       return Number(mapped);
     }
@@ -783,6 +821,7 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
         boundingBox: roi.boundingBox,
       },
       measurements: compactMeasurements(measurements),
+      measurementUnits: getMeasurementUnits('rectangle'),
       measurementSource: 'VolView/src/utils/roiStats.ts',
       sampled: sampleStride > 1,
       sampleStride,
@@ -850,6 +889,477 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     }
 
     return result;
+  }
+
+  function getAnnotationStore(type: AnnotationType) {
+    switch (type) {
+      case 'ruler':
+        return rulerStore as any;
+      case 'rectangle':
+        return rectangleStore as any;
+      case 'circle':
+        return circleStore as any;
+      case 'polygon':
+        return polygonStore as any;
+      default:
+        return null;
+    }
+  }
+
+  function findAnnotationById(annotationId: string) {
+    const stores: Array<{ type: AnnotationType; store: any }> = [
+      { type: 'ruler', store: rulerStore },
+      { type: 'rectangle', store: rectangleStore },
+      { type: 'circle', store: circleStore },
+      { type: 'polygon', store: polygonStore },
+    ];
+    for (const entry of stores) {
+      if (entry.store?.toolByID?.[annotationId]) {
+        return {
+          type: entry.type,
+          store: entry.store,
+          tool: entry.store.toolByID[annotationId],
+        };
+      }
+    }
+    return null;
+  }
+
+  function getAnnotationSliceContext(payload: { viewID?: string; dataID?: string } = {}) {
+    const { viewID, dataID } = getActiveViewData(payload);
+    const view = viewID ? viewStore.getView(viewID) : null;
+    if (!viewID || !dataID || !view || view.type === '3D') {
+      throw new Error('Annotation management requires an active 2D VolView pane with image data');
+    }
+    const image = imageCacheStore.imageById[dataID];
+    const imageData = image?.getVtkImageData?.();
+    const metadata = image?.getImageMetadata?.();
+    if (!imageData || !metadata?.lpsOrientation || !metadata?.indexToWorld) {
+      throw new Error('Annotation management requires image metadata and index/world transforms');
+    }
+    const dimensions = imageData.getDimensions?.() || [];
+    const orientation = get2DViewOrientation(view);
+    const { viewDirection } = get2DViewingVectors(orientation);
+    const viewAxis = getLPSAxisFromDir(viewDirection);
+    const axisIndex = Number(metadata.lpsOrientation?.[viewAxis]);
+    if (!Number.isFinite(axisIndex)) {
+      throw new Error(`Unable to resolve slice axis for view ${orientation}`);
+    }
+    const xAxis = (axisIndex + 1) % 3;
+    const yAxis = (axisIndex + 2) % 3;
+    const sliceConfig = viewSliceStore.getConfig(viewID, dataID);
+    const slice = Math.max(0, Math.min((dimensions[axisIndex] || 1) - 1, Math.round(sliceConfig?.slice ?? 0)));
+    const planeNormal = metadata.lpsOrientation?.[viewDirection];
+    if (!planeNormal) {
+      throw new Error(`Unable to resolve plane orientation for view ${orientation}`);
+    }
+    const originIndex = vec3.fromValues(0, 0, 0);
+    originIndex[axisIndex] = slice;
+    const planeOrigin = Array.from(indexPointToWorld(imageData, originIndex));
+    const pointToWorld = (x: number, y: number) => {
+      const ijk = vec3.fromValues(0, 0, 0);
+      ijk[axisIndex] = slice;
+      ijk[xAxis] = x;
+      ijk[yAxis] = y;
+      return Array.from(indexPointToWorld(imageData, ijk)) as Vector3;
+    };
+    const pointToPlaneIndex = (point: Vector3): [number, number] => {
+      const ijk = worldPointToIndex(imageData, point as any);
+      return [Number(ijk[xAxis]), Number(ijk[yAxis])];
+    };
+    return {
+      viewID,
+      dataID,
+      view,
+      imageData,
+      metadata,
+      axisIndex,
+      xAxis,
+      yAxis,
+      slice,
+      frameOfReference: {
+        planeNormal: Array.from(planeNormal) as Vector3,
+        planeOrigin: Array.from(planeOrigin) as Vector3,
+      },
+      pointToWorld,
+      pointToPlaneIndex,
+    };
+  }
+
+  function getPlanePoint(value: any, keys: string[] = ['x', 'y']): [number, number] | null {
+    if (Array.isArray(value) && value.length >= 2) {
+      const x = Number(value[0]);
+      const y = Number(value[1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
+      return null;
+    }
+    if (value && typeof value === 'object') {
+      const x = Number((value as any)[keys[0]]);
+      const y = Number((value as any)[keys[1]]);
+      if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
+    }
+    return null;
+  }
+
+  function getStylePatch(annotation: Record<string, any>) {
+    const patch: Record<string, any> = {};
+    for (const key of ['color', 'strokeWidth', 'fillColor', 'fillOpacity', 'hidden', 'label', 'name', 'metadata']) {
+      if (Object.prototype.hasOwnProperty.call(annotation, key)) {
+        patch[key] = annotation[key];
+      }
+    }
+    return patch;
+  }
+
+  function getGeometryPatch(type: AnnotationType, annotation: Record<string, any>, context: ReturnType<typeof getAnnotationSliceContext>, existingTool?: any) {
+    if (type === 'polygon') {
+      const pointsInput = Array.isArray(annotation.points) ? annotation.points : Array.isArray(annotation.polygon) ? annotation.polygon : null;
+      if (!pointsInput) return {};
+      const points = pointsInput
+        .map((point: any) => getPlanePoint(point))
+        .filter((point: [number, number] | null): point is [number, number] => !!point)
+        .map(([x, y]) => context.pointToWorld(x, y));
+      if (points.length < 3) {
+        throw new Error('Polygon annotation requires at least three points');
+      }
+      return { points };
+    }
+
+    const first = getPlanePoint(annotation.firstPoint ?? annotation.point1 ?? annotation.start, ['x', 'y']);
+    const second = getPlanePoint(annotation.secondPoint ?? annotation.point2 ?? annotation.end, ['x', 'y']);
+    const x = Number(annotation.x ?? annotation.left ?? annotation.x1);
+    const y = Number(annotation.y ?? annotation.top ?? annotation.y1);
+    const width = Number(annotation.width);
+    const height = Number(annotation.height);
+    const x2 = Number(annotation.x2 ?? annotation.right);
+    const y2 = Number(annotation.y2 ?? annotation.bottom);
+    const cx = Number(annotation.cx ?? annotation.centerX);
+    const cy = Number(annotation.cy ?? annotation.centerY);
+    const radius = Number(annotation.radius);
+    const rx = Number(annotation.rx ?? annotation.radiusX);
+    const ry = Number(annotation.ry ?? annotation.radiusY);
+
+    let p1 = first;
+    let p2 = second;
+
+    if (!p1 || !p2) {
+      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(width) && Number.isFinite(height)) {
+        p1 = [x, y];
+        p2 = [x + width, y + height];
+      } else if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(x2) && Number.isFinite(y2)) {
+        p1 = [x, y];
+        p2 = [x2, y2];
+      }
+    }
+
+    if (!p1 || !p2) {
+      if (Number.isFinite(cx) && Number.isFinite(cy)) {
+        if (Number.isFinite(radius)) {
+          p1 = [cx - radius, cy - radius];
+          p2 = [cx + radius, cy + radius];
+        } else if (Number.isFinite(rx) && Number.isFinite(ry)) {
+          p1 = [cx - rx, cy - ry];
+          p2 = [cx + rx, cy + ry];
+        }
+      }
+    }
+
+    if (!p1 || !p2) {
+      if (existingTool?.firstPoint && existingTool?.secondPoint) {
+        const fallback1 = context.pointToPlaneIndex(existingTool.firstPoint);
+        const fallback2 = context.pointToPlaneIndex(existingTool.secondPoint);
+        p1 = p1 || fallback1;
+        p2 = p2 || fallback2;
+      }
+    }
+
+    if (!p1 || !p2) {
+      return {};
+    }
+
+    return {
+      firstPoint: context.pointToWorld(p1[0], p1[1]),
+      secondPoint: context.pointToWorld(p2[0], p2[1]),
+    };
+  }
+
+  function getAnnotationMeasurements(type: AnnotationType, tool: any, imageData: any) {
+    if (!imageData || !tool) return null;
+    if (type === 'ruler') {
+      if (!tool.firstPoint || !tool.secondPoint) return null;
+      return {
+        length: Math.sqrt(distance2BetweenPoints(tool.firstPoint, tool.secondPoint)),
+      };
+    }
+    if (type === 'rectangle') {
+      if (!tool.firstPoint || !tool.secondPoint) return null;
+      return compactMeasurements(computeRectangleMeasurements(imageData, tool.firstPoint, tool.secondPoint));
+    }
+    if (type === 'circle') {
+      if (!tool.firstPoint || !tool.secondPoint) return null;
+      return compactMeasurements(computeEllipseMeasurements(imageData, tool.firstPoint, tool.secondPoint));
+    }
+    if (type === 'polygon') {
+      if (!Array.isArray(tool.points) || tool.points.length < 3) return null;
+      return compactMeasurements(computePolygonMeasurements(imageData, tool.points));
+    }
+    return null;
+  }
+
+  function toPlainPoint(point: any) {
+    if (!point || typeof point.length !== 'number') return null;
+    const values = Array.from(point).slice(0, 3).map(Number);
+    if (values.length < 3 || values.some(value => !Number.isFinite(value))) return null;
+    return values as Vector3;
+  }
+
+  function getPlaneBounds(points: Array<{ x: number; y: number } | null | undefined>) {
+    const validPoints = points.filter((point): point is { x: number; y: number } => !!point
+      && Number.isFinite(point.x)
+      && Number.isFinite(point.y));
+    if (!validPoints.length) return null;
+    const xs = validPoints.map(point => point.x);
+    const ys = validPoints.map(point => point.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return {
+      x,
+      y,
+      width: Math.max(...xs) - x,
+      height: Math.max(...ys) - y,
+    };
+  }
+
+  function getImagePlaneGeometry(type: AnnotationType, points: {
+    firstPoint?: { x: number; y: number } | null;
+    secondPoint?: { x: number; y: number } | null;
+    points?: Array<{ x: number; y: number }>;
+  }) {
+    const bounds = getPlaneBounds([
+      points.firstPoint,
+      points.secondPoint,
+      ...(points.points || []),
+    ]);
+    const result: Record<string, any> = {
+      coordinateSystem: 'current-slice-image-plane-index',
+      units: 'index-pixels',
+      bounds,
+    };
+    if (points.firstPoint && points.secondPoint) {
+      const width = Math.abs(points.secondPoint.x - points.firstPoint.x);
+      const height = Math.abs(points.secondPoint.y - points.firstPoint.y);
+      if (type === 'ruler') {
+        result.length = Math.sqrt((width ** 2) + (height ** 2));
+      } else {
+        result.width = width;
+        result.height = height;
+      }
+      if (type === 'circle') {
+        result.center = {
+          x: (points.firstPoint.x + points.secondPoint.x) / 2,
+          y: (points.firstPoint.y + points.secondPoint.y) / 2,
+        };
+        result.radiusX = width / 2;
+        result.radiusY = height / 2;
+      }
+    }
+    return result;
+  }
+
+  function getMeasurementUnits(type: AnnotationType) {
+    if (type === 'ruler') {
+      return { length: 'mm' };
+    }
+    return {
+      width: 'mm',
+      height: 'mm',
+      area: 'mm^2',
+      perimeter: 'mm',
+      scalar: 'image scalar units',
+    };
+  }
+
+  function serializeAnnotation(type: AnnotationType, tool: any, context?: ReturnType<typeof getAnnotationSliceContext>) {
+    const imageData = tool?.imageID ? imageCacheStore.getVtkImageData(tool.imageID) : null;
+    const toPlane = (point: Vector3) => {
+      if (!point || !context || tool?.imageID !== context.dataID) return null;
+      const [x, y] = context.pointToPlaneIndex(point);
+      return { x, y };
+    };
+    const imagePlaneFirstPoint = tool?.firstPoint ? toPlane(tool.firstPoint) : null;
+    const imagePlaneSecondPoint = tool?.secondPoint ? toPlane(tool.secondPoint) : null;
+    const imagePlanePoints = Array.isArray(tool?.points)
+      ? tool.points.map((point: Vector3) => toPlane(point)).filter(Boolean) as Array<{ x: number; y: number }>
+      : undefined;
+    return {
+      id: tool?.id,
+      type,
+      imageID: tool?.imageID,
+      slice: tool?.slice,
+      hidden: !!tool?.hidden,
+      placing: !!tool?.placing,
+      label: tool?.label ?? null,
+      labelName: tool?.labelName ?? null,
+      color: tool?.color ?? null,
+      strokeWidth: tool?.strokeWidth ?? null,
+      fillColor: tool?.fillColor ?? null,
+      fillOpacity: tool?.fillOpacity ?? null,
+      firstPoint: toPlainPoint(tool?.firstPoint),
+      secondPoint: toPlainPoint(tool?.secondPoint),
+      points: Array.isArray(tool?.points) ? tool.points.map(toPlainPoint).filter(Boolean) : undefined,
+      imagePlane: {
+        coordinateSystem: 'current-slice-image-plane-index',
+        units: 'index-pixels',
+        firstPoint: imagePlaneFirstPoint,
+        secondPoint: imagePlaneSecondPoint,
+        points: imagePlanePoints,
+        geometry: getImagePlaneGeometry(type, {
+          firstPoint: imagePlaneFirstPoint,
+          secondPoint: imagePlaneSecondPoint,
+          points: imagePlanePoints,
+        }),
+      },
+      measurementUnits: getMeasurementUnits(type),
+      measurements: getAnnotationMeasurements(type, tool, imageData),
+    };
+  }
+
+  function listAnnotations(payload: AnnotationPayload = {}) {
+    const context = getAnnotationSliceContext(payload);
+    const requestedType = normalizeText(payload.type) as AnnotationType;
+    const allowAllTypes = !requestedType || !['ruler', 'rectangle', 'circle', 'polygon'].includes(requestedType);
+    const candidates: Array<{ type: AnnotationType; store: any }> = [
+      { type: 'ruler', store: rulerStore },
+      { type: 'rectangle', store: rectangleStore },
+      { type: 'circle', store: circleStore },
+      { type: 'polygon', store: polygonStore },
+    ];
+    const annotations = candidates
+      .filter(entry => allowAllTypes || entry.type === requestedType)
+      .flatMap(entry => (entry.store.tools || [])
+        .filter((tool: any) => tool?.imageID === context.dataID)
+        .map((tool: any) => serializeAnnotation(entry.type, tool, context)));
+
+    return {
+      activeViewID: context.viewID,
+      activeViewDataID: context.dataID,
+      viewOrientation: (context.view.options as any)?.orientation ?? context.view.name ?? null,
+      annotations,
+      count: annotations.length,
+    };
+  }
+
+  function createAnnotation(payload: AnnotationPayload = {}) {
+    const context = getAnnotationSliceContext(payload);
+    const annotation = (payload.annotation || {}) as Record<string, any>;
+    const type = normalizeText(annotation.type || payload.type) as AnnotationType;
+    if (!['ruler', 'rectangle', 'circle', 'polygon'].includes(type)) {
+      throw new Error('Annotation create requires type: ruler, rectangle, circle, or polygon');
+    }
+    const store = getAnnotationStore(type);
+    if (!store) {
+      throw new Error(`Unsupported annotation type: ${type}`);
+    }
+    const patch = {
+      imageID: context.dataID,
+      slice: context.slice,
+      placing: false,
+      frameOfReference: context.frameOfReference,
+      ...getStylePatch(annotation),
+      ...getGeometryPatch(type, annotation, context),
+    };
+    const annotationId = store.addTool(patch);
+    const tool = store.toolByID[annotationId];
+    return {
+      action: 'create',
+      annotation: serializeAnnotation(type, tool, context),
+    };
+  }
+
+  function updateAnnotation(payload: AnnotationPayload = {}) {
+    const annotation = (payload.annotation || {}) as Record<string, any>;
+    const annotationId = String(payload.annotationId || payload.id || annotation.id || '');
+    if (!annotationId) {
+      throw new Error('Annotation update requires annotationId');
+    }
+    const found = findAnnotationById(annotationId);
+    if (!found) {
+      throw new Error(`Annotation not found: ${annotationId}`);
+    }
+    const context = getAnnotationSliceContext(payload);
+    const patch: Record<string, any> = {
+      ...getStylePatch(annotation),
+      ...getGeometryPatch(found.type, annotation, context, found.tool),
+    };
+    const hasPatch = Object.keys(patch).length > 0;
+    if (hasPatch) {
+      const geometryKeys = ['firstPoint', 'secondPoint', 'points'];
+      if (geometryKeys.some(key => Object.prototype.hasOwnProperty.call(patch, key))) {
+        patch.slice = context.slice;
+        patch.frameOfReference = context.frameOfReference;
+        patch.imageID = context.dataID;
+      }
+      found.store.updateTool(annotationId, patch);
+    }
+    return {
+      action: 'update',
+      annotation: serializeAnnotation(found.type, found.store.toolByID[annotationId], context),
+      updated: hasPatch,
+    };
+  }
+
+  function deleteAnnotation(payload: AnnotationPayload = {}) {
+    const annotation = (payload.annotation || {}) as Record<string, any>;
+    const annotationId = String(payload.annotationId || payload.id || annotation.id || '');
+    if (!annotationId) {
+      throw new Error('Annotation delete requires annotationId');
+    }
+    const found = findAnnotationById(annotationId);
+    if (!found) {
+      throw new Error(`Annotation not found: ${annotationId}`);
+    }
+    found.store.removeTool(annotationId);
+    return {
+      action: 'delete',
+      annotationId,
+      type: found.type,
+      deleted: true,
+    };
+  }
+
+  function manageAnnotation(payload: AnnotationPayload = {}) {
+    try {
+      const action = normalizeText(payload.action || payload.annotation?.action || 'list');
+      let result: any;
+      switch (action) {
+        case 'create':
+          result = createAnnotation(payload);
+          break;
+        case 'update':
+          result = updateAnnotation(payload);
+          break;
+        case 'delete':
+          result = deleteAnnotation(payload);
+          break;
+        case 'list':
+          result = listAnnotations(payload);
+          break;
+        default:
+          throw new Error(`Unsupported annotation action: ${action}`);
+      }
+      emitter?.emit('annotationresult', jsonClone({
+        requestId: payload.requestId,
+        result: {
+          ...result,
+          capturedAt: Date.now(),
+        },
+      }));
+    } catch (err: any) {
+      emitter?.emit('annotationresult', jsonClone({
+        requestId: payload.requestId,
+        error: err?.message || String(err),
+      }));
+    }
   }
 
   function loadImage(src: string) {
