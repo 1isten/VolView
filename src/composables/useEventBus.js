@@ -32,6 +32,7 @@ export function useEventBus(handlers, loadDataStore) {
   const oncaptureactiveview = handlers?.oncaptureactiveview;
   const onsamplecurrentsliceroi = handlers?.onsamplecurrentsliceroi;
   const onmanageannotation = handlers?.onmanageannotation;
+  const onmanagesegmentation = handlers?.onmanagesegmentation;
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
@@ -40,6 +41,7 @@ export function useEventBus(handlers, loadDataStore) {
   let onactiveviewsnapshot;
   let oncurrentsliceroisample;
   let onannotationresult;
+  let onsegmentationresult;
   let onslicing;
   let onclose;
 
@@ -87,6 +89,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onmanageannotation) {
       emitter.on('manageannotation', onmanageannotation);
+    }
+    if (onmanagesegmentation) {
+      emitter.on('managesegmentation', onmanagesegmentation);
     }
     onuserselectfiles = files => {
       if (projectId && datasetId) {
@@ -178,6 +183,14 @@ export function useEventBus(handlers, loadDataStore) {
         }, '*');
       }
     };
+    onsegmentationresult = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:segmentationresult',
+          payload: jsonClone(payload),
+        }, '*');
+      }
+    };
     onslicing = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -216,6 +229,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('activeviewsnapshot', onactiveviewsnapshot);
     emitter.on('currentsliceroisample', oncurrentsliceroisample);
     emitter.on('annotationresult', onannotationresult);
+    emitter.on('segmentationresult', onsegmentationresult);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
@@ -279,6 +293,10 @@ export function useEventBus(handlers, loadDataStore) {
                 }
                 case 'manage-annotation': {
                   window.$bus.emitter.emit('manageannotation', payload);
+                  break;
+                }
+                case 'manage-segmentation': {
+                  window.$bus.emitter.emit('managesegmentation', payload);
                   break;
                 }
                 // ...
@@ -404,6 +422,9 @@ export function useEventBus(handlers, loadDataStore) {
     if (onmanageannotation) {
       emitter.off('manageannotation', onmanageannotation);
     }
+    if (onmanagesegmentation) {
+      emitter.off('managesegmentation', onmanagesegmentation);
+    }
     if (onuserselectfiles) {
       emitter.off('userselectfiles', onuserselectfiles);
     }
@@ -427,6 +448,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onannotationresult) {
       emitter.off('annotationresult', onannotationresult);
+    }
+    if (onsegmentationresult) {
+      emitter.off('segmentationresult', onsegmentationresult);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

@@ -7,6 +7,8 @@ import { useCircleStore } from '@/src/store/tools/circles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
+import { useSegmentGroupStore, LABELMAP_BACKGROUND_VALUE } from '@/src/store/segmentGroups';
+import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
@@ -19,6 +21,7 @@ import {
   computeRectangleMeasurements,
 } from '@/src/utils/roiStats';
 import type { LPSAxis } from '@/src/types/lps';
+import type { SegmentMask } from '@/src/types/segment';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
@@ -87,6 +90,37 @@ type AnnotationPayload = {
   dataID?: string;
 };
 
+type SegmentationPayload = {
+  requestId?: string;
+  action?: 'list' | 'applyMask' | 'apply' | 'create' | 'update' | 'deleteGroup' | 'deleteSegment' | 'updateSegment';
+  segmentGroupId?: string;
+  segmentGroupID?: string;
+  groupId?: string;
+  id?: string;
+  name?: string;
+  groupName?: string;
+  segmentGroupName?: string;
+  newSegmentGroup?: boolean;
+  createNewGroup?: boolean;
+  reuseSegmentGroup?: boolean;
+  segmentValue?: number;
+  value?: number;
+  segment?: Partial<SegmentMask> & { value?: number };
+  mask?: any;
+  rows?: any[];
+  roi?: any;
+  threshold?: { min?: number; max?: number };
+  min?: number;
+  max?: number;
+  mode?: 'add' | 'replace' | 'erase';
+  overwrite?: boolean;
+  overwriteExisting?: boolean;
+  maxPixels?: number;
+  viewID?: string;
+  dataID?: string;
+  component?: number;
+};
+
 export function useVolViewFrontendBridge(options: BridgeOptions) {
   const {
     currentImageID,
@@ -101,6 +135,8 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
   const rectangleStore = useRectangleStore();
   const circleStore = useCircleStore();
   const polygonStore = usePolygonStore();
+  const segmentGroupStore = useSegmentGroupStore();
+  const paintStore = usePaintToolStore();
   const viewStore = useViewStore();
   const viewSliceStore = useViewSliceStore();
   const windowingStore = useWindowingStore();
@@ -132,6 +168,9 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     },
     onmanageannotation(payload: AnnotationPayload) {
       manageAnnotation(payload);
+    },
+    onmanagesegmentation(payload: SegmentationPayload) {
+      manageSegmentation(payload);
     },
   };
 
@@ -1356,6 +1395,538 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
       }));
     } catch (err: any) {
       emitter?.emit('annotationresult', jsonClone({
+        requestId: payload.requestId,
+        error: err?.message || String(err),
+      }));
+    }
+  }
+
+  function getSegmentationSliceContext(payload: { viewID?: string; dataID?: string } = {}) {
+    const { viewID, dataID } = getActiveViewData(payload);
+    const view = viewID ? viewStore.getView(viewID) : null;
+    if (!viewID || !dataID || !view || view.type === '3D') {
+      throw new Error('Segmentation masks require an active 2D VolView pane with image data');
+    }
+    const image = imageCacheStore.imageById[dataID];
+    const imageData = image?.getVtkImageData?.();
+    const scalars = imageData?.getPointData?.().getScalars?.();
+    const values = scalars?.getData?.();
+    const metadata = image?.getImageMetadata?.();
+    if (!imageData || !scalars || !values?.length || !metadata?.lpsOrientation || !metadata?.indexToWorld) {
+      throw new Error('Segmentation masks require scalar image data and index/world transforms');
+    }
+    const dimensions = imageData.getDimensions?.() || [];
+    const axisIndex = getPlaneAxisIndex(view, metadata);
+    const xAxis = (axisIndex + 1) % 3;
+    const yAxis = (axisIndex + 2) % 3;
+    const sliceConfig = viewSliceStore.getConfig(viewID, dataID);
+    const slice = Math.max(0, Math.min((dimensions[axisIndex] || 1) - 1, Math.round(sliceConfig?.slice ?? 0)));
+    const components = scalars.getNumberOfComponents?.() || 1;
+    const component = clampNumber((payload as SegmentationPayload).component, 0, 0, Math.max(0, components - 1));
+    const sourceWidth = dimensions[xAxis] || 0;
+    const sourceHeight = dimensions[yAxis] || 0;
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error('Segmentation masks require a non-empty current slice plane');
+    }
+    return {
+      viewID,
+      dataID,
+      view,
+      imageData,
+      values,
+      dimensions,
+      axisIndex,
+      xAxis,
+      yAxis,
+      slice,
+      sourceWidth,
+      sourceHeight,
+      components,
+      component,
+    };
+  }
+
+  function serializeSegment(segment?: SegmentMask | null) {
+    if (!segment) return null;
+    return {
+      value: segment.value,
+      name: segment.name,
+      color: Array.from(segment.color || []),
+      visible: segment.visible,
+      locked: !!segment.locked,
+    };
+  }
+
+  function serializeSegmentGroup(segmentGroupID: string) {
+    const metadata = segmentGroupStore.metadataByID[segmentGroupID];
+    const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
+    if (!metadata || !labelmap) return null;
+    return {
+      id: segmentGroupID,
+      name: metadata.name,
+      parentImage: metadata.parentImage,
+      dimensions: labelmap.getDimensions?.()?.slice?.(0, 3) ?? null,
+      segments: metadata.segments.order
+        .map(value => serializeSegment(metadata.segments.byValue[value]))
+        .filter(Boolean),
+    };
+  }
+
+  function listSegmentGroups(payload: SegmentationPayload = {}) {
+    const { dataID } = getActiveViewData(payload);
+    const ids = dataID
+      ? [...(segmentGroupStore.orderByParent[dataID] || [])]
+      : Object.keys(segmentGroupStore.metadataByID);
+    return {
+      action: 'list',
+      dataID: dataID ?? null,
+      segmentGroups: ids
+        .map(id => serializeSegmentGroup(id))
+        .filter(Boolean),
+    };
+  }
+
+  function parseSegmentColor(value: any, fallback: number[] = [255, 0, 0, 255]) {
+    if (Array.isArray(value) && value.length >= 3) {
+      return [0, 1, 2, 3].map((index) => {
+        const channel = Number(value[index] ?? (index === 3 ? 255 : 0));
+        return Math.max(0, Math.min(255, Number.isFinite(channel) ? Math.round(channel) : fallback[index]));
+      }) as SegmentMask['color'];
+    }
+    if (typeof value === 'string') {
+      const hex = value.trim().replace(/^#/, '');
+      if (/^[0-9a-f]{6}([0-9a-f]{2})?$/i.test(hex)) {
+        const color = [
+          parseInt(hex.slice(0, 2), 16),
+          parseInt(hex.slice(2, 4), 16),
+          parseInt(hex.slice(4, 6), 16),
+          hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255,
+        ];
+        return color as SegmentMask['color'];
+      }
+    }
+    return fallback as SegmentMask['color'];
+  }
+
+  function getRequestedSegmentGroupID(payload: SegmentationPayload) {
+    const value = payload.segmentGroupId ?? payload.segmentGroupID ?? payload.groupId ?? payload.id;
+    return value == null ? '' : String(value);
+  }
+
+  function getOrCreateSegmentGroup(payload: SegmentationPayload, dataID: string, createNewDefault = false) {
+    const requestedID = getRequestedSegmentGroupID(payload);
+    let segmentGroupID = requestedID;
+    if (segmentGroupID) {
+      const metadata = segmentGroupStore.metadataByID[segmentGroupID];
+      if (!metadata) {
+        throw new Error(`Segment group not found: ${segmentGroupID}`);
+      }
+      if (metadata.parentImage !== dataID) {
+        throw new Error(`Segment group ${segmentGroupID} is not attached to the active image`);
+      }
+    } else {
+      const shouldCreateNew = payload.newSegmentGroup === true
+        || payload.createNewGroup === true
+        || (createNewDefault && payload.reuseSegmentGroup !== true);
+      segmentGroupID = shouldCreateNew ? '' : segmentGroupStore.orderByParent[dataID]?.[0] || '';
+      if (!segmentGroupID) {
+        segmentGroupID = segmentGroupStore.newLabelmapFromImage(dataID) || '';
+      }
+    }
+    if (!segmentGroupID || !segmentGroupStore.dataIndex[segmentGroupID]) {
+      throw new Error(`Failed to create or find a segment group for image ${dataID}`);
+    }
+    const groupName = payload.segmentGroupName ?? payload.groupName;
+    if (groupName) {
+      segmentGroupStore.updateMetadata(segmentGroupID, { name: String(groupName) });
+    }
+    return segmentGroupID;
+  }
+
+  function getExistingSegmentGroup(payload: SegmentationPayload, dataID: string) {
+    const requestedID = getRequestedSegmentGroupID(payload);
+    const segmentGroupID = requestedID || segmentGroupStore.orderByParent[dataID]?.[0] || '';
+    if (!segmentGroupID || !segmentGroupStore.metadataByID[segmentGroupID]) {
+      throw new Error(requestedID ? `Segment group not found: ${requestedID}` : `No segment group exists for image ${dataID}`);
+    }
+    if (segmentGroupStore.metadataByID[segmentGroupID].parentImage !== dataID) {
+      throw new Error(`Segment group ${segmentGroupID} is not attached to the active image`);
+    }
+    return segmentGroupID;
+  }
+
+  function getExplicitSegmentValue(payload: SegmentationPayload) {
+    const value = payload.segmentValue ?? payload.value ?? payload.segment?.value;
+    return value == null ? null : clampNumber(value, 1, 1, 255);
+  }
+
+  function getNextUnusedSegmentValue(segmentGroupID: string) {
+    const segments = segmentGroupStore.metadataByID[segmentGroupID]?.segments;
+    for (let value = 1; value <= 255; value++) {
+      if (!segments?.byValue[value]) return value;
+    }
+    throw new Error(`Segment group ${segmentGroupID} has no unused segment values`);
+  }
+
+  function getSegmentValue(payload: SegmentationPayload, segmentGroupID?: string, allocateNew = false) {
+    const explicitValue = getExplicitSegmentValue(payload);
+    if (explicitValue !== null) return explicitValue;
+    if (allocateNew && segmentGroupID) return getNextUnusedSegmentValue(segmentGroupID);
+    return clampNumber(paintStore.activeSegment ?? 1, 1, 1, 255);
+  }
+
+  function ensureSegment(segmentGroupID: string, payload: SegmentationPayload, segmentValue: number, mode: string) {
+    const metadata = segmentGroupStore.metadataByID[segmentGroupID];
+    const existing = metadata.segments.byValue[segmentValue];
+    const segmentPatch = payload.segment || {};
+    if (!existing && mode === 'erase') {
+      return null;
+    }
+    if (!existing) {
+      return segmentGroupStore.addSegment(segmentGroupID, {
+        value: segmentValue,
+        name: String(segmentPatch.name || payload.name || `AI Segment ${segmentValue}`),
+        color: parseSegmentColor(segmentPatch.color, [255, 0, 0, 255]),
+        visible: segmentPatch.visible !== false,
+        locked: !!segmentPatch.locked,
+      });
+    }
+    const patch: Partial<Omit<SegmentMask, 'value'>> = {};
+    if (segmentPatch.name || payload.name) patch.name = String(segmentPatch.name || payload.name);
+    if (segmentPatch.color) patch.color = parseSegmentColor(segmentPatch.color, Array.from(existing.color || [255, 0, 0, 255]));
+    if (typeof segmentPatch.visible === 'boolean') patch.visible = segmentPatch.visible;
+    if (typeof segmentPatch.locked === 'boolean') patch.locked = segmentPatch.locked;
+    if (Object.keys(patch).length) {
+      segmentGroupStore.updateSegment(segmentGroupID, segmentValue, patch);
+    }
+    const segment = segmentGroupStore.metadataByID[segmentGroupID].segments.byValue[segmentValue];
+    if (segment?.locked && mode !== 'erase') {
+      throw new Error(`Segment ${segmentValue} is locked`);
+    }
+    return segment;
+  }
+
+  function normalizeMaskRows(payload: SegmentationPayload, sourceWidth: number, sourceHeight: number) {
+    const mask = payload.mask && typeof payload.mask === 'object' ? payload.mask : payload;
+    const rows = Array.isArray(mask.rows) ? mask.rows : Array.isArray(payload.rows) ? payload.rows : null;
+    if (rows) {
+      const height = rows.length;
+      const width = Math.max(0, ...rows.map((row: any) => Array.isArray(row) ? row.length : 0));
+      if (!width || !height) {
+        throw new Error('Segmentation mask rows must be non-empty');
+      }
+      const x = clampNumber(mask.x ?? mask.left ?? mask.originX ?? 0, 0, 0, Math.max(0, sourceWidth - 1));
+      const y = clampNumber(mask.y ?? mask.top ?? mask.originY ?? 0, 0, 0, Math.max(0, sourceHeight - 1));
+      const clippedWidth = Math.max(0, Math.min(width, sourceWidth - x));
+      const clippedHeight = Math.max(0, Math.min(height, sourceHeight - y));
+      if (!clippedWidth || !clippedHeight) {
+        throw new Error('Segmentation mask rows do not overlap the current slice');
+      }
+      return {
+        source: 'mask.rows',
+        inputSize: { width, height, pixels: width * height },
+        boundingBox: { x, y, width: clippedWidth, height: clippedHeight },
+        contains: (sourceX: number, sourceY: number) => !!rows[sourceY - y]?.[sourceX - x],
+      };
+    }
+
+    const values = Array.isArray(mask.values) ? mask.values : null;
+    if (values) {
+      const width = clampNumber(mask.width, 0, 1, sourceWidth);
+      const height = clampNumber(mask.height, 0, 1, sourceHeight);
+      if (!width || !height || values.length < width * height) {
+        throw new Error('Segmentation mask values require width, height, and width*height entries');
+      }
+      const x = clampNumber(mask.x ?? mask.left ?? mask.originX ?? 0, 0, 0, Math.max(0, sourceWidth - 1));
+      const y = clampNumber(mask.y ?? mask.top ?? mask.originY ?? 0, 0, 0, Math.max(0, sourceHeight - 1));
+      const clippedWidth = Math.max(0, Math.min(width, sourceWidth - x));
+      const clippedHeight = Math.max(0, Math.min(height, sourceHeight - y));
+      if (!clippedWidth || !clippedHeight) {
+        throw new Error('Segmentation mask values do not overlap the current slice');
+      }
+      return {
+        source: 'mask.values',
+        inputSize: { width, height, pixels: width * height },
+        boundingBox: { x, y, width: clippedWidth, height: clippedHeight },
+        contains: (sourceX: number, sourceY: number) => !!values[(sourceY - y) * width + (sourceX - x)],
+      };
+    }
+
+    const roi = mask.roi || payload.roi;
+    if (roi) {
+      const normalized = normalizeRoiShape({ roi } as RoiSamplePayload, sourceWidth, sourceHeight);
+      return {
+        source: `roi.${normalized.type}`,
+        inputSize: { width: normalized.boundingBox.width, height: normalized.boundingBox.height, pixels: normalized.boundingBox.width * normalized.boundingBox.height },
+        boundingBox: normalized.boundingBox,
+        contains: (sourceX: number, sourceY: number) => normalized.contains(sourceX, sourceY),
+        roi: {
+          type: normalized.type,
+          rectangle: 'rectangle' in normalized ? normalized.rectangle : undefined,
+          ellipse: 'ellipse' in normalized ? normalized.ellipse : undefined,
+          points: 'points' in normalized ? normalized.points : undefined,
+          boundingBox: normalized.boundingBox,
+        },
+      };
+    }
+
+    throw new Error('Segmentation applyMask requires mask.rows, mask.values, or roi');
+  }
+
+  function applyCurrentSliceMask(payload: SegmentationPayload = {}) {
+    const context = getSegmentationSliceContext(payload);
+    const maxPixels = clampNumber(payload.maxPixels, 262144, 1, 1048576);
+    const mask = normalizeMaskRows(payload, context.sourceWidth, context.sourceHeight);
+    const candidatePixelCount = mask.boundingBox.width * mask.boundingBox.height;
+    if (candidatePixelCount > maxPixels) {
+      throw new Error(`Segmentation mask touches ${candidatePixelCount} candidate pixels, over maxPixels ${maxPixels}`);
+    }
+
+    const mode = normalizeText(payload.mode || 'add') || 'add';
+    if (!['add', 'replace', 'erase'].includes(mode)) {
+      throw new Error(`Unsupported segmentation mask mode: ${mode}`);
+    }
+    const explicitSegmentValue = getExplicitSegmentValue(payload);
+    const createNewGroupByDefault = mode !== 'erase'
+      && !getRequestedSegmentGroupID(payload)
+      && explicitSegmentValue === null;
+    const segmentGroupIDsBefore = [...(segmentGroupStore.orderByParent[context.dataID] || [])];
+    const segmentGroupID = getOrCreateSegmentGroup(payload, context.dataID, createNewGroupByDefault);
+    const createdSegmentGroup = !segmentGroupIDsBefore.includes(segmentGroupID);
+    const segmentPatch = payload.segment || {};
+    if (createdSegmentGroup && !payload.groupName && !payload.segmentGroupName && segmentPatch.name) {
+      segmentGroupStore.updateMetadata(segmentGroupID, { name: String(segmentPatch.name) });
+    }
+    const segmentValue = createNewGroupByDefault && payload.reuseSegmentGroup !== true
+      ? 1
+      : getSegmentValue(payload, segmentGroupID, mode !== 'erase');
+    const segment = ensureSegment(segmentGroupID, payload, segmentValue, mode);
+    const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
+    const labelValues = labelmap.getPointData().getScalars().getData() as Uint8Array;
+    const labelDims = labelmap.getDimensions();
+    const labelJStride = labelDims[0];
+    const labelKStride = labelDims[0] * labelDims[1];
+    const minThreshold = toFiniteNumber(payload.threshold?.min ?? payload.min);
+    const maxThreshold = toFiniteNumber(payload.threshold?.max ?? payload.max);
+    const overwriteExisting = payload.overwrite === true || payload.overwriteExisting === true;
+
+    const sourceScalarAt = (x: number, y: number) => {
+      const ijk = [0, 0, 0];
+      ijk[context.axisIndex] = context.slice;
+      ijk[context.xAxis] = x;
+      ijk[context.yAxis] = y;
+      return Number(context.values[((ijk[2] * context.dimensions[1] + ijk[1]) * context.dimensions[0] + ijk[0]) * context.components + context.component]);
+    };
+    const passesThreshold = (x: number, y: number) => {
+      if (minThreshold === null && maxThreshold === null) return true;
+      const value = sourceScalarAt(x, y);
+      if (!Number.isFinite(value)) return false;
+      return (minThreshold === null || value >= minThreshold)
+        && (maxThreshold === null || value <= maxThreshold);
+    };
+    const labelOffsetAt = (x: number, y: number) => {
+      const sourceIJK = vec3.fromValues(0, 0, 0);
+      sourceIJK[context.axisIndex] = context.slice;
+      sourceIJK[context.xAxis] = x;
+      sourceIJK[context.yAxis] = y;
+      const worldPoint = indexPointToWorld(context.imageData, sourceIJK);
+      const labelIJK = Array.from(worldPointToIndex(labelmap, worldPoint as any)).map(value => Math.round(value));
+      if (labelIJK.some((value, index) => value < 0 || value >= labelDims[index])) return null;
+      return labelIJK[0] + labelIJK[1] * labelJStride + labelIJK[2] * labelKStride;
+    };
+    const isLockedLabel = (value: number) => {
+      if (value === LABELMAP_BACKGROUND_VALUE) return false;
+      return !!segmentGroupStore.metadataByID[segmentGroupID]?.segments.byValue[value]?.locked;
+    };
+
+    let maskPixelCount = 0;
+    let painted = 0;
+    let erased = 0;
+    let unchanged = 0;
+    let thresholdSkipped = 0;
+    let lockedSkipped = 0;
+    let outOfBoundsSkipped = 0;
+    let existingSegmentSkipped = 0;
+
+    const { x, y, width, height } = mask.boundingBox;
+    if (mode === 'replace') {
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const offset = labelOffsetAt(x + col, y + row);
+          if (offset !== null && labelValues[offset] === segmentValue) {
+            labelValues[offset] = LABELMAP_BACKGROUND_VALUE;
+          }
+        }
+      }
+    }
+
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        const sourceX = x + col;
+        const sourceY = y + row;
+        if (!mask.contains(sourceX, sourceY)) continue;
+        maskPixelCount += 1;
+        if (!passesThreshold(sourceX, sourceY)) {
+          thresholdSkipped += 1;
+          continue;
+        }
+        const offset = labelOffsetAt(sourceX, sourceY);
+        if (offset === null) {
+          outOfBoundsSkipped += 1;
+          continue;
+        }
+        const currentValue = labelValues[offset];
+        if (isLockedLabel(currentValue)) {
+          lockedSkipped += 1;
+          continue;
+        }
+        const nextValue = mode === 'erase' ? LABELMAP_BACKGROUND_VALUE : segmentValue;
+        if (mode !== 'erase'
+          && !overwriteExisting
+          && currentValue !== LABELMAP_BACKGROUND_VALUE
+          && currentValue !== segmentValue) {
+          existingSegmentSkipped += 1;
+          continue;
+        }
+        if (currentValue === nextValue) {
+          unchanged += 1;
+          continue;
+        }
+        labelValues[offset] = nextValue;
+        if (nextValue === LABELMAP_BACKGROUND_VALUE) erased += 1;
+        else painted += 1;
+      }
+    }
+
+    labelmap.modified();
+    paintStore.setActiveSegmentGroup(segmentGroupID);
+    if (mode !== 'erase') {
+      paintStore.setActiveSegment(segmentValue);
+    }
+
+    return {
+      action: 'applyMask',
+      mode,
+      segmentationSemantics: {
+        version: 2,
+        defaultCreatesIndependentGroup: true,
+        preservesExistingLabelsByDefault: true,
+      },
+      createdSegmentGroup,
+      segmentGroup: serializeSegmentGroup(segmentGroupID),
+      segment: serializeSegment(segment || segmentGroupStore.metadataByID[segmentGroupID].segments.byValue[segmentValue]),
+      currentSliceMask: {
+        source: mask.source,
+        coordinateSystem: 'current-slice-image-plane-index',
+        units: 'index-pixels',
+        dataID: context.dataID,
+        viewID: context.viewID,
+        viewName: context.view.name,
+        orientation: (context.view.options as any)?.orientation ?? null,
+        dimensions: context.dimensions.slice(0, 3),
+        planeAxes: { x: context.xAxis, y: context.yAxis, slice: context.axisIndex },
+        slice: context.slice,
+        sourceSize: {
+          width: context.sourceWidth,
+          height: context.sourceHeight,
+          pixels: context.sourceWidth * context.sourceHeight,
+        },
+        boundingBox: mask.boundingBox,
+        roi: mask.roi,
+        threshold: minThreshold === null && maxThreshold === null ? null : { min: minThreshold, max: maxThreshold, component: context.component },
+        overwriteExisting,
+        candidatePixelCount,
+        maxPixels,
+        maskPixelCount,
+        painted,
+        erased,
+        unchanged,
+        thresholdSkipped,
+        lockedSkipped,
+        outOfBoundsSkipped,
+        existingSegmentSkipped,
+      },
+    };
+  }
+
+  function updateSegmentationSegment(payload: SegmentationPayload = {}) {
+    const { dataID } = getActiveViewData(payload);
+    if (!dataID) throw new Error('Segmentation updateSegment requires an active image');
+    const segmentGroupID = getOrCreateSegmentGroup(payload, dataID);
+    const segmentValue = getSegmentValue(payload, segmentGroupID);
+    ensureSegment(segmentGroupID, payload, segmentValue, 'add');
+    return {
+      action: 'updateSegment',
+      segmentGroup: serializeSegmentGroup(segmentGroupID),
+      segment: serializeSegment(segmentGroupStore.metadataByID[segmentGroupID].segments.byValue[segmentValue]),
+    };
+  }
+
+  function deleteSegmentationSegment(payload: SegmentationPayload = {}) {
+    const { dataID } = getActiveViewData(payload);
+    if (!dataID) throw new Error('Segmentation deleteSegment requires an active image');
+    const segmentGroupID = getExistingSegmentGroup(payload, dataID);
+    const segmentValue = getSegmentValue(payload, segmentGroupID);
+    segmentGroupStore.deleteSegment(segmentGroupID, segmentValue);
+    return {
+      action: 'deleteSegment',
+      segmentGroupID,
+      segmentValue,
+      deleted: true,
+    };
+  }
+
+  function deleteSegmentationGroup(payload: SegmentationPayload = {}) {
+    const segmentGroupID = getRequestedSegmentGroupID(payload);
+    if (!segmentGroupID) {
+      throw new Error('Segmentation deleteGroup requires segmentGroupId');
+    }
+    if (!segmentGroupStore.metadataByID[segmentGroupID]) {
+      throw new Error(`Segment group not found: ${segmentGroupID}`);
+    }
+    segmentGroupStore.removeGroup(segmentGroupID);
+    return {
+      action: 'deleteGroup',
+      segmentGroupID,
+      deleted: true,
+    };
+  }
+
+  function manageSegmentation(payload: SegmentationPayload = {}) {
+    try {
+      const action = normalizeText(payload.action || 'list');
+      let result: any;
+      switch (action) {
+        case 'apply':
+        case 'applymask':
+        case 'create':
+        case 'update':
+          result = applyCurrentSliceMask(payload);
+          break;
+        case 'updatesegment':
+          result = updateSegmentationSegment(payload);
+          break;
+        case 'deletesegment':
+          result = deleteSegmentationSegment(payload);
+          break;
+        case 'deletegroup':
+          result = deleteSegmentationGroup(payload);
+          break;
+        case 'list':
+          result = listSegmentGroups(payload);
+          break;
+        default:
+          throw new Error(`Unsupported segmentation action: ${action}`);
+      }
+      emitter?.emit('segmentationresult', jsonClone({
+        requestId: payload.requestId,
+        result: {
+          ...result,
+          capturedAt: Date.now(),
+        },
+      }));
+    } catch (err: any) {
+      emitter?.emit('segmentationresult', jsonClone({
         requestId: payload.requestId,
         error: err?.message || String(err),
       }));

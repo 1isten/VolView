@@ -168,6 +168,22 @@ export type Events = {
     viewID?: string;
     dataID?: string;
   };
+  onmanagesegmentation?: {
+    requestId?: string;
+    action?: 'list' | 'applyMask' | 'deleteGroup' | 'deleteSegment' | 'updateSegment';
+    segmentGroupId?: string;
+    segmentGroupID?: string;
+    segmentValue?: number;
+    segment?: any;
+    mask?: any;
+    roi?: any;
+    threshold?: { min?: number; max?: number };
+    mode?: 'add' | 'replace' | 'erase';
+    maxPixels?: number;
+    viewID?: string;
+    dataID?: string;
+    component?: number;
+  };
   // ...
 
   // emit to outside
