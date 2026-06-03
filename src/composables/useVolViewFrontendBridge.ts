@@ -109,9 +109,12 @@ type SegmentationPayload = {
   mask?: any;
   rows?: any[];
   roi?: any;
-  threshold?: { min?: number; max?: number };
+  threshold?: Record<string, any>;
   min?: number;
   max?: number;
+  seed?: RoiPoint;
+  connectedComponent?: boolean;
+  connectivity?: 4 | 8;
   mode?: 'add' | 'replace' | 'erase';
   overwrite?: boolean;
   overwriteExisting?: boolean;
@@ -1706,8 +1709,6 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     const labelDims = labelmap.getDimensions();
     const labelJStride = labelDims[0];
     const labelKStride = labelDims[0] * labelDims[1];
-    const minThreshold = toFiniteNumber(payload.threshold?.min ?? payload.min);
-    const maxThreshold = toFiniteNumber(payload.threshold?.max ?? payload.max);
     const overwriteExisting = payload.overwrite === true || payload.overwriteExisting === true;
 
     const sourceScalarAt = (x: number, y: number) => {
@@ -1717,13 +1718,140 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
       ijk[context.yAxis] = y;
       return Number(context.values[((ijk[2] * context.dimensions[1] + ijk[1]) * context.dimensions[0] + ijk[0]) * context.components + context.component]);
     };
+    const getMaskScalarValues = () => {
+      const values: number[] = [];
+      const { x, y, width, height } = mask.boundingBox;
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const sourceX = x + col;
+          const sourceY = y + row;
+          if (!mask.contains(sourceX, sourceY)) continue;
+          const value = sourceScalarAt(sourceX, sourceY);
+          if (Number.isFinite(value)) values.push(value);
+        }
+      }
+      return values;
+    };
+    const percentile = (sortedValues: number[], percent: number) => {
+      if (!sortedValues.length) return null;
+      const clamped = Math.max(0, Math.min(100, percent));
+      const index = (clamped / 100) * (sortedValues.length - 1);
+      const lower = Math.floor(index);
+      const upper = Math.ceil(index);
+      if (lower === upper) return sortedValues[lower];
+      const fraction = index - lower;
+      return sortedValues[lower] * (1 - fraction) + sortedValues[upper] * fraction;
+    };
+    const getThresholdStats = () => {
+      const values = getMaskScalarValues().sort((a, b) => a - b);
+      if (!values.length) return null;
+      const sum = values.reduce((acc, value) => acc + value, 0);
+      const mean = sum / values.length;
+      const variance = values.reduce((acc, value) => acc + ((value - mean) ** 2), 0) / values.length;
+      return {
+        count: values.length,
+        min: values[0],
+        max: values[values.length - 1],
+        mean,
+        median: percentile(values, 50),
+        p25: percentile(values, 25),
+        p75: percentile(values, 75),
+        stddev: Math.sqrt(variance),
+      };
+    };
+    const resolveThresholdValue = (spec: any, stats: ReturnType<typeof getThresholdStats>) => {
+      const numeric = toFiniteNumber(spec);
+      if (numeric !== null) return numeric;
+      if (!stats || typeof spec !== 'string') return null;
+      const text = normalizeText(spec).replace(/[_\s-]/g, '');
+      if (text === 'mean' || text === 'average' || text === 'avg') return stats.mean;
+      if (text === 'median' || text === 'p50') return stats.median;
+      if (text === 'min' || text === 'minimum') return stats.min;
+      if (text === 'max' || text === 'maximum') return stats.max;
+      if (text === 'p25' || text === 'q1') return stats.p25;
+      if (text === 'p75' || text === 'q3') return stats.p75;
+      const percentileMatch = text.match(/^p(\d+(?:\.\d+)?)$/);
+      if (percentileMatch) return percentile(getMaskScalarValues().sort((a, b) => a - b), Number(percentileMatch[1]));
+      return null;
+    };
+    const thresholdInput = payload.threshold && typeof payload.threshold === 'object' ? payload.threshold : {};
+    const thresholdMode = normalizeText(
+      thresholdInput.mode
+      ?? thresholdInput.direction
+      ?? (thresholdInput.above !== undefined ? 'above' : thresholdInput.below !== undefined ? 'below' : '')
+    );
+    const needsThresholdStats = ['value', 'statistic', 'above', 'below', 'min', 'max'].some((key) => {
+      const value = thresholdInput[key] ?? (key === 'min' ? payload.min : key === 'max' ? payload.max : undefined);
+      return typeof value === 'string' && toFiniteNumber(value) === null;
+    }) || ['above', 'below'].includes(thresholdMode) || !!thresholdInput.statistic;
+    const thresholdStats = needsThresholdStats ? getThresholdStats() : null;
+    const thresholdDelta = Number(thresholdInput.delta ?? 0);
+    const finiteDelta = Number.isFinite(thresholdDelta) ? thresholdDelta : 0;
+    const baseThresholdSpec = thresholdInput.value ?? thresholdInput.statistic ?? thresholdInput.above ?? thresholdInput.below;
+    const minThreshold = (() => {
+      if (thresholdMode === 'above') return resolveThresholdValue(baseThresholdSpec ?? 'mean', thresholdStats) ?? toFiniteNumber(payload.min);
+      if (thresholdMode === 'below') return null;
+      if (thresholdInput.min !== undefined || payload.min !== undefined) return resolveThresholdValue(thresholdInput.min ?? payload.min, thresholdStats);
+      return null;
+    })();
+    const maxThreshold = (() => {
+      if (thresholdMode === 'below') return resolveThresholdValue(baseThresholdSpec ?? 'mean', thresholdStats) ?? toFiniteNumber(payload.max);
+      if (thresholdMode === 'above') return null;
+      if (thresholdInput.max !== undefined || payload.max !== undefined) return resolveThresholdValue(thresholdInput.max ?? payload.max, thresholdStats);
+      return null;
+    })();
+    const adjustedMinThreshold = minThreshold === null ? null : minThreshold + (thresholdMode === 'below' ? 0 : finiteDelta);
+    const adjustedMaxThreshold = maxThreshold === null ? null : maxThreshold + (thresholdMode === 'below' ? finiteDelta : 0);
+    const hasThreshold = adjustedMinThreshold !== null || adjustedMaxThreshold !== null;
     const passesThreshold = (x: number, y: number) => {
-      if (minThreshold === null && maxThreshold === null) return true;
+      if (!hasThreshold) return true;
       const value = sourceScalarAt(x, y);
       if (!Number.isFinite(value)) return false;
-      return (minThreshold === null || value >= minThreshold)
-        && (maxThreshold === null || value <= maxThreshold);
+      const inRange = (adjustedMinThreshold === null || value >= adjustedMinThreshold)
+        && (adjustedMaxThreshold === null || value <= adjustedMaxThreshold);
+      return thresholdMode === 'outside' ? !inRange : inRange;
     };
+    const maskKey = (x: number, y: number) => `${x},${y}`;
+    const seedPoint = getPlanePoint(payload.seed);
+    const useConnectedComponent = !!seedPoint || payload.connectedComponent === true;
+    const connectivity = payload.connectivity === 8 ? 8 : 4;
+    const connectedComponent = (() => {
+      if (!useConnectedComponent) return null;
+      if (!seedPoint) {
+        throw new Error('connectedComponent segmentation requires seed: {x,y} or [x,y]');
+      }
+      const seedX = Math.round(seedPoint[0]);
+      const seedY = Math.round(seedPoint[1]);
+      const { x, y, width, height } = mask.boundingBox;
+      const inBounds = (pointX: number, pointY: number) => pointX >= x
+        && pointX < x + width
+        && pointY >= y
+        && pointY < y + height;
+      const accepts = (pointX: number, pointY: number) => inBounds(pointX, pointY)
+        && mask.contains(pointX, pointY)
+        && passesThreshold(pointX, pointY);
+      const pixels = new Set<string>();
+      if (!accepts(seedX, seedY)) {
+        return { seed: { x: seedX, y: seedY }, connectivity, found: false, pixelCount: 0, pixels };
+      }
+      const queue: Array<[number, number]> = [[seedX, seedY]];
+      pixels.add(maskKey(seedX, seedY));
+      const neighbors = connectivity === 8
+        ? [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+        : [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      while (queue.length) {
+        const [pointX, pointY] = queue.shift()!;
+        for (const [dx, dy] of neighbors) {
+          const nextX = pointX + dx;
+          const nextY = pointY + dy;
+          const key = maskKey(nextX, nextY);
+          if (pixels.has(key) || !accepts(nextX, nextY)) continue;
+          pixels.add(key);
+          queue.push([nextX, nextY]);
+        }
+      }
+      return { seed: { x: seedX, y: seedY }, connectivity, found: true, pixelCount: pixels.size, pixels };
+    })();
     const labelOffsetAt = (x: number, y: number) => {
       const sourceIJK = vec3.fromValues(0, 0, 0);
       sourceIJK[context.axisIndex] = context.slice;
@@ -1747,6 +1875,7 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     let lockedSkipped = 0;
     let outOfBoundsSkipped = 0;
     let existingSegmentSkipped = 0;
+    let connectedComponentSkipped = 0;
 
     const { x, y, width, height } = mask.boundingBox;
     if (mode === 'replace') {
@@ -1768,6 +1897,10 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
         maskPixelCount += 1;
         if (!passesThreshold(sourceX, sourceY)) {
           thresholdSkipped += 1;
+          continue;
+        }
+        if (connectedComponent && !connectedComponent.pixels.has(maskKey(sourceX, sourceY))) {
+          connectedComponentSkipped += 1;
           continue;
         }
         const offset = labelOffsetAt(sourceX, sourceY);
@@ -1833,7 +1966,19 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
         },
         boundingBox: mask.boundingBox,
         roi: mask.roi,
-        threshold: minThreshold === null && maxThreshold === null ? null : { min: minThreshold, max: maxThreshold, component: context.component },
+        threshold: hasThreshold ? {
+          mode: thresholdMode || 'between',
+          min: adjustedMinThreshold,
+          max: adjustedMaxThreshold,
+          component: context.component,
+          stats: thresholdStats,
+        } : null,
+        connectedComponent: connectedComponent ? {
+          seed: connectedComponent.seed,
+          connectivity: connectedComponent.connectivity,
+          found: connectedComponent.found,
+          pixelCount: connectedComponent.pixelCount,
+        } : null,
         overwriteExisting,
         candidatePixelCount,
         maxPixels,
@@ -1845,6 +1990,7 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
         lockedSkipped,
         outOfBoundsSkipped,
         existingSegmentSkipped,
+        connectedComponentSkipped,
       },
     };
   }
