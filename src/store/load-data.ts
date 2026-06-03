@@ -186,14 +186,25 @@ export type Events = {
   };
   onreadvolume?: {
     requestId?: string;
-    action?: 'info' | 'chunk';
+    action?: 'info' | 'chunk' | 'scan';
     origin?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
     size?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number; width?: number; height?: number; depth?: number };
     stride?: number | [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
     maxVoxels?: number;
     maxBytes?: number;
+    maxChunkVoxels?: number;
+    maxChunkBytes?: number;
+    maxScanVoxels?: number;
+    maxTotalVoxels?: number;
     bins?: number;
     includeValues?: boolean;
+    includeSlices?: boolean;
+    perSlice?: boolean;
+    maxSliceSummaries?: number;
+    min?: number;
+    max?: number;
+    threshold?: { name?: string; min?: number; max?: number; gt?: number; gte?: number; lt?: number; lte?: number; exclusiveMin?: boolean; exclusiveMax?: boolean };
+    thresholds?: Array<{ name?: string; min?: number; max?: number; gt?: number; gte?: number; lt?: number; lte?: number; exclusiveMin?: boolean; exclusiveMax?: boolean }>;
     viewID?: string;
     dataID?: string;
     component?: number;

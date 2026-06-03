@@ -126,14 +126,25 @@ type SegmentationPayload = {
 
 type VolumePayload = {
   requestId?: string;
-  action?: 'info' | 'chunk';
+  action?: 'info' | 'chunk' | 'scan';
   origin?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
   size?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number; width?: number; height?: number; depth?: number };
   stride?: number | [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
   maxVoxels?: number;
   maxBytes?: number;
+  maxChunkVoxels?: number;
+  maxChunkBytes?: number;
+  maxScanVoxels?: number;
+  maxTotalVoxels?: number;
   bins?: number;
   includeValues?: boolean;
+  includeSlices?: boolean;
+  perSlice?: boolean;
+  maxSliceSummaries?: number;
+  min?: number;
+  max?: number;
+  threshold?: { name?: string; min?: number; max?: number; gt?: number; gte?: number; lt?: number; lte?: number; exclusiveMin?: boolean; exclusiveMax?: boolean };
+  thresholds?: Array<{ name?: string; min?: number; max?: number; gt?: number; gte?: number; lt?: number; lte?: number; exclusiveMin?: boolean; exclusiveMax?: boolean }>;
   viewID?: string;
   dataID?: string;
   component?: number;
@@ -1550,18 +1561,13 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     };
   }
 
-  function getVolumeChunk(payload: VolumePayload = {}) {
-    const context = getVolumeContext(payload);
-    const dimensions = context.dimensions;
-    if (!dimensions.every((value) => value > 0)) {
-      throw new Error('Volume chunk access requires non-empty image dimensions');
-    }
+  function getVolumeWindow(payload: VolumePayload, dimensions: number[], defaultDepth: 'slice' | 'volume') {
     const originRaw = vectorFromPayload(payload.origin, [0, 0, 0], ['i', 'j', 'k'], ['x', 'y', 'z']);
     const origin = originRaw.map((value, index) => clampNumber(value, 0, 0, Math.max(0, dimensions[index] - 1))) as [number, number, number];
     const defaultSize: [number, number, number] = [
       dimensions[0] - origin[0],
       dimensions[1] - origin[1],
-      Math.min(1, dimensions[2] - origin[2]),
+      defaultDepth === 'volume' ? dimensions[2] - origin[2] : Math.min(1, dimensions[2] - origin[2]),
     ];
     const sizeRaw = vectorFromPayload(payload.size, defaultSize, ['i', 'j', 'k'], ['width', 'height', 'depth']);
     const size = sizeRaw.map((value, index) => clampNumber(value, defaultSize[index], 1, Math.max(1, dimensions[index] - origin[index]))) as [number, number, number];
@@ -1569,7 +1575,110 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     const sampleSize = size.map((value, index) => Math.ceil(value / stride[index])) as [number, number, number];
     const sourceRange = origin.map((value, index) => [value, value + size[index] - 1]) as [[number, number], [number, number], [number, number]];
     const sampledRange = origin.map((value, index) => [value, value + ((sampleSize[index] - 1) * stride[index])]) as [[number, number], [number, number], [number, number]];
-    const sampleVoxels = sampleSize[0] * sampleSize[1] * sampleSize[2];
+    return {
+      origin,
+      size,
+      stride,
+      sourceRange,
+      sourceExtentInclusive: [sourceRange[0][0], sourceRange[0][1], sourceRange[1][0], sourceRange[1][1], sourceRange[2][0], sourceRange[2][1]],
+      sampledRange,
+      sampledExtentInclusive: [sampledRange[0][0], sampledRange[0][1], sampledRange[1][0], sampledRange[1][1], sampledRange[2][0], sampledRange[2][1]],
+      sampleSize,
+      sampleVoxels: sampleSize[0] * sampleSize[1] * sampleSize[2],
+    };
+  }
+
+  function createStatsAccumulator() {
+    return {
+      count: 0,
+      min: Infinity,
+      max: -Infinity,
+      mean: 0,
+      m2: 0,
+      sum: 0,
+    };
+  }
+
+  function addStatsValue(acc: ReturnType<typeof createStatsAccumulator>, value: number) {
+    if (!Number.isFinite(value)) return;
+    acc.count += 1;
+    acc.min = Math.min(acc.min, value);
+    acc.max = Math.max(acc.max, value);
+    acc.sum += value;
+    const delta = value - acc.mean;
+    acc.mean += delta / acc.count;
+    const delta2 = value - acc.mean;
+    acc.m2 += delta * delta2;
+  }
+
+  function serializeStatsAccumulator(acc: ReturnType<typeof createStatsAccumulator>) {
+    if (!acc.count) return null;
+    return {
+      min: acc.min,
+      max: acc.max,
+      mean: acc.mean,
+      stddev: Math.sqrt(acc.m2 / acc.count),
+      sum: acc.sum,
+      count: acc.count,
+    };
+  }
+
+  function normalizeScanThresholds(payload: VolumePayload = {}) {
+    const thresholds = Array.isArray(payload.thresholds) ? payload.thresholds.slice() : [];
+    if (payload.threshold) thresholds.unshift(payload.threshold);
+    if (payload.min !== undefined || payload.max !== undefined) thresholds.unshift({ name: 'requested', min: payload.min, max: payload.max });
+    return thresholds
+      .map((threshold, index) => {
+        const gt = toFiniteNumber(threshold?.gt);
+        const gte = toFiniteNumber(threshold?.gte ?? threshold?.min);
+        const lt = toFiniteNumber(threshold?.lt);
+        const lte = toFiniteNumber(threshold?.lte ?? threshold?.max);
+        if (gt === null && gte === null && lt === null && lte === null) return null;
+        const lower = gt !== null ? gt : gte;
+        const upper = lt !== null ? lt : lte;
+        const lowerExclusive = gt !== null || Boolean(threshold?.exclusiveMin);
+        const upperExclusive = lt !== null || Boolean(threshold?.exclusiveMax);
+        const lowerLabel = lower === null ? null : `${lowerExclusive ? '>' : '>='}${lower}`;
+        const upperLabel = upper === null ? null : `${upperExclusive ? '<' : '<='}${upper}`;
+        const name = threshold?.name || [lowerLabel, upperLabel].filter(Boolean).join(' and ');
+        return {
+          index,
+          name,
+          min: lower,
+          max: upper,
+          lowerExclusive,
+          upperExclusive,
+          count: 0,
+          boundingBox: null as null | { min: [number, number, number]; max: [number, number, number] },
+        };
+      })
+      .filter(Boolean) as Array<{ index: number; name: string; min: number | null; max: number | null; lowerExclusive: boolean; upperExclusive: boolean; count: number; boundingBox: null | { min: [number, number, number]; max: [number, number, number] } }>;
+  }
+
+  function valueMatchesThreshold(value: number, threshold: { min: number | null; max: number | null; lowerExclusive?: boolean; upperExclusive?: boolean }) {
+    const lowerMatch = threshold.min === null || (threshold.lowerExclusive ? value > threshold.min : value >= threshold.min);
+    const upperMatch = threshold.max === null || (threshold.upperExclusive ? value < threshold.max : value <= threshold.max);
+    return lowerMatch && upperMatch;
+  }
+
+  function addThresholdHit(threshold: { count: number; boundingBox: null | { min: [number, number, number]; max: [number, number, number] } }, i: number, j: number, k: number) {
+    threshold.count += 1;
+    if (!threshold.boundingBox) {
+      threshold.boundingBox = { min: [i, j, k], max: [i, j, k] };
+      return;
+    }
+    threshold.boundingBox.min = threshold.boundingBox.min.map((value, index) => Math.min(value, [i, j, k][index])) as [number, number, number];
+    threshold.boundingBox.max = threshold.boundingBox.max.map((value, index) => Math.max(value, [i, j, k][index])) as [number, number, number];
+  }
+
+  function getVolumeChunk(payload: VolumePayload = {}) {
+    const context = getVolumeContext(payload);
+    const dimensions = context.dimensions;
+    if (!dimensions.every((value) => value > 0)) {
+      throw new Error('Volume chunk access requires non-empty image dimensions');
+    }
+    const window = getVolumeWindow(payload, dimensions, 'slice');
+    const { origin, size, stride, sampleVoxels } = window;
     const maxVoxels = clampNumber(payload.maxVoxels, 262144, 1, 1048576);
     const maxBytes = clampNumber(payload.maxBytes, 4 * 1024 * 1024, 1024, 16 * 1024 * 1024);
     const rawBytes = sampleVoxels * context.bytesPerScalar;
@@ -1603,14 +1712,7 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
         order: 'x-fastest-then-y-then-z',
       },
       chunk: {
-        origin,
-        size,
-        stride,
-        sourceRange,
-        sourceExtentInclusive: [sourceRange[0][0], sourceRange[0][1], sourceRange[1][0], sourceRange[1][1], sourceRange[2][0], sourceRange[2][1]],
-        sampledRange,
-        sampledExtentInclusive: [sampledRange[0][0], sampledRange[0][1], sampledRange[1][0], sampledRange[1][1], sampledRange[2][0], sampledRange[2][1]],
-        sampleSize,
+        ...window,
         sampleVoxels,
         rawBytes,
         maxVoxels,
@@ -1632,6 +1734,146 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     };
   }
 
+  function getVolumeScan(payload: VolumePayload = {}) {
+    const context = getVolumeContext(payload);
+    const dimensions = context.dimensions;
+    if (!dimensions.every((value) => value > 0)) {
+      throw new Error('Volume scan requires non-empty image dimensions');
+    }
+    const scanWindow = getVolumeWindow(payload, dimensions, 'volume');
+    const maxScanVoxels = clampNumber(payload.maxScanVoxels ?? payload.maxTotalVoxels, 50 * 1000 * 1000, 1, 100 * 1000 * 1000);
+    if (scanWindow.sampleVoxels > maxScanVoxels) {
+      throw new Error(`Volume scan requests ${scanWindow.sampleVoxels} sampled voxels, over maxScanVoxels ${maxScanVoxels}; increase stride or request a smaller source window`);
+    }
+
+    const maxChunkVoxels = clampNumber(payload.maxChunkVoxels ?? payload.maxVoxels, 262144, 1, 1048576);
+    const maxChunkBytes = clampNumber(payload.maxChunkBytes ?? payload.maxBytes, 4 * 1024 * 1024, 1024, 16 * 1024 * 1024);
+    const maxChunkSamples = Math.max(1, Math.min(maxChunkVoxels, Math.floor(maxChunkBytes / context.bytesPerScalar)));
+    const samplesPerK = Math.max(1, scanWindow.sampleSize[0] * scanWindow.sampleSize[1]);
+    const chunkSampleDepth = Math.max(1, Math.floor(maxChunkSamples / samplesPerK));
+    const chunkCount = Math.ceil(scanWindow.sampleSize[2] / chunkSampleDepth);
+    const chunkRawBytes = Math.min(maxChunkSamples, samplesPerK * chunkSampleDepth) * context.bytesPerScalar;
+    const rawBytes = scanWindow.sampleVoxels * context.bytesPerScalar;
+    const bins = Math.max(2, Math.min(256, Math.round(Number(payload.bins) || 64)));
+    const sourceValues = context.values;
+    const dims = context.dimensions;
+    const globalStats = createStatsAccumulator();
+    const thresholds = normalizeScanThresholds(payload);
+    const sliceStats = new Map<number, ReturnType<typeof createStatsAccumulator>>();
+
+    const visitSamples = (visitor: (value: number, i: number, j: number, k: number) => void) => {
+      for (let kSampleChunkStart = 0; kSampleChunkStart < scanWindow.sampleSize[2]; kSampleChunkStart += chunkSampleDepth) {
+        const kSampleChunkEnd = Math.min(scanWindow.sampleSize[2], kSampleChunkStart + chunkSampleDepth);
+        for (let kSample = kSampleChunkStart; kSample < kSampleChunkEnd; kSample += 1) {
+          const k = scanWindow.origin[2] + (kSample * scanWindow.stride[2]);
+          for (let jSample = 0; jSample < scanWindow.sampleSize[1]; jSample += 1) {
+            const j = scanWindow.origin[1] + (jSample * scanWindow.stride[1]);
+            for (let iSample = 0; iSample < scanWindow.sampleSize[0]; iSample += 1) {
+              const i = scanWindow.origin[0] + (iSample * scanWindow.stride[0]);
+              visitor(Number(sourceValues[((k * dims[1] + j) * dims[0] + i) * context.components + context.component]), i, j, k);
+            }
+          }
+        }
+      }
+    };
+
+    visitSamples((value, i, j, k) => {
+      if (!Number.isFinite(value)) return;
+      addStatsValue(globalStats, value);
+      let currentSliceStats = sliceStats.get(k);
+      if (!currentSliceStats) {
+        currentSliceStats = createStatsAccumulator();
+        sliceStats.set(k, currentSliceStats);
+      }
+      addStatsValue(currentSliceStats, value);
+      thresholds.forEach((threshold) => {
+        if (valueMatchesThreshold(value, threshold)) {
+          addThresholdHit(threshold, i, j, k);
+        }
+      });
+    });
+
+    const valueRange = serializeStatsAccumulator(globalStats);
+    const histogramCounts = Array.from({ length: bins }, () => 0);
+    if (valueRange) {
+      const span = valueRange.max - valueRange.min || 1;
+      visitSamples((value) => {
+        if (!Number.isFinite(value)) return;
+        const bin = Math.min(bins - 1, Math.max(0, Math.floor(((value - valueRange.min) / span) * bins)));
+        histogramCounts[bin] += 1;
+      });
+    }
+
+    const sliceSummaries = Array.from(sliceStats.entries())
+      .flatMap(([k, stats]) => {
+        const summary = serializeStatsAccumulator(stats);
+        return summary ? [{ k, ...summary }] : [];
+      })
+      .sort((a, b) => a.k - b.k);
+    const maxSliceSummaries = clampNumber(payload.maxSliceSummaries, 512, 0, 4096);
+    const includeSliceSummaries = Boolean(payload.includeSlices || payload.perSlice);
+    const sliceExtrema = sliceSummaries.length ? {
+      lowestMin: sliceSummaries.reduce((best, item) => item.min < best.min ? item : best, sliceSummaries[0]),
+      highestMax: sliceSummaries.reduce((best, item) => item.max > best.max ? item : best, sliceSummaries[0]),
+      lowestMean: sliceSummaries.reduce((best, item) => item.mean < best.mean ? item : best, sliceSummaries[0]),
+      highestMean: sliceSummaries.reduce((best, item) => item.mean > best.mean ? item : best, sliceSummaries[0]),
+      highestStddev: sliceSummaries.reduce((best, item) => item.stddev > best.stddev ? item : best, sliceSummaries[0]),
+    } : null;
+
+    return {
+      ...serializeVolumeInfo(context),
+      action: 'scan',
+      volumeAccessSemantics: {
+        version: 2,
+        boundedChunkOnly: true,
+        statsOnly: true,
+        order: 'x-fastest-then-y-then-z',
+      },
+      scan: {
+        ...scanWindow,
+        component: context.component,
+        sampleVoxels: scanWindow.sampleVoxels,
+        rawBytes,
+        valuesIncluded: false,
+        valuesOrder: 'x-fastest-then-y-then-z',
+        maxScanVoxels,
+        chunking: {
+          axis: 'k',
+          maxChunkVoxels,
+          maxChunkBytes,
+          maxChunkSamples,
+          chunkSampleDepth,
+          chunkCount,
+          maxChunkRawBytes: chunkRawBytes,
+        },
+      },
+      valueRange,
+      histogram: valueRange ? {
+        bins,
+        min: valueRange.min,
+        max: valueRange.max,
+        counts: histogramCounts,
+      } : null,
+      thresholdCounts: thresholds.map((threshold) => ({
+        name: threshold.name,
+        min: threshold.min,
+        max: threshold.max,
+        lowerExclusive: threshold.lowerExclusive,
+        upperExclusive: threshold.upperExclusive,
+        count: threshold.count,
+        fraction: globalStats.count ? threshold.count / globalStats.count : 0,
+        boundingBox: threshold.boundingBox,
+      })),
+      sliceSummary: {
+        sampledSliceCount: sliceSummaries.length,
+        summariesIncluded: includeSliceSummaries && sliceSummaries.length <= maxSliceSummaries,
+        maxSliceSummaries,
+        extrema: sliceExtrema,
+      },
+      sliceSummaries: includeSliceSummaries && sliceSummaries.length <= maxSliceSummaries ? sliceSummaries : undefined,
+    };
+  }
+
   function readVolume(payload: VolumePayload = {}) {
     try {
       const action = normalizeText(payload.action || 'info');
@@ -1649,6 +1891,9 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
           break;
         case 'chunk':
           result = getVolumeChunk(payload);
+          break;
+        case 'scan':
+          result = getVolumeScan(payload);
           break;
         default:
           throw new Error(`Unsupported volume action: ${action}`);
