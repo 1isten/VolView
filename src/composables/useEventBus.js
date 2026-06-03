@@ -33,6 +33,7 @@ export function useEventBus(handlers, loadDataStore) {
   const onsamplecurrentsliceroi = handlers?.onsamplecurrentsliceroi;
   const onmanageannotation = handlers?.onmanageannotation;
   const onmanagesegmentation = handlers?.onmanagesegmentation;
+  const onreadvolume = handlers?.onreadvolume;
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
@@ -42,6 +43,7 @@ export function useEventBus(handlers, loadDataStore) {
   let oncurrentsliceroisample;
   let onannotationresult;
   let onsegmentationresult;
+  let onvolumeresult;
   let onslicing;
   let onclose;
 
@@ -92,6 +94,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onmanagesegmentation) {
       emitter.on('managesegmentation', onmanagesegmentation);
+    }
+    if (onreadvolume) {
+      emitter.on('readvolume', onreadvolume);
     }
     onuserselectfiles = files => {
       if (projectId && datasetId) {
@@ -191,6 +196,14 @@ export function useEventBus(handlers, loadDataStore) {
         }, '*');
       }
     };
+    onvolumeresult = payload => {
+      if (isInsideIframe) {
+        window.parent.postMessage({
+          type: 'volview:volumeresult',
+          payload: jsonClone(payload),
+        }, '*');
+      }
+    };
     onslicing = payload => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
@@ -230,6 +243,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('currentsliceroisample', oncurrentsliceroisample);
     emitter.on('annotationresult', onannotationresult);
     emitter.on('segmentationresult', onsegmentationresult);
+    emitter.on('volumeresult', onvolumeresult);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);
 
@@ -297,6 +311,10 @@ export function useEventBus(handlers, loadDataStore) {
                 }
                 case 'manage-segmentation': {
                   window.$bus.emitter.emit('managesegmentation', payload);
+                  break;
+                }
+                case 'read-volume': {
+                  window.$bus.emitter.emit('readvolume', payload);
                   break;
                 }
                 // ...
@@ -425,6 +443,9 @@ export function useEventBus(handlers, loadDataStore) {
     if (onmanagesegmentation) {
       emitter.off('managesegmentation', onmanagesegmentation);
     }
+    if (onreadvolume) {
+      emitter.off('readvolume', onreadvolume);
+    }
     if (onuserselectfiles) {
       emitter.off('userselectfiles', onuserselectfiles);
     }
@@ -451,6 +472,9 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onsegmentationresult) {
       emitter.off('segmentationresult', onsegmentationresult);
+    }
+    if (onvolumeresult) {
+      emitter.off('volumeresult', onvolumeresult);
     }
     if (onslicing) {
       emitter.off('slicing', onslicing);

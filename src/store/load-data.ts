@@ -184,6 +184,20 @@ export type Events = {
     dataID?: string;
     component?: number;
   };
+  onreadvolume?: {
+    requestId?: string;
+    action?: 'info' | 'chunk';
+    origin?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
+    size?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number; width?: number; height?: number; depth?: number };
+    stride?: number | [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
+    maxVoxels?: number;
+    maxBytes?: number;
+    bins?: number;
+    includeValues?: boolean;
+    viewID?: string;
+    dataID?: string;
+    component?: number;
+  };
   // ...
 
   // emit to outside

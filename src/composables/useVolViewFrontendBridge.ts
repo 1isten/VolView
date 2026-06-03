@@ -124,6 +124,21 @@ type SegmentationPayload = {
   component?: number;
 };
 
+type VolumePayload = {
+  requestId?: string;
+  action?: 'info' | 'chunk';
+  origin?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
+  size?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number; width?: number; height?: number; depth?: number };
+  stride?: number | [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
+  maxVoxels?: number;
+  maxBytes?: number;
+  bins?: number;
+  includeValues?: boolean;
+  viewID?: string;
+  dataID?: string;
+  component?: number;
+};
+
 export function useVolViewFrontendBridge(options: BridgeOptions) {
   const {
     currentImageID,
@@ -174,6 +189,9 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     },
     onmanagesegmentation(payload: SegmentationPayload) {
       manageSegmentation(payload);
+    },
+    onreadvolume(payload: VolumePayload) {
+      readVolume(payload);
     },
   };
 
@@ -1398,6 +1416,252 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
       }));
     } catch (err: any) {
       emitter?.emit('annotationresult', jsonClone({
+        requestId: payload.requestId,
+        error: err?.message || String(err),
+      }));
+    }
+  }
+
+  function getVolumeContext(payload: VolumePayload = {}) {
+    const { viewID, dataID } = getActiveViewData(payload);
+    const view = viewID ? viewStore.getView(viewID) : null;
+    if (!dataID) {
+      throw new Error('Volume access requires an active VolView image');
+    }
+    const image = imageCacheStore.imageById[dataID];
+    const imageData = image?.getVtkImageData?.();
+    const scalars = imageData?.getPointData?.().getScalars?.();
+    const values = scalars?.getData?.();
+    const metadata = image?.getImageMetadata?.();
+    if (!imageData || !scalars || !values?.length) {
+      throw new Error('Volume access requires scalar vtkImageData');
+    }
+    const dimensions = imageData.getDimensions?.()?.slice?.(0, 3) || [0, 0, 0];
+    const components = scalars.getNumberOfComponents?.() || 1;
+    const component = clampNumber(payload.component, 0, 0, Math.max(0, components - 1));
+    const scalarType = scalars.getDataType?.() || values.constructor?.name || 'unknown';
+    const bytesPerScalar = Number((values as any).BYTES_PER_ELEMENT || 8);
+    return {
+      viewID: viewID ?? null,
+      dataID,
+      view,
+      image,
+      imageData,
+      scalars,
+      values,
+      metadata,
+      dimensions,
+      components,
+      component,
+      scalarType,
+      bytesPerScalar,
+    };
+  }
+
+  function serializeVolumeInfo(context: ReturnType<typeof getVolumeContext>) {
+    const { imageData, metadata, dimensions, components, scalarType, bytesPerScalar } = context;
+    const voxelCount = Math.max(0, (dimensions[0] || 0) * (dimensions[1] || 0) * (dimensions[2] || 0));
+    return {
+      source: 'vtkImageData.scalars',
+      coordinateSystem: 'image-index-ijk',
+      units: 'index-voxels',
+      dataID: context.dataID,
+      viewID: context.viewID,
+      viewName: context.view?.name ?? null,
+      dimensions,
+      spacing: imageData.getSpacing?.()?.slice?.(0, 3) ?? null,
+      origin: imageData.getOrigin?.()?.slice?.(0, 3) ?? null,
+      direction: imageData.getDirection?.()?.slice?.() ?? null,
+      extent: imageData.getExtent?.()?.slice?.() ?? null,
+      lpsOrientation: metadata?.lpsOrientation ?? null,
+      scalarType,
+      components,
+      bytesPerScalar,
+      voxelCount,
+      scalarCount: context.values.length,
+      rawBytes: context.values.length * bytesPerScalar,
+      chunkLimits: {
+        defaultMaxVoxels: 262144,
+        maxVoxels: 1048576,
+        defaultMaxBytes: 4 * 1024 * 1024,
+        maxBytes: 16 * 1024 * 1024,
+      },
+    };
+  }
+
+  function vectorFromPayload(value: any, fallback: [number, number, number], keys: string[], aliases: string[] = []) {
+    if (Array.isArray(value)) {
+      return [0, 1, 2].map((index) => {
+        const number = Number(value[index]);
+        return Number.isFinite(number) ? number : fallback[index];
+      }) as [number, number, number];
+    }
+    if (value && typeof value === 'object') {
+      return keys.map((key, index) => {
+        const alias = aliases[index];
+        const number = Number(value[key] ?? (alias ? value[alias] : undefined));
+        return Number.isFinite(number) ? number : fallback[index];
+      }) as [number, number, number];
+    }
+    return [...fallback] as [number, number, number];
+  }
+
+  function strideFromPayload(value: any) {
+    if (typeof value === 'number') {
+      const stride = clampNumber(value, 1, 1, 64);
+      return [stride, stride, stride] as [number, number, number];
+    }
+    const raw = vectorFromPayload(value, [1, 1, 1], ['i', 'j', 'k'], ['x', 'y', 'z']);
+    return raw.map((item) => clampNumber(item, 1, 1, 64)) as [number, number, number];
+  }
+
+  function summarizeNumericValues(values: number[], bins = 64) {
+    if (!values.length) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    let sum = 0;
+    for (const value of values) {
+      min = Math.min(min, value);
+      max = Math.max(max, value);
+      sum += value;
+    }
+    const mean = sum / values.length;
+    const variance = values.reduce((acc, value) => acc + ((value - mean) ** 2), 0) / values.length;
+    const binCount = Math.max(2, Math.min(256, Math.round(bins || 64)));
+    const counts = Array.from({ length: binCount }, () => 0);
+    const span = max - min || 1;
+    for (const value of values) {
+      const bin = Math.min(binCount - 1, Math.max(0, Math.floor(((value - min) / span) * binCount)));
+      counts[bin] += 1;
+    }
+    return {
+      min,
+      max,
+      mean,
+      stddev: Math.sqrt(variance),
+      sum,
+      count: values.length,
+      histogram: {
+        bins: binCount,
+        min,
+        max,
+        counts,
+      },
+    };
+  }
+
+  function getVolumeChunk(payload: VolumePayload = {}) {
+    const context = getVolumeContext(payload);
+    const dimensions = context.dimensions;
+    if (!dimensions.every((value) => value > 0)) {
+      throw new Error('Volume chunk access requires non-empty image dimensions');
+    }
+    const originRaw = vectorFromPayload(payload.origin, [0, 0, 0], ['i', 'j', 'k'], ['x', 'y', 'z']);
+    const origin = originRaw.map((value, index) => clampNumber(value, 0, 0, Math.max(0, dimensions[index] - 1))) as [number, number, number];
+    const defaultSize: [number, number, number] = [
+      dimensions[0] - origin[0],
+      dimensions[1] - origin[1],
+      Math.min(1, dimensions[2] - origin[2]),
+    ];
+    const sizeRaw = vectorFromPayload(payload.size, defaultSize, ['i', 'j', 'k'], ['width', 'height', 'depth']);
+    const size = sizeRaw.map((value, index) => clampNumber(value, defaultSize[index], 1, Math.max(1, dimensions[index] - origin[index]))) as [number, number, number];
+    const stride = strideFromPayload(payload.stride);
+    const sampleSize = size.map((value, index) => Math.ceil(value / stride[index])) as [number, number, number];
+    const sourceRange = origin.map((value, index) => [value, value + size[index] - 1]) as [[number, number], [number, number], [number, number]];
+    const sampledRange = origin.map((value, index) => [value, value + ((sampleSize[index] - 1) * stride[index])]) as [[number, number], [number, number], [number, number]];
+    const sampleVoxels = sampleSize[0] * sampleSize[1] * sampleSize[2];
+    const maxVoxels = clampNumber(payload.maxVoxels, 262144, 1, 1048576);
+    const maxBytes = clampNumber(payload.maxBytes, 4 * 1024 * 1024, 1024, 16 * 1024 * 1024);
+    const rawBytes = sampleVoxels * context.bytesPerScalar;
+    if (sampleVoxels > maxVoxels) {
+      throw new Error(`Volume chunk requests ${sampleVoxels} voxels, over maxVoxels ${maxVoxels}`);
+    }
+    if (rawBytes > maxBytes) {
+      throw new Error(`Volume chunk raw byte estimate ${rawBytes} exceeds maxBytes ${maxBytes}`);
+    }
+
+    const values: number[] = [];
+    const dims = context.dimensions;
+    const sourceValues = context.values;
+    for (let kOffset = 0; kOffset < size[2]; kOffset += stride[2]) {
+      const k = origin[2] + kOffset;
+      for (let jOffset = 0; jOffset < size[1]; jOffset += stride[1]) {
+        const j = origin[1] + jOffset;
+        for (let iOffset = 0; iOffset < size[0]; iOffset += stride[0]) {
+          const i = origin[0] + iOffset;
+          values.push(Number(sourceValues[((k * dims[1] + j) * dims[0] + i) * context.components + context.component]));
+        }
+      }
+    }
+    const stats = summarizeNumericValues(values.filter(Number.isFinite), Number(payload.bins) || 64);
+    return {
+      ...serializeVolumeInfo(context),
+      action: 'chunk',
+      volumeAccessSemantics: {
+        version: 1,
+        boundedChunkOnly: true,
+        order: 'x-fastest-then-y-then-z',
+      },
+      chunk: {
+        origin,
+        size,
+        stride,
+        sourceRange,
+        sourceExtentInclusive: [sourceRange[0][0], sourceRange[0][1], sourceRange[1][0], sourceRange[1][1], sourceRange[2][0], sourceRange[2][1]],
+        sampledRange,
+        sampledExtentInclusive: [sampledRange[0][0], sampledRange[0][1], sampledRange[1][0], sampledRange[1][1], sampledRange[2][0], sampledRange[2][1]],
+        sampleSize,
+        sampleVoxels,
+        rawBytes,
+        maxVoxels,
+        maxBytes,
+        component: context.component,
+        valuesIncluded: payload.includeValues !== false,
+        valuesOrder: 'x-fastest-then-y-then-z',
+      },
+      valueRange: stats ? {
+        min: stats.min,
+        max: stats.max,
+        mean: stats.mean,
+        stddev: stats.stddev,
+        sum: stats.sum,
+        count: stats.count,
+      } : null,
+      histogram: stats?.histogram ?? null,
+      values: payload.includeValues === false ? undefined : values,
+    };
+  }
+
+  function readVolume(payload: VolumePayload = {}) {
+    try {
+      const action = normalizeText(payload.action || 'info');
+      let result: any;
+      switch (action) {
+        case 'info':
+          result = {
+            action: 'info',
+            volumeAccessSemantics: {
+              version: 1,
+              boundedChunkOnly: true,
+            },
+            ...serializeVolumeInfo(getVolumeContext(payload)),
+          };
+          break;
+        case 'chunk':
+          result = getVolumeChunk(payload);
+          break;
+        default:
+          throw new Error(`Unsupported volume action: ${action}`);
+      }
+      emitter?.emit('volumeresult', jsonClone({
+        requestId: payload.requestId,
+        result: {
+          ...result,
+          capturedAt: Date.now(),
+        },
+      }));
+    } catch (err: any) {
+      emitter?.emit('volumeresult', jsonClone({
         requestId: payload.requestId,
         error: err?.message || String(err),
       }));
