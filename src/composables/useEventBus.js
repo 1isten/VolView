@@ -55,6 +55,22 @@ export function useEventBus(handlers, loadDataStore) {
     }
 
     const isInsideIframe = window.parent !== window;
+    const emitToParentWindow = (message) => {
+      if (!message) {
+        return;
+      }
+      if (isInsideIframe) {
+        window.parent.postMessage(message, '*');
+      } else {
+        window.$electron?.emitToOpener?.(message);
+      }
+    };
+    const emitVolViewEvent = (type, payload) => {
+      if (!type) {
+        return;
+      }
+      emitToParentWindow(payload === undefined ? type : { type, payload });
+    };
 
     if (onloading) {
       emitter.on('loading', onloading);
@@ -107,11 +123,8 @@ export function useEventBus(handlers, loadDataStore) {
             payload: { files },
           });
         }
-      } else if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:userselectfiles',
-          payload: { files },
-        }, '*');
+      } else {
+        emitVolViewEvent('volview:userselectfiles', { files });
       }
     };
     onsavesession = payload => {
@@ -146,63 +159,30 @@ export function useEventBus(handlers, loadDataStore) {
             window.parent.postMessage(msg, '*');
           }
         }
+        return;
       }
+      emitVolViewEvent('volview:created-segmentation', payload);
     };
     onactiveview = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:activeview',
-          payload,
-        }, '*');
-      }
+      emitVolViewEvent('volview:activeview', payload);
     };
     onfrontendstate = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:state',
-          payload,
-        }, '*');
-      }
+      emitVolViewEvent('volview:state', payload);
     };
     onactiveviewsnapshot = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:activeviewsnapshot',
-          payload,
-        }, '*');
-      }
+      emitVolViewEvent('volview:activeviewsnapshot', payload);
     };
     oncurrentsliceroisample = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:currentsliceroisample',
-          payload,
-        }, '*');
-      }
+      emitVolViewEvent('volview:currentsliceroisample', payload);
     };
     onannotationresult = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:annotationresult',
-          payload: jsonClone(payload),
-        }, '*');
-      }
+      emitVolViewEvent('volview:annotationresult', jsonClone(payload));
     };
     onsegmentationresult = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:segmentationresult',
-          payload: jsonClone(payload),
-        }, '*');
-      }
+      emitVolViewEvent('volview:segmentationresult', jsonClone(payload));
     };
     onvolumeresult = payload => {
-      if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:volumeresult',
-          payload: jsonClone(payload),
-        }, '*');
-      }
+      emitVolViewEvent('volview:volumeresult', jsonClone(payload));
     };
     onslicing = payload => {
       if (projectId && datasetId) {
@@ -213,11 +193,8 @@ export function useEventBus(handlers, loadDataStore) {
             payload,
           });
         }
-      } else if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:slicing',
-          payload,
-        }, '*');
+      } else {
+        emitVolViewEvent('volview:slicing', payload);
       }
     };
     onclose = () => {
@@ -228,10 +205,8 @@ export function useEventBus(handlers, loadDataStore) {
             type: 'close',
           });
         }
-      } else if (isInsideIframe) {
-        window.parent.postMessage({
-          type: 'volview:close',
-        }, '*');
+      } else {
+        emitVolViewEvent('volview:close');
       }
     };
     emitter.on('userselectfiles', onuserselectfiles);
@@ -253,7 +228,7 @@ export function useEventBus(handlers, loadDataStore) {
     }
 
     if (isInsideIframe) {
-      window.parent.postMessage('volview:LOAD', '*');
+      emitVolViewEvent('volview:LOAD');
       window.addEventListener('message', (e) => {
         if (e.source !== window && e.data?.type) {
           if (e.data.type.startsWith('volview:')) {
@@ -329,6 +304,7 @@ export function useEventBus(handlers, loadDataStore) {
         loadDataStore.isInsideIframe = true;
       }
     } else {
+      emitVolViewEvent('volview:LOAD');
       // window['__ports__'] = ports;
       window.addEventListener('message', (e) => {
         if (e.source === window && e.data?.type === 'response-message-port') {

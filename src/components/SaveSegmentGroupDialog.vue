@@ -66,6 +66,7 @@ const props = defineProps<{
 const emit = defineEmits(['done']);
 
 const query = useUrlSearchParams();
+const manualInputId = computed(() => `${query.manualInputId || ''}`);
 const roiMode = computed(() => query.roi === 'true' || query.roi === '1');
 const labelmapFormat = computed(() => query.labelmapFormat && query.labelmapFormat.toString().toLowerCase());
 
@@ -84,14 +85,27 @@ async function saveSegmentGroup() {
 
   saving.value = true;
   await useErrorMessage('Failed to save segment group', async () => {
-    const parentImageID = segmentGroupStore.metadataByID[props.id].parentImage;
+    // const parentImageID = segmentGroupStore.metadataByID[props.id].parentImage;
     const image = segmentGroupStore.dataIndex[props.id];
     // @ts-ignore
     // eslint-disable-next-line no-undef
     const serialized = await writeImage(fileFormat.value, image) as BlobPart;
     if (roiMode.value && (fileFormat.value in FILE_EXT_TO_MIME)) {
-      const formData = new FormData();
+      if ('$electron' in window && manualInputId.value) {
+        const emitter = loadDataStore.$bus.emitter;
+        emitter?.emit('savesegmentation', {
+          manualInputId: manualInputId.value,
+          fileContent: serialized,
+          fileName: `${fileName.value.replaceAll(' ', '_')}.${fileFormat.value}`,
+          fileType: fileFormat.value,
+          fileMime: FILE_EXT_TO_MIME[fileFormat.value],
+          createdAt: Date.now(),
+        });
+        return;
+      }
+      /* deprecated ...
       const fileContent = new Blob([serialized], { type: FILE_EXT_TO_MIME[fileFormat.value] });
+      const formData = new FormData();
       formData.append('fileContent', fileContent);
       formData.set('fileName', `${fileName.value.replaceAll(' ', '_')}.${fileFormat.value}`);
       formData.set('fileType', fileFormat.value);
@@ -116,7 +130,7 @@ async function saveSegmentGroup() {
       } else {
         console.error(res.status, res.statusText);
       }
-      return;
+      return; */
     }
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
   });
