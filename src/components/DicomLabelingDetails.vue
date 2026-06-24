@@ -210,11 +210,11 @@
                 <div v-if="fileEntries(label).length" class="mb-3">
                   <div class="text-caption text-medium-emphasis mb-1">Files</div>
                   <div class="labeling-section">
-                    <div v-for="([path, file], index) in fileEntries(label)" :key="`${label.name}-file-${index}`" class="d-flex ga-3 py-2 labeling-row-divider">
-                      <v-icon size="18" class="mt-1 labeling-no-shrink" color="medium-emphasis">mdi-file-document-outline</v-icon>
+                    <div v-for="([path, file], index) in fileEntries(label)" :key="`${label.name}-file-${index}`" class="d-flex ga-3 pa-3 py-2 labeling-row-divider">
+                      <v-icon size="18" class="mt-1 labeling-no-shrink" :color="filePathExists[path] === false ? 'error' : 'medium-emphasis'">mdi-file-document-outline</v-icon>
                       <div class="labeling-fill min-w-0">
-                        <div class="text-body-2 labeling-text-break">{{ file?.name || path }}</div>
-                        <div class="text-caption text-medium-emphasis labeling-text-break mt-1">{{ path }}</div>
+                        <div class="text-body-2 labeling-text-break" :class="{ 'text-error': filePathExists[path] === false }">{{ file?.name || path }}</div>
+                        <div class="text-caption labeling-text-break mt-1" :class="filePathExists[path] === false ? 'text-error' : 'text-medium-emphasis'">{{ path }}</div>
                       </div>
                     </div>
                   </div>
@@ -277,6 +277,58 @@ const metadataDraftRows = ref([]);
 const mutationStatus = ref(null);
 const pendingMutation = ref(null);
 let mutationStatusTimer = null;
+
+// Track whether referenced file paths exist on disk.
+const filePathExists = ref({});
+
+function requestPathExistsViaParent(path) {
+  return new Promise((resolve) => {
+    const requestId = `volview-path-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const handler = (e) => {
+      if (e.data?.type === 'volview:path-exists-result' && e.data?.requestId === requestId) {
+        window.removeEventListener('message', handler);
+        resolve(e.data.exists);
+      }
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ type: 'volview:path-exists', requestId, path }, '*');
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      resolve(null);
+    }, 5000);
+  });
+}
+
+async function checkFilePaths() {
+  const pathsToCheck = new Set();
+  const labels = currentSliceLabeling.value?.labels || [];
+  for (const label of labels) {
+    for (const [path] of fileEntries(label)) {
+      if (path) pathsToCheck.add(path);
+    }
+  }
+  if (!pathsToCheck.size) {
+    filePathExists.value = {};
+    return;
+  }
+
+  // Prefer direct electron API (standalone BrowserWindow mode).
+  // Fall back to postMessage when running inside an iframe.
+  const directExists = window.$electron?.pathExists;
+  const results = {};
+  for (const path of pathsToCheck) {
+    if (directExists) {
+      try {
+        results[path] = await directExists(path);
+        continue;
+      } catch {
+        // direct call failed, fall through to postMessage
+      }
+    }
+    results[path] = await requestPathExistsViaParent(path);
+  }
+  filePathExists.value = results;
+}
 
 function metaEntries(label) {
   const meta = label?.details?.meta;
@@ -526,6 +578,7 @@ watch(() => currentSliceLabeling.value?.dataKey, () => {
   pendingMutation.value = null;
   clearMutationStatusTimer();
   mutationStatus.value = null;
+  checkFilePaths();
 });
 
 watch(() => props.modulePanelOpened, (opened) => {
@@ -537,6 +590,13 @@ watch(() => props.modulePanelOpened, (opened) => {
     mutationStatus.value = null;
   }
 });
+
+watch(() => {
+  const labels = currentSliceLabeling.value?.labels || [];
+  return labels.map((label) => fileEntries(label).map(([path]) => path).join(',')).join('|');
+}, () => {
+  checkFilePaths();
+}, { immediate: true });
 
 onBeforeUnmount(() => {
   clearMutationStatusTimer();
