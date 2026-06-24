@@ -280,6 +280,12 @@ export function useEventBus(handlers, loadDataStore) {
                   window.$bus.emitter.emit('samplecurrentsliceroi', payload);
                   break;
                 }
+                case 'set-current-slice-labeling': {
+                  if (loadDataStore) {
+                    loadDataStore.currentSliceLabeling = jsonClone(payload);
+                  }
+                  break;
+                }
                 case 'manage-annotation': {
                   window.$bus.emitter.emit('manageannotation', payload);
                   break;

@@ -351,6 +351,7 @@ export const useLoadDataStore = defineStore('loadData', () => {
     setError,
 
     currentSliceMetadata: ref<any>(null),
+    currentSliceLabeling: ref<any>(null),
 
     volumeRendered: ref(Object.create(null)),
     isInsideIframe: ref(false),

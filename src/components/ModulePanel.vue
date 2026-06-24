@@ -46,6 +46,7 @@ import { Component, computed, defineComponent, ref, watch } from 'vue';
 import { ConnectionState, useServerStore } from '@/src/store/server';
 // import DataBrowser from './DataBrowser.vue';
 import DicomTagBrowser from './DicomTagBrowser.vue';
+import DicomLabelingDetails from './DicomLabelingDetails.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 import ServerModule from './ServerModule.vue';
@@ -78,6 +79,11 @@ const Modules: Module[] = [
     name: 'Annotations',
     icon: 'pencil',
     component: AnnotationsModule,
+  },
+  {
+    name: 'Labeling',
+    icon: 'label-multiple',
+    component: DicomLabelingDetails,
   },
   {
     name: 'Rendering',
