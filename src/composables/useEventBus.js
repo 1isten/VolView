@@ -34,6 +34,8 @@ export function useEventBus(handlers, loadDataStore) {
   const onmanageannotation = handlers?.onmanageannotation;
   const onmanagesegmentation = handlers?.onmanagesegmentation;
   const onreadvolume = handlers?.onreadvolume;
+  const onplaycine = handlers?.onplaycine;
+  const onstopcine = handlers?.onstopcine;
   let onuserselectfiles;
   let onsavesession;
   let onsavesegmentation;
@@ -113,6 +115,12 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onreadvolume) {
       emitter.on('readvolume', onreadvolume);
+    }
+    if (onplaycine) {
+      emitter.on('playcine', onplaycine);
+    }
+    if (onstopcine) {
+      emitter.on('stopcine', onstopcine);
     }
     onuserselectfiles = files => {
       if (projectId && datasetId) {
@@ -298,6 +306,14 @@ export function useEventBus(handlers, loadDataStore) {
                   window.$bus.emitter.emit('readvolume', payload);
                   break;
                 }
+                case 'play-cine': {
+                  window.$bus.emitter.emit('playcine', payload);
+                  break;
+                }
+                case 'stop-cine': {
+                  window.$bus.emitter.emit('stopcine', payload);
+                  break;
+                }
                 // ...
                 default:
                   break;
@@ -427,6 +443,12 @@ export function useEventBus(handlers, loadDataStore) {
     }
     if (onreadvolume) {
       emitter.off('readvolume', onreadvolume);
+    }
+    if (onplaycine) {
+      emitter.off('playcine', onplaycine);
+    }
+    if (onstopcine) {
+      emitter.off('stopcine', onstopcine);
     }
     if (onuserselectfiles) {
       emitter.off('userselectfiles', onuserselectfiles);

@@ -172,6 +172,9 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
   const activeView = computed(() => viewStore.activeView);
   let emitter: BridgeEmitter | null = null;
   let started = false;
+  let cineTimer: ReturnType<typeof setInterval> | null = null;
+  let cineDirection: 'forward' | 'backward' | 'pingpong' = 'forward';
+  let cineReverse = false;
 
   const handlers = {
     onsetslice(payload: { slice?: number; delta?: number; instanceDelta?: number; dicomTag?: string; tag?: string; value?: string | number; match?: 'equals' | 'contains'; direction?: 'first' | 'last' | 'forward' | 'backward' | 'nearest'; viewID?: string; dataID?: string }) {
@@ -203,6 +206,12 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     },
     onreadvolume(payload: VolumePayload) {
       readVolume(payload);
+    },
+    onplaycine(payload: { fps?: number; direction?: 'forward' | 'backward' | 'pingpong'; viewID?: string; dataID?: string }) {
+      startCine(payload);
+    },
+    onstopcine() {
+      stopCine();
     },
   };
 
@@ -344,6 +353,78 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
       return;
     }
     viewStore.toggleActiveViewMaximized();
+  }
+
+  function stopCine() {
+    if (cineTimer !== null) {
+      clearInterval(cineTimer);
+      cineTimer = null;
+      cineReverse = false;
+    }
+  }
+
+  function startCine(payload: { fps?: number; direction?: 'forward' | 'backward' | 'pingpong'; viewID?: string; dataID?: string } = {}) {
+    stopCine();
+
+    const { viewID, dataID } = getActiveViewData(payload);
+    const view = viewID ? viewStore.getView(viewID) : null;
+    if (!viewID || !dataID || !view || view.type === '3D') {
+      console.warn('[volview] play-cine ignored: requires an active 2D pane');
+      return;
+    }
+
+    const sliceConfig = viewSliceStore.getConfig(viewID, dataID);
+    if (!sliceConfig) {
+      console.warn('[volview] play-cine ignored: no slice config');
+      return;
+    }
+
+    const fps = Math.max(1, Math.min(60, Math.round(payload.fps || 10)));
+    const intervalMs = Math.round(1000 / fps);
+    cineDirection = payload.direction || 'forward';
+    cineReverse = false;
+
+    const minSlice = sliceConfig.min ?? 0;
+    const maxSlice = sliceConfig.max ?? 1;
+
+    cineTimer = setInterval(() => {
+      const currentConfig = viewSliceStore.getConfig(viewID, dataID);
+      if (!currentConfig) {
+        stopCine();
+        return;
+      }
+      const currentSlice = Math.round(currentConfig.slice ?? 0);
+      let nextSlice: number;
+
+      switch (cineDirection) {
+        case 'backward':
+          nextSlice = currentSlice - 1;
+          if (nextSlice < minSlice) nextSlice = maxSlice;
+          break;
+        case 'pingpong':
+          if (cineReverse) {
+            nextSlice = currentSlice - 1;
+            if (nextSlice <= minSlice) {
+              nextSlice = minSlice + 1;
+              cineReverse = false;
+            }
+          } else {
+            nextSlice = currentSlice + 1;
+            if (nextSlice >= maxSlice) {
+              nextSlice = maxSlice - 1;
+              cineReverse = true;
+            }
+          }
+          break;
+        case 'forward':
+        default:
+          nextSlice = currentSlice + 1;
+          if (nextSlice > maxSlice) nextSlice = minSlice;
+          break;
+      }
+
+      viewSliceStore.updateConfig(viewID, dataID, { slice: nextSlice });
+    }, intervalMs);
   }
 
   function getVisibleViewIDs() {
