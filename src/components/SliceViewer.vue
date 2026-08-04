@@ -8,7 +8,15 @@
     @focusout="hover = false"
   >
     <div class="vtk-gutter">
-      <v-btn dark icon size="medium" variant="text" class="slice-viewer-reset-camera" @click="resetCamera" @dblclick.stop>
+      <v-btn
+        dark
+        icon
+        size="medium"
+        variant="text"
+        class="slice-viewer-reset-camera"
+        @click="resetCamera"
+        @dblclick.stop
+      >
         <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
         <v-tooltip
           location="right"
@@ -27,7 +35,15 @@
         :handle-height="20"
       />
       <template v-if="isViewMaximized">
-        <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, true)" @dblclick.stop>
+        <v-btn
+          dark
+          icon
+          size="medium"
+          variant="text"
+          class="mt-1"
+          @click="flip(true, true)"
+          @dblclick.stop
+        >
           <v-icon icon="mdi-flip-vertical" size="medium" class="py-1" />
           <v-tooltip
             location="right"
@@ -37,7 +53,15 @@
             Flip Vertical
           </v-tooltip>
         </v-btn>
-        <v-btn dark icon size="medium" variant="text" class="mt-1" @click="flip(true, false)" @dblclick.stop>
+        <v-btn
+          dark
+          icon
+          size="medium"
+          variant="text"
+          class="mt-1"
+          @click="flip(true, false)"
+          @dblclick.stop
+        >
           <v-icon icon="mdi-flip-horizontal" size="medium" class="py-1" />
           <v-tooltip
             location="right"
@@ -47,7 +71,15 @@
             Flip Horizontal
           </v-tooltip>
         </v-btn>
-        <v-btn dark icon size="medium" variant="text" class="mt-1 mb-2" @click="rotate()" @dblclick.stop>
+        <v-btn
+          dark
+          icon
+          size="medium"
+          variant="text"
+          class="mt-1 mb-2"
+          @click="rotate()"
+          @dblclick.stop
+        >
           <v-icon icon="mdi-rotate-right" size="medium" class="py-1" />
           <v-tooltip
             location="right"
@@ -215,7 +247,6 @@
 import { ref, Ref, toRefs, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { resetCameraToImage, resizeToFitImage } from '@/src/utils/camera';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
@@ -254,18 +285,15 @@ import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Inter
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import type { LPSAxis, LPSAxisDir } from '@/src/types/lps';
+import type { LPSAxisDir } from '@/src/types/lps';
+import { ViewInfo2D } from '@/src/types/views';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
 import { mat4, vec3 } from 'gl-matrix';
 
-interface Props {
+type Props = {
   viewId: string;
-}
-
-interface SliceViewerOptions {
-  orientation: LPSAxis;
-}
+};
 
 const vtkView = ref<VtkViewApi>();
 const baseSliceRep = ref();
@@ -280,23 +308,30 @@ const isViewMaximized = computed(() => {
   if (viewStore.currentLayoutName?.endsWith(' Only')) {
     return true;
   }
-  if (viewStore.visibleViews.length === 1 && viewStore.visibleViews[0].id === viewId.value) {
+  if (
+    viewStore.visibleViews.length === 1 &&
+    viewStore.visibleViews[0].id === viewId.value
+  ) {
     return viewStore.activeView === viewId.value;
   }
   return viewStore.isActiveViewMaximized;
 });
 
-const viewInfo = computed(() => viewStore.getView(viewId.value)!);
-const viewOptions = computed(
-  () => viewInfo.value.options as SliceViewerOptions
-);
+const viewInfo = computed(() => viewStore.getView(viewId.value) as ViewInfo2D);
 
-const viewingVectors = computed(() =>
-  get2DViewingVectors(viewOptions.value.orientation)
-);
+// base image
+const {
+  currentImageID,
+  currentLayers,
+  currentImageMetadata,
+  currentImageData,
+  isImageLoading,
+} = useCurrentImage();
+
+const viewAxis = computed(() => viewInfo.value.options.orientation);
+const viewingVectors = computed(() => get2DViewingVectors(viewAxis.value));
 const viewDirection = computed(() => viewingVectors.value.viewDirection);
 const viewUp = computed(() => viewingVectors.value.viewUp);
-const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 const hover = ref(false);
 
@@ -312,18 +347,7 @@ useViewAnimationListener(vtkView, viewId, '2D');
 
 // active tool
 const { currentTool } = storeToRefs(useToolStore());
-const windowingManipulatorProps = computed(() =>
-  currentTool.value === Tools.WindowLevel ? { button: 1 } : { button: -1 }
-);
 
-// base image
-const {
-  currentImageID,
-  currentLayers,
-  currentImageMetadata,
-  currentImageData,
-  isImageLoading,
-} = useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
@@ -337,6 +361,11 @@ const currentSlicingMode = computed(() => {
     return ['I', 'J', 'K'][mode] as 'I' | 'J' | 'K';
   }
   return undefined;
+});
+
+const windowingManipulatorProps = computed(() => {
+  if (currentTool.value !== Tools.WindowLevel) return { button: -1 };
+  return { button: 1 };
 });
 
 onVTKEvent(currentImageData, 'onModified', () => {
@@ -372,8 +401,11 @@ const selectionPoints = computed(() => {
 const loadDataStore = useLoadDataStore();
 const volCameraInfo = computed(() => {
   if (currentImageID.value && viewId.value) {
-    const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[currentImageID.value];
-    const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[currentImageID.value];
+    const volumeKeySuffix =
+      loadDataStore.dataIDToVolumeKeyUID[currentImageID.value];
+    const vol =
+      volumeKeySuffix &&
+      loadDataStore.loadedByBus[volumeKeySuffix].volumes[currentImageID.value];
     if (vol) {
       return vol.camera || null;
     }
@@ -385,37 +417,58 @@ const flipDirection: Ref<LPSAxisDir | undefined> = ref();
 const flipUp: Ref<LPSAxisDir | undefined> = ref();
 function flip(h = true, v = false) {
   if (!vtkView.value) return;
-  const viewName = viewStore.getView(viewId.value)?.name as 'Axial' | 'Sagittal' | 'Coronal' | undefined;
+  const viewName = viewStore.getView(viewId.value)?.name as
+    | 'Axial'
+    | 'Sagittal'
+    | 'Coronal'
+    | undefined;
   switch (viewName) {
     case 'Axial': {
       if (h) {
-        flipDirection.value = flipDirection.value || volCameraInfo?.value?.Axial?.viewDirection || viewDirection.value;
-        flipDirection.value = flipDirection.value === 'Superior' ? 'Inferior' : 'Superior';
+        flipDirection.value =
+          flipDirection.value ||
+          volCameraInfo?.value?.Axial?.viewDirection ||
+          viewDirection.value;
+        flipDirection.value =
+          flipDirection.value === 'Superior' ? 'Inferior' : 'Superior';
       }
       if (v) {
-        flipUp.value = flipUp.value || volCameraInfo?.value?.Axial?.viewUp || viewUp.value;
+        flipUp.value =
+          flipUp.value || volCameraInfo?.value?.Axial?.viewUp || viewUp.value;
         flipUp.value = flipUp.value === 'Anterior' ? 'Posterior' : 'Anterior';
       }
       break;
     }
-    case 'Sagittal': {      
+    case 'Sagittal': {
       if (h) {
-        flipDirection.value = flipDirection.value || volCameraInfo?.value?.Sagittal?.viewDirection || viewDirection.value;
-        flipDirection.value = flipDirection.value === 'Right' ? 'Left' : 'Right';
+        flipDirection.value =
+          flipDirection.value ||
+          volCameraInfo?.value?.Sagittal?.viewDirection ||
+          viewDirection.value;
+        flipDirection.value =
+          flipDirection.value === 'Right' ? 'Left' : 'Right';
       }
       if (v) {
-        flipUp.value = flipUp.value || volCameraInfo?.value?.Sagittal?.viewUp || viewUp.value;
+        flipUp.value =
+          flipUp.value ||
+          volCameraInfo?.value?.Sagittal?.viewUp ||
+          viewUp.value;
         flipUp.value = flipUp.value === 'Superior' ? 'Inferior' : 'Superior';
       }
       break;
     }
     case 'Coronal': {
       if (h) {
-        flipDirection.value = flipDirection.value || volCameraInfo?.value?.Coronal?.viewDirection || viewDirection.value;
-        flipDirection.value = flipDirection.value === 'Posterior' ? 'Anterior' : 'Posterior';
+        flipDirection.value =
+          flipDirection.value ||
+          volCameraInfo?.value?.Coronal?.viewDirection ||
+          viewDirection.value;
+        flipDirection.value =
+          flipDirection.value === 'Posterior' ? 'Anterior' : 'Posterior';
       }
       if (v) {
-        flipUp.value = flipUp.value || volCameraInfo?.value?.Coronal?.viewUp || viewUp.value;
+        flipUp.value =
+          flipUp.value || volCameraInfo?.value?.Coronal?.viewUp || viewUp.value;
         flipUp.value = flipUp.value === 'Superior' ? 'Inferior' : 'Superior';
       }
       break;
@@ -428,13 +481,17 @@ function flip(h = true, v = false) {
     resetCameraToImage(
       vtkView.value,
       currentImageMetadata.value,
-      flipDirection.value || volCameraInfo?.value?.[viewName]?.viewDirection || viewDirection.value,
+      flipDirection.value ||
+        volCameraInfo?.value?.[viewName]?.viewDirection ||
+        viewDirection.value,
       flipUp.value || volCameraInfo?.value?.[viewName]?.viewUp || viewUp.value
     );
     resizeToFitImage(
       vtkView.value,
       currentImageMetadata.value,
-      flipDirection.value || volCameraInfo?.value?.[viewName]?.viewDirection || viewDirection.value,
+      flipDirection.value ||
+        volCameraInfo?.value?.[viewName]?.viewDirection ||
+        viewDirection.value,
       flipUp.value || volCameraInfo?.value?.[viewName]?.viewUp || viewUp.value
     );
   }
@@ -446,7 +503,11 @@ const rotate = () => {
   const camera = vtkView.value.renderer.getActiveCamera();
 
   const rotationMatrix = mat4.create();
-  mat4.fromRotation(rotationMatrix, (Math.PI / 2) * -1, camera.getDirectionOfProjection()); // rotate 90 degrees clockwise
+  mat4.fromRotation(
+    rotationMatrix,
+    (Math.PI / 2) * -1,
+    camera.getDirectionOfProjection()
+  ); // rotate 90 degrees clockwise
 
   const newViewUp = vec3.create();
   vec3.transformMat4(newViewUp, camera.getViewUp(), rotationMatrix);

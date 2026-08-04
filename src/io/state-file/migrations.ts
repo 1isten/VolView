@@ -154,12 +154,23 @@ const migrate610To620 = (inputManifest: any) => {
   return manifest;
 };
 
+// 6.3.0 -> 6.4.0 adds the optional `source` provenance tag to segment-group
+// metadata. The field is additive-optional, so an older manifest that
+// lacks it still validates — the bump only stamps the version (no data
+// transform). No 6.2.0 -> 6.3.0 step exists: a 6.2 manifest validates
+// unmodified.
+const migrate630To640 = (inputManifest: any) => ({
+  ...inputManifest,
+  version: '6.4.0',
+});
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
     inputManifest,
     migrateOrPass(['5.0.1'], migrate501To600),
     migrateOrPass(['6.0.0'], migrate600To610),
-    migrateOrPass(['6.1.0', '6.1.1'], migrate610To620)
+    migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
+    migrateOrPass(['6.3.0'], migrate630To640)
   );
 };

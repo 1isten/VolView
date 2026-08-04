@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { Plugin, defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -54,6 +55,14 @@ function getPackageInfo() {
   };
 }
 
+function getGitShortSha() {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
 const rootDir = resolvePath(__dirname);
 const distDir = resolvePath(rootDir, 'dist');
 
@@ -103,6 +112,7 @@ export default defineConfig({
     },
     __VUE_PROD_DEVTOOLS__: false,
     __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
+    __GIT_SHORT_SHA__: JSON.stringify(getGitShortSha()),
   },
   resolve: {
     alias: [
@@ -123,7 +133,7 @@ export default defineConfig({
         if (id.includes('@kitware/vtk.js')) {
           if (id.includes('ColorMaps.json.js')) {
             // We don't use the built-in colormaps
-            return 'export const v = []';
+            return 'export default [];';
           }
 
           // We don't use these classes
@@ -218,6 +228,9 @@ export default defineConfig({
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
       '/tmp': config.baseUrl!,
+      // Local Girder stack, so girder-launched sessions (urls=/api/v1/...)
+      // work same-origin against the dev server.
+      '/api': 'http://localhost:8080',
     },
   },
   optimizeDeps: {
@@ -226,11 +239,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
     server: {
       deps: {
         inline: ['vuetify'],

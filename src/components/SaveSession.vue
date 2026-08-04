@@ -61,6 +61,7 @@ import {
   // worldToSVG,
   normalizeIJKCoords,
 } from '@/src/utils/vtk-helpers';
+import { useMessageStore } from '../store/messages';
 
 const DEFAULT_FILENAME = 'session.volview.zip';
 
@@ -79,7 +80,7 @@ export default defineComponent({
     const loadDataStore = useLoadDataStore();
     const hasProjectPort = computed(() => loadDataStore.hasProjectPort);
     const saveAsHyperLink = ref(false);
-    watch(saveAsHyperLink, saveToReport => {
+    watch(saveAsHyperLink, (saveToReport) => {
       if (saveToReport) {
         fileName.value = fileName.value.replace('session.', 'report.');
       } else {
@@ -92,16 +93,27 @@ export default defineComponent({
         saving.value = true;
         if (hasProjectPort.value) {
           const viewStore = useViewStore();
-          const view = viewStore.activeView ? viewStore.getView(viewStore.activeView) : null;
+          const view = viewStore.activeView
+            ? viewStore.getView(viewStore.activeView)
+            : null;
           const dataID = view?.dataID;
-          const volumeKeySuffix = dataID ? loadDataStore.dataIDToVolumeKeyUID[dataID] : '';
-          const uid = volumeKeySuffix && volumeKeySuffix.split('-').length === 5 ? (
-            volumeKeySuffix.length === 36
-              ? volumeKeySuffix // uuid
-              : volumeKeySuffix // orthanc uid
-          ) : '';
-          const stateIDToStoreID: Record<string, string> = dataID ? { [dataID]: dataID } : {};
-          const meta: any = saveAsHyperLink.value ? {} : (dataID && stateIDToStoreID[dataID] ? { stateIDToStoreID } : {});
+          const volumeKeySuffix = dataID
+            ? loadDataStore.dataIDToVolumeKeyUID[dataID]
+            : '';
+          const uid =
+            volumeKeySuffix && volumeKeySuffix.split('-').length === 5
+              ? volumeKeySuffix.length === 36
+                ? volumeKeySuffix // uuid
+                : volumeKeySuffix // orthanc uid
+              : '';
+          const stateIDToStoreID: Record<string, string> = dataID
+            ? { [dataID]: dataID }
+            : {};
+          const meta: any = saveAsHyperLink.value
+            ? {}
+            : dataID && stateIDToStoreID[dataID]
+              ? { stateIDToStoreID }
+              : {};
           // @ts-ignore
           const [blob, manifest]: [Blob, Manifest] = await serialize({
             stateIDToStoreID: meta.stateIDToStoreID,
@@ -114,7 +126,8 @@ export default defineComponent({
             switch (meta.tool) {
               case 'Paint': {
                 // @ts-ignore
-                const roiHistogramData = document.getElementById('roi-histogram')?.roi_histogram;
+                const roiHistogramData =
+                  document.getElementById('roi-histogram')?.roi_histogram;
                 if (roiHistogramData) {
                   const { mean, min, max } = roiHistogramData;
                   meta.measure = `mean: ${(mean || 0).toFixed(0)}, min: ${(min || 0).toFixed(0)}, max: ${(max || 0).toFixed(0)}`;
@@ -124,13 +137,19 @@ export default defineComponent({
               case 'Rectangle': {
                 const tools = manifest.tools!.rectangles?.tools;
                 if (tools?.length) {
-                  const toolId = tools.filter((t: any) => t.imageID === dataID && !t.placing).pop()?.id;
+                  const toolId = tools
+                    .filter((t: any) => t.imageID === dataID && !t.placing)
+                    .pop()?.id;
                   if (toolId) {
                     const rectangleStore = useRectangleStore();
                     const tool = rectangleStore.toolByID[toolId];
                     if (tool && tool.placing === false) {
-                      const image = useImageCacheStore().imageById[tool.imageID];
-                      if (image?.vtkImageData?.value && image?.imageMetadata?.value) {
+                      const image =
+                        useImageCacheStore().imageById[tool.imageID];
+                      if (
+                        image?.vtkImageData?.value &&
+                        image?.imageMetadata?.value
+                      ) {
                         const { firstPoint, secondPoint } = tool;
                         const {
                           Sagittal,
@@ -162,45 +181,79 @@ export default defineComponent({
               case 'Polygon': {
                 const tools = manifest.tools!.polygons?.tools;
                 if (tools?.length) {
-                  const toolId = tools.filter((t: any) => t.imageID === dataID && !t.placing).pop()?.id;
+                  const toolId = tools
+                    .filter((t: any) => t.imageID === dataID && !t.placing)
+                    .pop()?.id;
                   if (toolId) {
                     const polygonStore = usePolygonStore();
                     const tool = polygonStore.toolByID[toolId];
                     if (tool && tool.placing === false) {
-                      const image = useImageCacheStore().imageById[tool.imageID];
-                      if (image?.vtkImageData?.value && image?.imageMetadata?.value) {
+                      const image =
+                        useImageCacheStore().imageById[tool.imageID];
+                      if (
+                        image?.vtkImageData?.value &&
+                        image?.imageMetadata?.value
+                      ) {
                         const { frameOfReference, slice } = tool;
-                        const { Sagittal, Coronal, Axial } = image.imageMetadata.value.lpsOrientation;
-                        const toolAxis = frameOfReferenceToImageSliceAndAxis(frameOfReference, image.imageMetadata.value, { allowOutOfBoundsSlice: true });
-                        const points = tool.points.map((point) => {
-                          const xyz = [
-                            point[Sagittal],
-                            point[Coronal],
-                            point[Axial],
-                          ];
-                          if (!!toolAxis && toolAxis.axis) {
-                            const ijk = image.vtkImageData.value.worldToIndex([xyz[0], xyz[1], xyz[2]]); // px
-                            const slicingMode = { 'Sagittal': 'I', 'Coronal': 'J', 'Axial': 'K' }[toolAxis.axis] // 'I' | 'J' | 'K'
-                            let { ijk: [i, j, k] } = normalizeIJKCoords([ijk[0], ijk[1], ijk[2]], slicingMode, slice, image.vtkImageData.value.getExtent());
-                            xyz[0] = i;
-                            xyz[1] = j;
-                            xyz[2] = k;
-                          }
-                          return {
-                            x: xyz[0],
-                            y: xyz[1],
-                            // x: xyz[0] + 1,
-                            // y: xyz[1] + 1,
-                            // z: xyz[2],
-                          };
-                        }).filter((point, index, arr) => {
-                          // filter some middle points when the number of points is larger than 10 to only keep about 10 points
-                          if (arr.length > 10 && index !== 0 && index !== arr.length - 1) {
-                            return index % Math.ceil(arr.length / 10) === 0;
-                          }
-                          return !!point;
-                        });
-                        meta.measure = points.map(({ x, y }) => `(${x.toFixed(0)},${y.toFixed(0)})`).join(' ');
+                        const { Sagittal, Coronal, Axial } =
+                          image.imageMetadata.value.lpsOrientation;
+                        const toolAxis = frameOfReferenceToImageSliceAndAxis(
+                          frameOfReference,
+                          image.imageMetadata.value,
+                          { allowOutOfBoundsSlice: true }
+                        );
+                        const points = tool.points
+                          .map((point) => {
+                            const xyz = [
+                              point[Sagittal],
+                              point[Coronal],
+                              point[Axial],
+                            ];
+                            if (!!toolAxis && toolAxis.axis) {
+                              const ijk = image.vtkImageData.value.worldToIndex(
+                                [xyz[0], xyz[1], xyz[2]]
+                              ); // px
+                              const slicingMode = {
+                                Sagittal: 'I',
+                                Coronal: 'J',
+                                Axial: 'K',
+                              }[toolAxis.axis]; // 'I' | 'J' | 'K'
+                              let {
+                                ijk: [i, j, k],
+                              } = normalizeIJKCoords(
+                                [ijk[0], ijk[1], ijk[2]],
+                                slicingMode,
+                                slice,
+                                image.vtkImageData.value.getExtent()
+                              );
+                              xyz[0] = i;
+                              xyz[1] = j;
+                              xyz[2] = k;
+                            }
+                            return {
+                              x: xyz[0],
+                              y: xyz[1],
+                              // x: xyz[0] + 1,
+                              // y: xyz[1] + 1,
+                              // z: xyz[2],
+                            };
+                          })
+                          .filter((point, index, arr) => {
+                            // filter some middle points when the number of points is larger than 10 to only keep about 10 points
+                            if (
+                              arr.length > 10 &&
+                              index !== 0 &&
+                              index !== arr.length - 1
+                            ) {
+                              return index % Math.ceil(arr.length / 10) === 0;
+                            }
+                            return !!point;
+                          });
+                        meta.measure = points
+                          .map(
+                            ({ x, y }) => `(${x.toFixed(0)},${y.toFixed(0)})`
+                          )
+                          .join(' ');
                       }
                     }
                   }
@@ -210,7 +263,9 @@ export default defineComponent({
               case 'Ruler': {
                 const tools = manifest.tools!.rulers?.tools;
                 if (tools?.length) {
-                  const toolId = tools.filter((t: any) => t.imageID === dataID && !t.placing).pop()?.id;
+                  const toolId = tools
+                    .filter((t: any) => t.imageID === dataID && !t.placing)
+                    .pop()?.id;
                   if (toolId) {
                     const rulerStore = useRulerStore();
                     const tool = rulerStore.toolByID[toolId];
@@ -230,8 +285,14 @@ export default defineComponent({
               }
             }
           } else if (meta.stateIDToStoreID) {
-            if (manifest.activeView && manifest.viewByID?.[manifest.activeView]) {
-              const viewSliceConfig = manifest.viewByID[manifest.activeView]?.config?.[dataID!]?.slice || useViewSliceStore().getConfig(manifest.activeView, dataID);
+            if (
+              manifest.activeView &&
+              manifest.viewByID?.[manifest.activeView]
+            ) {
+              const viewSliceConfig =
+                manifest.viewByID[manifest.activeView]?.config?.[dataID!]
+                  ?.slice ||
+                useViewSliceStore().getConfig(manifest.activeView, dataID);
               if (viewSliceConfig) {
                 meta.activeView = manifest.activeView;
                 meta.slice = viewSliceConfig.slice;
@@ -255,6 +316,11 @@ export default defineComponent({
           const blob = await serialize();
           saveAs(blob as Blob, fileName.value);
           props.close();
+        } catch (err) {
+          const messageStore = useMessageStore();
+          messageStore.addError('Failed to save session', {
+            error: err instanceof Error ? err : new Error(String(err)),
+          });
         } finally {
           saving.value = false;
         }
@@ -263,7 +329,10 @@ export default defineComponent({
 
     onMounted(() => {
       // triggers form validation check so can immediately save with default value
-      fileName.value = DEFAULT_FILENAME.replace('volview', Date.now().toString());
+      fileName.value = DEFAULT_FILENAME.replace(
+        'volview',
+        Date.now().toString()
+      );
     });
 
     onKeyDown('Enter', () => {

@@ -5,6 +5,7 @@ import { useWindowingStore } from './view-configs/windowing';
 import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
+import useCinePlaybackStore from './view-configs/cine-playback';
 import { useViewStore } from './views';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 
@@ -18,6 +19,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const layerColoringStore = useLayerColoringStore();
   const viewCameraStore = useViewCameraStore();
   const volumeColoringStore = useVolumeColoringStore();
+  const cinePlaybackStore = useCinePlaybackStore();
   const viewStore = useViewStore();
 
   const removeView = (viewID: string) => {
@@ -26,6 +28,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     layerColoringStore.removeView(viewID);
     viewCameraStore.removeView(viewID);
     volumeColoringStore.removeView(viewID);
+    cinePlaybackStore.removeView(viewID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
@@ -34,6 +37,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     layerColoringStore.removeData(dataID, viewID);
     viewCameraStore.removeData(dataID, viewID);
     volumeColoringStore.removeData(dataID, viewID);
+    cinePlaybackStore.removeData(dataID, viewID);
   };
 
   const serialize = (stateFile: StateFile) => {
@@ -42,6 +46,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     layerColoringStore.serialize(stateFile);
     viewCameraStore.serialize(stateFile);
     volumeColoringStore.serialize(stateFile);
+    cinePlaybackStore.serialize(stateFile);
   };
 
   const deserialize = (
@@ -61,6 +66,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     layerColoringStore.deserialize(viewID, updatedConfig);
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
+    cinePlaybackStore.deserialize(viewID, updatedConfig);
   };
 
   const deserializeAll = (

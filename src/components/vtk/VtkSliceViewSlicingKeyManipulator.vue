@@ -13,12 +13,12 @@ import { inject, toRefs, unref, watch, computed } from 'vue';
 import { useViewStore } from '@/src/store/views';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   manipulatorConfig?: IMouseRangeManipulatorInitialValues;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, imageId, manipulatorConfig } = toRefs(props);
@@ -67,16 +67,14 @@ const scroll = useMouseRangeManipulatorListener(
   sliceConfig.range,
   1,
   sliceConfig.slice.value,
-  -1
+  -1,
+  // Set the scrolled view as the active view — only on real user input.
+  () => {
+    useViewStore().setActiveView(unref(viewId));
+  }
 );
 
 syncRef(scroll, sliceConfig.slice, { immediate: true });
-
-// set just scrolled view as active view
-watch(scroll, () => {
-  const viewStore = useViewStore();
-  viewStore.setActiveView(unref(viewId));
-});
 </script>
 
 <template><slot></slot></template>

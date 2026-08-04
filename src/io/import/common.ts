@@ -43,8 +43,16 @@ export type StateFileSetupResult = {
   dataSources: DataSource[];
   manifest: Manifest;
   stateFiles: FileEntry[];
+  // Archive members the state file recorded but does not contain, keyed by the
+  // dataset they belong to — a dataset that still resolves from its surviving
+  // files must report these, or it restores silently truncated.
+  missingFiles: Array<{ stateID: string; path: string }>;
 };
 
+// Always an UNreported failure: a failure importDataSources has already
+// surfaced itself (e.g. via the restore's consolidated missing-content
+// notice) returns as an OkayResult instead, so callers report exactly the
+// errors they receive.
 export type ErrorResult = {
   type: 'error';
   error: Error;

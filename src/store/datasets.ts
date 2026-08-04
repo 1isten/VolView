@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, shallowRef } from 'vue';
 import { isRegularImage } from '@/src/utils/dataSelection';
-import { DataSource } from '@/src/io/import/dataSource';
+import { DataSource, isRemoteDataSource } from '@/src/io/import/dataSource';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageStore } from '@/src/store/datasets-images';
 import * as Schema from '@/src/io/state-file/schema';
@@ -9,7 +9,7 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useModelStore } from '@/src/store/datasets-models';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { useImageCacheStore } from '@/src/store/image-cache';
+import { Tags } from '@/src/core/dicomTags';
 
 import { useLoadDataStore } from './load-data';
 
@@ -21,6 +21,75 @@ export const DataType = {
 interface LoadedData {
   dataID: string;
   dataSource: DataSource;
+}
+
+function sourceIdentity(dataSource: DataSource): string | undefined {
+  if (dataSource.type === 'chunk') {
+    const sopInstanceUID = dataSource.chunk.metadata
+      ?.find(([tag]) => tag === Tags.SOPInstanceUID)?.[1]
+      ?.trim();
+    if (sopInstanceUID) return `dicom:${sopInstanceUID}`;
+  }
+
+  if (dataSource.type === 'uri') return `uri:${dataSource.uri}`;
+  if (dataSource.type === 'archive') {
+    const parent = sourceIdentity(dataSource.parent);
+    return parent ? `archive:${parent}:${dataSource.path}` : undefined;
+  }
+  if (dataSource.type === 'file') {
+    if (dataSource.parent) return sourceIdentity(dataSource.parent);
+    const relativePath = dataSource.file.webkitRelativePath || '';
+    return [
+      'file',
+      relativePath,
+      dataSource.file.name,
+      dataSource.file.size,
+      dataSource.file.lastModified,
+      dataSource.file.type,
+    ].join(':');
+  }
+  if (dataSource.parent) return sourceIdentity(dataSource.parent);
+  return undefined;
+}
+
+function mergeCollectionSources(
+  existing: DataSource,
+  incoming: DataSource
+): DataSource {
+  if (existing.type !== 'collection' || incoming.type !== 'collection') {
+    return isRemoteDataSource(incoming) && !isRemoteDataSource(existing)
+      ? incoming
+      : existing;
+  }
+
+  const merged: DataSource[] = [];
+  const indexByIdentity = new Map<string, number>();
+  const seenByReference = new Set<DataSource>();
+
+  [...existing.sources, ...incoming.sources].forEach((source) => {
+    const identity = sourceIdentity(source);
+    if (identity === undefined) {
+      if (!seenByReference.has(source)) {
+        seenByReference.add(source);
+        merged.push(source);
+      }
+      return;
+    }
+
+    const existingIndex = indexByIdentity.get(identity);
+    if (existingIndex === undefined) {
+      indexByIdentity.set(identity, merged.length);
+      merged.push(source);
+      return;
+    }
+
+    const kept = merged[existingIndex];
+    if (isRemoteDataSource(source) && !isRemoteDataSource(kept)) {
+      merged[existingIndex] = source;
+    }
+  });
+
+  return { type: 'collection', sources: merged };
 }
 
 function createIdGenerator() {
@@ -145,6 +214,17 @@ export const useDatasetStore = defineStore('dataset', () => {
     return [...volumeKeys, ...images];
   });
 
+  // Provenance lookup by dataset id: the loaded volume's `DataSource` (its
+  // parent chain records where every byte came from). The input mint
+  // reads this to author a bound input's verbatim URIs; a volume with no URI
+  // ancestor here is not bindable. Returns undefined for an unknown id.
+  const dataSourceByID = computed(
+    () => new Map(loadedData.value.map((d) => [d.dataID, d.dataSource]))
+  );
+  const getDataSource = (
+    id: string | null | undefined
+  ): DataSource | undefined => (id ? dataSourceByID.value.get(id) : undefined);
+
   // --- actions --- //
 
   async function serialize(stateFile: Schema.StateFile) {
@@ -173,6 +253,11 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   const remove = (id: string | null) => {
     if (!id) return;
+    // Prune the provenance entry too, or `serialize` re-emits the removed
+    // dataset (e.g. the temp dataset a segment group consumed at restore) as a
+    // dangling manifest entry that a later restore fetches as a visible
+    // Anonymous volume.
+    loadedData.value = loadedData.value.filter((d) => d.dataID !== id);
     dicomStore.deleteVolume(id);
     imageStore.deleteData(id);
     layersStore.remove(id);
@@ -196,11 +281,29 @@ export const useDatasetStore = defineStore('dataset', () => {
   };
 
   function addDataSources(sources: Array<LoadedData>) {
-    loadedData.value.push(...sources);
+    // Re-importing the same data yields the same dataID (e.g. the same DICOM
+    // series dragged in twice). Keep one dataset entry while merging distinct
+    // collection members so incremental imports retain every slice. Duplicate
+    // DICOM instances are keyed by SOP Instance UID, preferring remote
+    // provenance when both local and remote forms are available.
+    const byId = new Map(loadedData.value.map((d) => [d.dataID, d]));
+    sources.forEach((d) => {
+      const existing = byId.get(d.dataID);
+      if (!existing) {
+        byId.set(d.dataID, d);
+        return;
+      }
+      byId.set(d.dataID, {
+        dataID: d.dataID,
+        dataSource: mergeCollectionSources(existing.dataSource, d.dataSource),
+      });
+    });
+    loadedData.value = [...byId.values()];
   }
 
   return {
     idsAsSelections,
+    getDataSource,
     addDataSources,
     serialize,
     remove,

@@ -1,8 +1,15 @@
 <template>
-  <drag-and-drop :enabled="!disableDnD" @drop-files="disableDnD ? loadUserSelectedFiles($event) : loadFiles($event)" id="app-container">
+  <drag-and-drop
+    :enabled="!disableDnD"
+    @drop-files="disableDnD ? loadUserSelectedFiles($event) : loadFiles($event)"
+    id="app-container"
+  >
     <template v-slot="{ dragHover }">
       <v-app>
-        <app-bar v-if="false" @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
+        <app-bar
+          v-if="false"
+          @click:left-menu="leftSideBar = !leftSideBar"
+        ></app-bar>
         <v-navigation-drawer
           v-if="!liteMode"
           v-model="leftSideBar"
@@ -18,15 +25,32 @@
           :temporary="temporaryDrawer"
           :style="isDrawerResizing ? 'transition: none !important;' : ''"
         >
-          <module-panel :left-side-bar="leftSideBar" @close="leftSideBar = false" />
+          <module-panel
+            :left-side-bar="leftSideBar"
+            @close="leftSideBar = false"
+          />
         </v-navigation-drawer>
-        <div ref="drawerResizeHandle" id="drawer-resize-handle" :class="{ 'drawer-resize-handle-disabled': !leftSideBar }" :style="`width: ${drawerResizerWidth}px; ${drawerResizeHandleStyle}`" @dblclick="resetDrawerWidth">
+        <div
+          ref="drawerResizeHandle"
+          id="drawer-resize-handle"
+          :class="{ 'drawer-resize-handle-disabled': !leftSideBar }"
+          :style="`width: ${drawerResizerWidth}px; ${drawerResizeHandleStyle}`"
+          @dblclick="resetDrawerWidth"
+        >
           <!-- <div style="width: 2px; background-color: rgb(var(--v-theme-primary), 0.5);"></div> -->
         </div>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <controls-strip :has-data="hasData" :left-menu="leftSideBar" @click:left-menu="leftSideBar = !leftSideBar" @click:close="closeApp"></controls-strip>
-            <div class="d-flex flex-column flex-grow-1" style="padding-top: 1px">
+            <controls-strip
+              :has-data="hasData"
+              :left-menu="leftSideBar"
+              @click:left-menu="leftSideBar = !leftSideBar"
+              @click:close="closeApp"
+            ></controls-strip>
+            <div
+              class="d-flex flex-column flex-grow-1"
+              style="padding-top: 1px"
+            >
               <VtkRenderWindowParent ref="vtkRenderWindowParent">
                 <layout-grid v-show="hasData" :layout="layout" />
               </VtkRenderWindowParent>
@@ -35,7 +59,9 @@
                 :loading="showLoading"
                 :allow-drop="!disableDnD || isInsideIframe"
                 class="clickable"
-                @click="disableDnD ? loadUserSelectedFiles() : loadUserPromptedFiles()"
+                @click="
+                  disableDnD ? loadUserSelectedFiles() : loadUserPromptedFiles()
+                "
               >
               </welcome-page>
             </div>
@@ -62,14 +88,33 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref, MaybeRefOrGetter, useTemplateRef, watch } from 'vue';
+import {
+  computed,
+  defineComponent,
+  onMounted,
+  ref,
+  MaybeRefOrGetter,
+  useTemplateRef,
+  watch,
+} from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams, useUrlSearchParams, useDraggable, useLocalStorage } from '@vueuse/core';
-import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
+import {
+  useUrlSearchParams,
+  useDraggable,
+  useLocalStorage,
+} from '@vueuse/core';
 import { useDisplay } from 'vuetify';
-import { useLoadDataStore, type Events as EventHandlers, type LoadEvent } from '@/src/store/load-data';
+import {
+  useLoadDataStore,
+  type Events as EventHandlers,
+  type LoadEvent,
+} from '@/src/store/load-data';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useViewStore } from '@/src/store/views';
+// Side-effect import: registers processing's config section and
+// launch-load subscriber before any config or data loads.
+import '@/src/processing';
+import { signalLaunchLoadComplete } from '@/src/core/launchLoad';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
 import ControlsStrip from '@/src/components/ControlsStrip.vue';
@@ -97,7 +142,7 @@ import {
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
 import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
-import { normalizeUrlParams } from '@/src/utils/urlParams';
+import { readLaunchParams } from '@/src/utils/urlParams';
 import { normalize as normalizePath } from '@/src/utils/path';
 
 import { useEventBus } from '@/src/composables/useEventBus';
@@ -132,23 +177,25 @@ export default defineComponent({
     // --- file handling --- //
 
     const loadDataStore = useLoadDataStore();
-    const hasData = computed(
-      () =>
-        loadDataStore.isBusUnselected || loadDataStore.isLoadingByBus ? false :
-        imageStore.idList.length > 0 ||
-        Object.keys(dicomStore.volumeInfo).length > 0
+    const hasData = computed(() =>
+      loadDataStore.isBusUnselected || loadDataStore.isLoadingByBus
+        ? false
+        : imageStore.idList.length > 0 ||
+          Object.keys(dicomStore.volumeInfo).length > 0
     );
     // show loading if actually loading or has any data,
     // since the welcome screen shouldn't be visible when
     // a dataset is opened.
     const showLoading = computed(
-      () => loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
+      () =>
+        loadDataStore.isLoading || loadDataStore.isLoadingByBus || hasData.value
     );
 
     const isInsideIframe = computed(() => loadDataStore.isInsideIframe);
     const hasProjectPort = computed(() => loadDataStore.hasProjectPort);
 
-    const { currentImageID, currentImageMetadata, isImageLoading } = useCurrentImage();
+    const { currentImageID, currentImageMetadata, isImageLoading } =
+      useCurrentImage();
     const defaultImageMetadataName = defaultImageMetadata().name;
     watch(currentImageMetadata, (newMetadata) => {
       let prefix = '';
@@ -161,10 +208,13 @@ export default defineComponent({
         prefix = `${newMetadata.name} - `;
       }
       if (isInsideIframe.value) {
-        window.parent.postMessage({
-          type: 'volview:changetitle',
-          payload: { title: `${prefix}VolView` },
-        }, '*');
+        window.parent.postMessage(
+          {
+            type: 'volview:changetitle',
+            payload: { title: `${prefix}VolView` },
+          },
+          '*'
+        );
       }
       document.title = `${prefix}VolView`;
     });
@@ -177,7 +227,7 @@ export default defineComponent({
       n: 1,
     });
     */
-  
+
     const datasetStore = useDatasetStore();
     const viewStore = useViewStore();
 
@@ -189,69 +239,90 @@ export default defineComponent({
       vtkRenderWindowParent,
     });
 
-    const { emitter } = useEventBus(({
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      onloading(payload?: any) {
-        loadDataStore.setIsLoadingByBus(true);
-      },
-      onload(payload: LoadEvent) {
-        const { urlParams, ...options } = payload;
+    const { emitter } = useEventBus(
+      {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        onloading(payload?: any) {
+          loadDataStore.setIsLoadingByBus(true);
+        },
+        onload(payload: LoadEvent) {
+          const { urlParams, ...options } = payload;
 
-        if ('open-folder' in options) {
-          const openFolder = (options['open-folder'] || '') as string;
-          if (openFolder) {
-            options.openFolder = normalizePath(decodeURIComponent(window.atob(openFolder)));
-            delete options['open-folder'];
-            if ('open-file' in options) {
-              const openFile = (options['open-file'] || '') as string;
-              if (openFile) {
-                options.openFile = decodeURIComponent(window.atob(openFile));
-                delete options['open-file'];
+          if ('open-folder' in options) {
+            const openFolder = (options['open-folder'] || '') as string;
+            if (openFolder) {
+              options.openFolder = normalizePath(
+                decodeURIComponent(window.atob(openFolder))
+              );
+              delete options['open-folder'];
+              if ('open-file' in options) {
+                const openFile = (options['open-file'] || '') as string;
+                if (openFile) {
+                  options.openFile = decodeURIComponent(window.atob(openFile));
+                  delete options['open-file'];
+                }
               }
+              options.uid = window.btoa(encodeURIComponent(options.openFolder));
+              urlParams.urls = [];
+              urlParams.names = [];
             }
-            options.uid = window.btoa(encodeURIComponent(options.openFolder));
-            urlParams.urls = [];
-            urlParams.names = [];
+          } else if (!urlParams || !urlParams.urls || !urlParams.urls.length) {
+            return;
           }
-        } else if (!urlParams || !urlParams.urls || !urlParams.urls.length) {
-          return;
-        }
-        if (options.atob && options.uid) {
-          if (urlParams.urls.length > 1) {
-            if (Array.isArray(options.uid)) {
-              options.uid = `[${options.uid[0]}]`;
+          if (options.atob && options.uid) {
+            if (urlParams.urls.length > 1) {
+              if (Array.isArray(options.uid)) {
+                options.uid = `[${options.uid[0]}]`;
+              }
+              const decodedPaths = window
+                .atob(
+                  options.uid.startsWith('[') && options.uid.endsWith(']')
+                    ? options.uid.slice(1, -1)
+                    : options.uid.toString()
+                )
+                .split(' ')
+                .map(decodeURIComponent);
+              // console.warn('[atob]', options.uid, '->', decodedPaths);
+              urlParams.urls = decodedPaths.map(
+                (decodedPath) =>
+                  `h3://localhost/file/${encodeURIComponent(decodedPath)}`
+              );
+            } else {
+              const decodedPath = decodeURIComponent(
+                window.atob(options.uid.toString())
+              );
+              // console.warn('[atob]', options.uid, '->', decodedPath);
+              const qs = urlParams.urls[0]?.split('?')[1];
+              urlParams.urls = [
+                `h3://localhost/file/${encodeURIComponent(decodedPath)}` +
+                  (qs ? `?${qs}` : ''),
+              ];
             }
-            const decodedPaths = (window.atob(options.uid.startsWith('[') && options.uid.endsWith(']') ? options.uid.slice(1, -1) : options.uid.toString()).split(' ')).map(decodeURIComponent);
-            // console.warn('[atob]', options.uid, '->', decodedPaths);
-            urlParams.urls = decodedPaths.map(decodedPath => `h3://localhost/file/${encodeURIComponent(decodedPath)}`);
-          } else {
-            const decodedPath = decodeURIComponent(window.atob(options.uid.toString()));
-            // console.warn('[atob]', options.uid, '->', decodedPath);
-            const qs = urlParams.urls[0]?.split('?')[1];
-            urlParams.urls = [`h3://localhost/file/${encodeURIComponent(decodedPath)}` + (qs ? `?${qs}` : '')];
           }
-        }
 
-        // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
-        const volumeKeyUID = options.volumeKeyUID || options.uid;
-        if (volumeKeyUID) {
-          if (!('volumeKeySuffix' in options)) options.volumeKeySuffix = volumeKeyUID;
-          delete options.uid;
-        }
+          // make use of volumeKeyUID (if any) as volumeKeySuffix (if it is not specified)
+          const volumeKeyUID = options.volumeKeyUID || options.uid;
+          if (volumeKeyUID) {
+            if (!('volumeKeySuffix' in options))
+              options.volumeKeySuffix = volumeKeyUID;
+            delete options.uid;
+          }
 
-        loadUrls(payload.urlParams, options);
-      },
-      onunload() {
-        datasetStore.removeAll();
-      },
-      onunselect() {
-        if (currentImageID.value) {
-          viewStore.removeDataFromViews(currentImageID.value);
-        }
-        loadDataStore.isBusUnselected = true;
-      },
-      ...frontendBridge.handlers,
-    } as unknown as EventHandlers), loadDataStore);
+          loadUrls(payload.urlParams, options);
+        },
+        onunload() {
+          datasetStore.removeAll();
+        },
+        onunselect() {
+          if (currentImageID.value) {
+            viewStore.removeDataFromViews(currentImageID.value);
+          }
+          loadDataStore.isBusUnselected = true;
+        },
+        ...frontendBridge.handlers,
+      } as unknown as EventHandlers,
+      loadDataStore
+    );
 
     frontendBridge.start(emitter);
 
@@ -282,24 +353,24 @@ export default defineComponent({
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3.zip]&uid=8e532b9d-737ec192-1a85bc02-edd7971b-1d3f07b3&s=0
     // http://localhost:8043/?names=[archive.zip]&urls=[./.tmp/ec780211-db457dfe-ca89dfa0-aae410f6-e5938432.zip]&uid=ec780211-db457dfe-ca89dfa0-aae410f6-e5938432&i=0
 
-    populateAuthorizationToken();
+    // A `tokenUrl=` bearer is fetched asynchronously; await it before loading so
+    // the first data requests carry the Authorization header.
+    const authReady = populateAuthorizationToken();
     stripTokenFromUrl();
 
-    let urlParams: ReturnType<typeof normalizeUrlParams>;
-    try {
-      urlParams = normalizeUrlParams(
-        vtkURLExtract.extractURLParameters() as UrlParams
-      );
-    } catch (error) {
-      console.error('Failed to parse URL parameters:', error);
-      urlParams = {};
-    }
+    const urlParams = readLaunchParams();
 
     const query = useUrlSearchParams();
     const newMetadataNameTitle = computed(() => !!query.changeTitle);
     // const layoutNameSettled = computed(() => !!query.layoutName);
     const liteMode = computed(() => query.uiMode === 'lite');
-    const disableDnD = computed(() => query.dnd === 'false' || query.dnd === '0' || isInsideIframe.value || hasProjectPort.value);
+    const disableDnD = computed(
+      () =>
+        query.dnd === 'false' ||
+        query.dnd === '0' ||
+        isInsideIframe.value ||
+        hasProjectPort.value
+    );
 
     function loadUserSelectedFiles(files?: File[]) {
       const firstFile = files?.[0];
@@ -318,7 +389,8 @@ export default defineComponent({
       emitter.emit('userselectfiles', files);
     }
 
-    onMounted(() => {
+    onMounted(async () => {
+      await authReady;
       const params = urlParams as any;
       if (params.urls?.length > 0) {
         if (params.atob && params.uid) {
@@ -326,20 +398,37 @@ export default defineComponent({
             if (Array.isArray(params.uid)) {
               params.uid = `[${params.uid[0]}]`;
             }
-            const decodedPaths = (window.atob(params.uid.startsWith('[') && params.uid.endsWith(']') ? params.uid.slice(1, -1) : params.uid.toString()).split(' ')).map(decodeURIComponent);
+            const decodedPaths = window
+              .atob(
+                params.uid.startsWith('[') && params.uid.endsWith(']')
+                  ? params.uid.slice(1, -1)
+                  : params.uid.toString()
+              )
+              .split(' ')
+              .map(decodeURIComponent);
             // console.warn('[atob]', params.uid, '->', decodedPaths);
-            params.urls = decodedPaths.map(decodedPath => `h3://localhost/file/${encodeURIComponent(decodedPath)}`);
+            params.urls = decodedPaths.map(
+              (decodedPath) =>
+                `h3://localhost/file/${encodeURIComponent(decodedPath)}`
+            );
           } else {
-            const decodedPath = decodeURIComponent(window.atob(params.uid.toString()));
+            const decodedPath = decodeURIComponent(
+              window.atob(params.uid.toString())
+            );
             // console.warn('[atob]', params.uid, '->', decodedPath);
             const qs = params.urls[0]?.split('?')[1];
-            params.urls = [`h3://localhost/file/${encodeURIComponent(decodedPath)}` + (qs ? `?${qs}` : '')];
+            params.urls = [
+              `h3://localhost/file/${encodeURIComponent(decodedPath)}` +
+                (qs ? `?${qs}` : ''),
+            ];
           }
         }
       } else if ('open-folder' in params) {
         const openFolder = params['open-folder'] || '';
         if (openFolder) {
-          params.openFolder = normalizePath(decodeURIComponent(window.atob(openFolder)));
+          params.openFolder = normalizePath(
+            decodeURIComponent(window.atob(openFolder))
+          );
           const openFile = params['open-file'] || '';
           if (openFile) {
             params.openFile = decodeURIComponent(window.atob(openFile));
@@ -349,34 +438,44 @@ export default defineComponent({
           params.names = [];
         }
       } else {
+        // Feature entry points subscribe to this (see launchLoad.ts).
+        await signalLaunchLoadComplete();
         return;
       }
       const volumeKeyUID = params.volumeKeyUID || params.uid;
       if (volumeKeyUID) {
-        const options = JSON.parse(JSON.stringify({
-          volumeKeySuffix: volumeKeyUID as string,
-          ...(params.openFolder ? {
-            openFolder: params.openFolder ?? undefined,
-            openFile: params.openFile ?? undefined,
-          } : {
-            s: params.s ?? undefined,
-            n: params.n ?? undefined,
-            i: params.i ?? undefined,
-          }),
-        }));
+        const options = JSON.parse(
+          JSON.stringify({
+            volumeKeySuffix: volumeKeyUID as string,
+            ...(params.openFolder
+              ? {
+                  openFolder: params.openFolder ?? undefined,
+                  openFile: params.openFile ?? undefined,
+                }
+              : {
+                  s: params.s ?? undefined,
+                  n: params.n ?? undefined,
+                  i: params.i ?? undefined,
+                }),
+          })
+        );
         if (params.prefetch) {
           options.prefetchFiles = true;
         }
-        loadUrls(urlParams, options);
+        await loadUrls(urlParams, options);
+        // Feature entry points subscribe to this (see launchLoad.ts).
+        await signalLaunchLoadComplete();
         return;
       }
-      
-      loadUrls(urlParams);
+
+      await loadUrls(urlParams);
+      // Feature entry points subscribe to this (see launchLoad.ts).
+      await signalLaunchLoadComplete();
     });
 
     // --- remote save state URL --- //
 
-    if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
+    if (urlParams.save) {
       const url = Array.isArray(urlParams.save)
         ? urlParams.save[0]
         : urlParams.save;
@@ -398,31 +497,52 @@ export default defineComponent({
 
     const display = useDisplay();
 
-    const noDrawer = computed(() => query.drawer === 'none' || query.drawer === 'hidden');
-    const permanentDrawer = computed(() => noDrawer.value || query.drawer === 'permanent');
-    const temporaryDrawer = computed(() => permanentDrawer.value ? false : display.xlAndDown.value);
+    const noDrawer = computed(
+      () => query.drawer === 'none' || query.drawer === 'hidden'
+    );
+    const permanentDrawer = computed(
+      () => noDrawer.value || query.drawer === 'permanent'
+    );
+    const temporaryDrawer = computed(() =>
+      permanentDrawer.value ? false : display.xlAndDown.value
+    );
     const leftSideBar = ref(false);
 
     const drawerWidthMin = 350;
     const drawerWidthMax = 1024;
     const drawerWidth = useLocalStorage('vv-drawer-width', drawerWidthMin);
     const drawerResizerWidth = 8;
-    const drawerResizerInitialX = computed(() => display.width.value - drawerWidthMin - (drawerResizerWidth / 2));
-    const drawerResizerFinalX = computed(() => display.width.value - drawerWidthMax - (drawerResizerWidth / 2));
-    const drawerResizeHandle = useTemplateRef('drawerResizeHandle') as MaybeRefOrGetter<HTMLElement>;
-    const { x: drawerResizeHandleX, style: drawerResizeHandleStyle, isDragging: isDrawerResizing } = useDraggable(drawerResizeHandle, {
+    const drawerResizerInitialX = computed(
+      () => display.width.value - drawerWidthMin - drawerResizerWidth / 2
+    );
+    const drawerResizerFinalX = computed(
+      () => display.width.value - drawerWidthMax - drawerResizerWidth / 2
+    );
+    const drawerResizeHandle = useTemplateRef(
+      'drawerResizeHandle'
+    ) as MaybeRefOrGetter<HTMLElement>;
+    const {
+      x: drawerResizeHandleX,
+      style: drawerResizeHandleStyle,
+      isDragging: isDrawerResizing,
+    } = useDraggable(drawerResizeHandle, {
       axis: 'x',
       initialValue: { x: drawerResizerInitialX.value, y: 0 },
       preventDefault: true,
     });
-    watch(display.width, (dw) => {
-      if (dw > 0) {
-        drawerResizeHandleX.value = dw - drawerWidth.value - (drawerResizerWidth / 2);
+    watch(
+      display.width,
+      (dw) => {
+        if (dw > 0) {
+          drawerResizeHandleX.value =
+            dw - drawerWidth.value - drawerResizerWidth / 2;
+        }
+      },
+      {
+        immediate: true,
+        once: false,
       }
-    }, {
-      immediate: true,
-      once: false,
-    });
+    );
     function resetDrawerWidth() {
       drawerWidth.value = drawerWidthMin;
       drawerResizeHandleX.value = drawerResizerInitialX.value;
@@ -434,19 +554,25 @@ export default defineComponent({
       } else if (x < drawerResizerFinalX.value) {
         drawerResizeHandleX.value = drawerResizerFinalX.value;
       }
-      drawerWidth.value = Math.round(display.width.value - drawerResizeHandleX.value - (drawerResizerWidth / 2));
+      drawerWidth.value = Math.round(
+        display.width.value - drawerResizeHandleX.value - drawerResizerWidth / 2
+      );
     });
 
-    watch(display.mobile, (isMobile) => {
-      if (noDrawer.value) {
-        leftSideBar.value = false;
-      } else if (!isMobile && !leftSideBar.value) {
-        leftSideBar.value = !temporaryDrawer.value;
+    watch(
+      display.mobile,
+      (isMobile) => {
+        if (noDrawer.value) {
+          leftSideBar.value = false;
+        } else if (!isMobile && !leftSideBar.value) {
+          leftSideBar.value = !temporaryDrawer.value;
+        }
+      },
+      {
+        immediate: !display.mobile.value,
+        once: true,
       }
-    }, {
-      immediate: !display.mobile.value,
-      once: true,
-    });
+    );
 
     return {
       emitter,

@@ -1,43 +1,25 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
-import { MINIMAL_501_SESSION } from './configTestUtils';
-import { downloadFile } from './utils';
+import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from './configTestUtils';
+import {
+  downloadFile,
+  openUrls,
+  SESSION_SAVE_TIMEOUT,
+  waitForFileExists,
+} from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
-const SESSION_SAVE_TIMEOUT = 40000;
-
-const waitForFileExists = (filePath: string, timeout: number) =>
-  new Promise<void>((resolve, reject) => {
-    const dir = path.dirname(filePath);
-    const basename = path.basename(filePath);
-
-    const watcher = fs.watch(dir, (eventType, filename) => {
-      if (eventType === 'rename' && filename === basename) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
-
-    const timerId = setTimeout(() => {
-      watcher.close();
-      reject(
-        new Error(
-          `File ${filePath} did not exist and was not created during timeout of ${timeout}ms`
-        )
-      );
-    }, timeout);
-
-    fs.access(filePath, fs.constants.R_OK, (err) => {
-      if (!err) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
+const waitForElementCount = async (selector: string, minCount = 1) => {
+  await browser.waitUntil(async () => {
+    const count = await browser.execute(
+      (sel) => document.querySelectorAll(sel).length,
+      selector
+    );
+    return count >= minCount;
   });
+};
 
 const saveSession = async () => {
   const sessionFileName = await volViewPage.saveSession();
@@ -46,25 +28,31 @@ const saveSession = async () => {
   return sessionFileName;
 };
 
-const parseManifest = async (sessionFileName: string) => {
+const parseSession = async (sessionFileName: string) => {
   const session = fs.readFileSync(path.join(TEMP_DIR, sessionFileName));
   const zip = await JSZip.loadAsync(session);
   const manifestFile = await zip.files['manifest.json'].async('string');
-  return JSON.parse(manifestFile);
+  return {
+    zip,
+    manifest: JSON.parse(manifestFile),
+  };
 };
 
 const saveAndParseManifest = async () => {
   const session = await saveSession();
+  let zip: JSZip | undefined;
   let manifest: Record<string, unknown> = {};
   await browser.waitUntil(async () => {
     try {
-      manifest = await parseManifest(session);
+      const parsed = await parseSession(session);
+      zip = parsed.zip;
+      manifest = parsed.manifest;
       return manifest.version !== undefined;
     } catch {
       return false;
     }
   });
-  return { session, manifest };
+  return { session, zip, manifest };
 };
 
 const loadSession = async () => {
@@ -90,28 +78,14 @@ describe('Session state lifecycle', () => {
     await measurementsTab.waitForClickable();
     await measurementsTab.click();
 
-    await browser.waitUntil(async () => {
-      const rectangleEntries = await $$(
-        '.v-list-item i.mdi-vector-square.tool-icon'
-      );
-      return (await rectangleEntries.length) >= 1;
-    });
-
-    await browser.waitUntil(async () => {
-      const polygonEntries = await $$(
-        '.v-list-item i.mdi-pentagon-outline.tool-icon'
-      );
-      return (await polygonEntries.length) >= 1;
-    });
+    await waitForElementCount('.v-list-item i.mdi-vector-square.tool-icon');
+    await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
 
     const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
     await segmentGroupsTab.waitForClickable();
     await segmentGroupsTab.click();
 
-    await browser.waitUntil(async () => {
-      const segmentGroups = await $$('.segment-group-list .v-list-item');
-      return (await segmentGroups.length) >= 1;
-    });
+    await waitForElementCount('.segment-group-list .v-list-item');
   });
 
   it('edited label strokeWidth persists through save/load cycle', async () => {
@@ -127,10 +101,7 @@ describe('Session state lifecycle', () => {
     );
     await annotationsTab.click();
 
-    await browser.waitUntil(async () => {
-      const buttons = await volViewPage.editLabelButtons;
-      return (await buttons.length) >= 1;
-    });
+    await waitForElementCount('button[data-testid="edit-label-button"]');
 
     const buttons = await volViewPage.editLabelButtons;
     await buttons[0].click();
@@ -152,5 +123,28 @@ describe('Session state lifecycle', () => {
       rectangles: { tools: Array<{ strokeWidth: number }> };
     };
     expect(tools.rectangles.tools[0].strokeWidth).toEqual(editedStrokeWidth);
+  });
+
+  it('sanitizes segment group names when saving labelmaps into the session zip', async () => {
+    await openUrls([PROSTATEX_DATASET]);
+
+    const segmentGroupName = 'Liver: left/right*?';
+    const sanitizedFilePath = 'segmentations/Liver left right.vti';
+
+    await volViewPage.createSegmentGroup(segmentGroupName);
+
+    const { manifest, zip } = await saveAndParseManifest();
+    if (!zip) {
+      throw new Error('Expected saved session zip to be available');
+    }
+    const segmentGroups = manifest.segmentGroups as Array<{
+      path: string;
+      metadata: { name: string };
+    }>;
+
+    expect(segmentGroups.length).toEqual(1);
+    expect(segmentGroups[0].metadata.name).toEqual(segmentGroupName);
+    expect(segmentGroups[0].path).toEqual(sanitizedFilePath);
+    expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 });

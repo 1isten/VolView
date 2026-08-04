@@ -7,19 +7,21 @@ import Page from './page';
 
 let lastId = 0;
 const getId = () => {
-  return lastId++;
+  return `${process.pid}-${Date.now()}-${lastId++}`;
 };
 
 export const setValueVueInput = async (
   input: ChainablePromiseElement,
   value: string
 ) => {
-  // input.setValue does not clear existing input, so click and backspace
+  // input.setValue does not clear existing input, so select all and replace.
   await input.click();
   const oldValue = await input.getValue();
   if (oldValue) {
-    const backspaces = new Array(oldValue.length).fill(Key.Backspace);
-    await browser.keys([Key.ArrowRight, ...backspaces]);
+    const selectAllModifier =
+      process.platform === 'darwin' ? 'Meta' : 'Control';
+    await browser.keys([selectAllModifier, 'a']);
+    await browser.keys(Key.Backspace);
   }
   await input.setValue(value);
 };
@@ -53,44 +55,15 @@ class VolViewPage extends Page {
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
     await browser.waitUntil(
       async () => {
-        try {
-          // Query views once per iteration to avoid multiple queries that could become stale
-          const currentViews = await this.views;
-          const viewCount = await currentViews.length;
-
-          if (viewCount === 0) {
-            return false;
-          }
-
-          // Check each view's dimensions in a single pass
-          const viewPromises = currentViews.map(async (view) => {
-            try {
-              // Get attributes directly from the element reference
-              const width = await view.getAttribute('width');
-              const height = await view.getAttribute('height');
-
-              if (width && height) {
-                const w = parseInt(width, 10);
-                const h = parseInt(height, 10);
-                // Canvas should have real dimensions, not be a 1x1 placeholder
-                // Accept any size > 10 as a real view
-                return w > 10 && h > 10;
-              }
-              return false;
-            } catch {
-              // Element may have been removed/recreated - that's ok, we'll retry
-              return false;
-            }
+        return browser.execute(() => {
+          const canvases = document.querySelectorAll(
+            'div[data-testid~="vtk-view"] canvas'
+          );
+          return Array.from(canvases).some((c) => {
+            const canvas = c as HTMLCanvasElement;
+            return canvas.width > 10 && canvas.height > 10;
           });
-
-          const results = await Promise.all(await viewPromises);
-
-          // At least one view must have real dimensions
-          return results.some((result) => result);
-        } catch {
-          // DOM may be updating, retry on next iteration
-          return false;
-        }
+        });
       },
       {
         timeout,
@@ -141,6 +114,98 @@ class VolViewPage extends Page {
     await button.click();
   }
 
+  // Paint "Process" mode and the Fill Holes process workflow.
+  get processModeButton() {
+    return $('button*=Process');
+  }
+
+  get processTypeSelector() {
+    return $('[data-testid="process-type-selector"]');
+  }
+
+  get fillHolesProcessOption() {
+    return $('[data-testid="process-type-fillHoles"]');
+  }
+
+  get fillHolesWholeVolumeButton() {
+    return $('button*=All slices');
+  }
+
+  get fillHolesSelectedSegmentButton() {
+    return $('button*=Selected segment');
+  }
+
+  get processPreviewButton() {
+    return $('button*=Preview');
+  }
+
+  get processApplyButton() {
+    return $('button*=Apply');
+  }
+
+  get processOriginalButton() {
+    return $('button*=Original');
+  }
+
+  get processProcessedButton() {
+    return $('button*=Processed');
+  }
+
+  // The selected button in a Vuetify v-btn-toggle carries v-btn--active.
+  async isPreviewToggleActive(button: ChainablePromiseElement) {
+    const classes = await button.getAttribute('class');
+    return (classes ?? '').includes('v-btn--active');
+  }
+
+  async paintStrokeOnView(view: ChainablePromiseElement) {
+    const canvas = await view.$('canvas');
+    const location = await canvas.getLocation();
+    const size = await canvas.getSize();
+    const centerX = Math.round(location.x + size.width / 2);
+    const centerY = Math.round(location.y + size.height / 2);
+
+    await browser
+      .action('pointer')
+      .move({ x: centerX, y: centerY })
+      .down()
+      .move({ x: centerX + 40, y: centerY })
+      .move({ x: centerX + 40, y: centerY + 40 })
+      .move({ x: centerX, y: centerY + 40 })
+      .move({ x: centerX, y: centerY })
+      .up()
+      .perform();
+  }
+
+  async runFillHoles() {
+    await this.processModeButton.waitForClickable();
+    await this.processModeButton.click();
+
+    await this.selectFillHolesProcess();
+
+    const preview = this.processPreviewButton;
+    await preview.waitForClickable();
+    await preview.click();
+
+    // Reaching the "previewing" state (Apply appears) only happens after the
+    // algorithm runs successfully on the label map.
+    const apply = this.processApplyButton;
+    await apply.waitForDisplayed();
+    await apply.waitForClickable();
+    await apply.click();
+
+    // Applying returns the workflow to its start state (Preview reappears).
+    await this.processPreviewButton.waitForDisplayed();
+  }
+
+  async selectFillHolesProcess() {
+    await this.processTypeSelector.waitForClickable();
+    await this.processTypeSelector.click();
+
+    const fillHoles = this.fillHolesProcessOption;
+    await fillHoles.waitForClickable();
+    await fillHoles.click();
+  }
+
   get viewTwoContainer() {
     return $('div[data-testid~="two-view-container"]');
   }
@@ -149,12 +214,55 @@ class VolViewPage extends Page {
     return $('button span i[class~=mdi-content-save-all]');
   }
 
+  get annotationsModuleTab() {
+    return $('button[data-testid="module-tab-Annotations"]');
+  }
+
+  get newSegmentGroupButton() {
+    return $('button*=New Group');
+  }
+
+  get activeDialog() {
+    return $('div[role="dialog"]');
+  }
+
+  get activeDialogInput() {
+    return this.activeDialog.$('input[placeholder="Unnamed Segment Group"]');
+  }
+
   get saveSessionFilenameInput() {
     return $('#session-state-filename');
   }
 
   get saveSessionConfirmButton() {
     return $('span[data-testid="save-session-confirm-button"]');
+  }
+
+  get segmentGroupsTab() {
+    return $('button.v-tab*=Segment Groups');
+  }
+
+  get segmentGroupSaveButtons() {
+    return $$('button[data-testid="segment-group-save-button"]');
+  }
+
+  get saveSegmentGroupFilenameInput() {
+    return this.activeDialog.$('#filename');
+  }
+
+  get saveSegmentGroupConfirmButton() {
+    return this.activeDialog.$('button=Save');
+  }
+
+  async clickFirstSegmentGroupSaveButton() {
+    await browser.waitUntil(async () => {
+      const buttons = await this.segmentGroupSaveButtons;
+      return (await buttons.length) >= 1;
+    });
+    const buttons = await this.segmentGroupSaveButtons;
+    await buttons[0].scrollIntoView();
+    await buttons[0].waitForClickable();
+    await buttons[0].click();
   }
 
   async saveSession() {
@@ -171,10 +279,27 @@ class VolViewPage extends Page {
     await confirm.click();
 
     cleanuptotal.addCleanup(async () => {
-      fs.unlinkSync(path.join(TEMP_DIR, fileName));
+      const filePath = path.join(TEMP_DIR, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     });
 
     return fileName;
+  }
+
+  async createSegmentGroup(name: string) {
+    const annotationsTab = await this.annotationsModuleTab;
+    await annotationsTab.click();
+
+    const newGroup = await this.newSegmentGroupButton;
+    await newGroup.waitForClickable();
+    await newGroup.click();
+
+    const input = await this.activeDialogInput;
+    await input.waitForDisplayed();
+    await setValueVueInput(input, name);
+    await browser.keys([Key.Enter]);
   }
 
   get editLabelButtons() {
@@ -215,13 +340,17 @@ class VolViewPage extends Page {
   }
 
   async getView2D() {
-    const view2D = $('div[data-testid="vtk-view vtk-two-view"]');
+    const view2D = $(
+      'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
+    );
     const exists = await view2D.isExisting();
     return exists ? view2D : null;
   }
 
   async getViews2D() {
-    const views2D = $$('div[data-testid="vtk-view vtk-two-view"]');
+    const views2D = $$(
+      'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
+    );
     return views2D;
   }
 
@@ -232,12 +361,18 @@ class VolViewPage extends Page {
   ) {
     await browser.waitUntil(
       async () => {
-        const views2D = await this.getViews2D();
-        const view3D = await this.getView3D();
-        const view2DCount = await views2D.length;
+        const counts = await browser.execute(() => ({
+          view2DCount: document.querySelectorAll(
+            'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
+          ).length,
+          view3DExists:
+            document.querySelector(
+              'div[data-testid="vtk-view vtk-volume-view"]'
+            ) !== null,
+        }));
         return (
-          view2DCount === expected2DCount &&
-          (view3D !== null) === expected3DExists
+          counts.view2DCount === expected2DCount &&
+          counts.view3DExists === expected3DExists
         );
       },
       {
@@ -245,7 +380,6 @@ class VolViewPage extends Page {
         timeoutMsg: `Expected ${expected2DCount} 2D views and ${
           expected3DExists ? 'a' : 'no'
         } 3D view`,
-        interval: 1000,
       }
     );
   }
@@ -318,7 +452,7 @@ class VolViewPage extends Page {
       const overlayText = views[0].textContent;
       const match = overlayText?.match(/Slice:\s*(\d+)/);
       return match ? parseInt(match[1], 10) : null;
-    }, 'div[data-testid="vtk-view vtk-two-view"]');
+    }, 'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]');
   }
 
   async waitForSliceDecrease(initialSlice: number | null) {

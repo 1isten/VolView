@@ -62,7 +62,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="overflow-y-auto mx-2 mt-1 fill-height">
+  <div class="mx-2 mt-1">
     <template v-if="hasCurrentImage">
       <template v-if="canShow3DControls">
         <v-skeleton-loader v-if="isImageLoading" type="image">
@@ -86,7 +86,10 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel v-if="canShow3DControls && !!view3DId" value="properties">
+        <v-expansion-panel
+          v-if="canShow3DControls && !!view3DId"
+          value="properties"
+        >
           <v-expansion-panel-title>
             <v-icon class="flex-grow-0 mr-4">mdi-cube-scan</v-icon>
             Cinematic Rendering

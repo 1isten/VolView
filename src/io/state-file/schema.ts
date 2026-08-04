@@ -22,6 +22,7 @@ import type {
   LayersConfig,
   SegmentGroupConfig,
   VolumeColorConfig,
+  CinePlaybackViewConfig,
 } from '@/src/store/view-configs/types';
 import type { LPSAxis } from '@/src/types/lps';
 import type {
@@ -270,6 +271,10 @@ const SegmentGroupConfig = z.object({
   outlineThickness: z.number(),
 }) satisfies z.ZodType<SegmentGroupConfig>;
 
+const CinePlaybackViewConfig = z.object({
+  frame: z.number(),
+}) satisfies z.ZodType<CinePlaybackViewConfig>;
+
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
@@ -277,6 +282,7 @@ const ViewConfig = z.object({
   segmentGroup: SegmentGroupConfig.optional(),
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
+  cinePlayback: CinePlaybackViewConfig.optional(),
 });
 
 export type ViewConfig = z.infer<typeof ViewConfig>;
@@ -299,15 +305,37 @@ const SegmentMask = z.object({
   name: z.string(),
   color: RGBAColor,
   visible: z.boolean().default(true),
+  locked: z.boolean().optional(),
+});
+
+// Provenance of a segment group produced by a processing job. This durable
+// idempotency key prevents a restored result from being applied twice.
+// Optional and additive — a hand-painted group has none. Round-trips the
+// `.volview.zip` as interchange. Structurally mirrors the backend-contract
+// `resultSource` wire tag.
+export const SegmentGroupSource = z.object({
+  providerId: z.string(),
+  jobId: z.string(),
+  outputId: z.string(),
 });
 
 export const SegmentGroupMetadata = z.object({
   name: z.string(),
+  // The explicit parent binding stays REQUIRED: a segment group entry without
+  // a parent must not exist at all (the backend composes a parentless
+  // labelmap as an ordinary image dataset,
+  // never as a segment group). Segment descriptors are OPTIONAL: when absent,
+  // restore enumerates the labelmap's non-background voxel values and applies
+  // the same default names/colors (and embedded .seg.nrrd metadata overlay)
+  // that live convertImageToLabelmap uses.
   parentImage: z.string(),
-  segments: z.object({
-    order: z.number().array(),
-    byValue: z.record(z.string(), SegmentMask),
-  }),
+  segments: z
+    .object({
+      order: z.number().array(),
+      byValue: z.record(z.string(), SegmentMask),
+    })
+    .optional(),
+  source: SegmentGroupSource.optional(),
 });
 
 export const SegmentGroup = z
@@ -341,6 +369,7 @@ const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
+  frame: z.number().optional(),
   id: z.string().optional() as unknown as z.ZodType<ToolID | undefined>,
   name: z.string().optional(),
   color: z.string().optional(),
@@ -450,7 +479,15 @@ export const ManifestSchema = z.object({
 
 export type Manifest = z.infer<typeof ManifestSchema>;
 
-export interface StateFile {
+// The manifest's base datasets; older manifests carry no `datasets`, so every
+// uri source stands in for one, keyed by its stringified source id.
+export const manifestDatasets = (manifest: Manifest) =>
+  manifest.datasets ??
+  manifest.dataSources
+    .filter((ds) => ds.type === 'uri')
+    .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
+
+export type StateFile = {
   zip: JSZip;
   manifest: Manifest;
-}
+};

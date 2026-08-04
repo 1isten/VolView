@@ -5,10 +5,15 @@
     @update:model-value="setCurrentTool($event)"
   >
     <div class="my-1 tool-separator" />
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.WindowLevel">
+    <groupable-item
+      v-slot:default="{ active, toggle }"
+      :value="Tools.WindowLevel"
+    >
       <menu-control-button
         icon="mdi-circle-half-full"
-        :name="'Window & Level' + '' || ` [${nameToShortcut['Window & Level']}]`"
+        :name="
+          'Window & Level' + '' || ` [${nameToShortcut['Window & Level']}]`
+        "
         :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -34,12 +39,19 @@
         @click="toggle"
       />
     </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crosshairs">
+    <groupable-item
+      v-slot:default="{ active, toggle }"
+      :value="Tools.Crosshairs"
+    >
       <control-button
         icon="mdi-crosshairs"
         :name="'Crosshairs' + '' || ` [${nameToShortcut['Crosshairs']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
+        :disabled="
+          noCurrentImage ||
+          isObliqueLayout ||
+          isDisallowedOnCine(Tools.Crosshairs)
+        "
         @click="toggle"
       />
     </groupable-item>
@@ -58,12 +70,17 @@
         icon="mdi-brush"
         :name="'Paint' + '' || ` [${nameToShortcut['Paint']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
+        :disabled="
+          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Paint)
+        "
         @click="toggle"
       ></control-button>
     </groupable-item>
 
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Measurements">
+    <groupable-item
+      v-slot:default="{ active, toggle }"
+      :value="Tools.Measurements"
+    >
       <menu-control-button
         icon="mdi-tape-measure"
         :name="'Measurement Tools'"
@@ -71,7 +88,11 @@
         :disabled="noCurrentImage || isObliqueLayout"
         @click="currentToolIsMeasurement ? () => {} : toggle($event)"
       >
-        <v-list density="comfortable" :rounded="true" active-class="tool-list-item-selected">
+        <v-list
+          density="comfortable"
+          :rounded="true"
+          active-class="tool-list-item-selected"
+        >
           <v-list-item
             append-icon="mdi-ruler"
             :disabled="noCurrentImage || isObliqueLayout"
@@ -81,7 +102,13 @@
             <v-list-item-title>
               {{ 'Ruler' + '' || ` [${nameToShortcut['Ruler']}]` }}
             </v-list-item-title>
-            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+            <v-menu
+              activator="parent"
+              no-click-animation
+              :close-on-content-click="false"
+              :location="'left'"
+              :disabled="!isMobile"
+            >
               <div class="menu-content elevation-24">
                 <ruler-controls />
               </div>
@@ -96,7 +123,13 @@
             <v-list-item-title>
               {{ 'Rectangle' + '' || ` [${nameToShortcut['Rectangle']}]` }}
             </v-list-item-title>
-            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+            <v-menu
+              activator="parent"
+              no-click-animation
+              :close-on-content-click="false"
+              :location="'left'"
+              :disabled="!isMobile"
+            >
               <div class="menu-content elevation-24">
                 <rectangle-controls />
               </div>
@@ -111,7 +144,13 @@
             <v-list-item-title>
               {{ 'Circle' + '' || ` [${nameToShortcut['Circle']}]` }}
             </v-list-item-title>
-            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+            <v-menu
+              activator="parent"
+              no-click-animation
+              :close-on-content-click="false"
+              :location="'left'"
+              :disabled="!isMobile"
+            >
               <div class="menu-content elevation-24">
                 <circle-controls />
               </div>
@@ -126,7 +165,13 @@
             <v-list-item-title>
               {{ 'Polygon' + '' || ` [${nameToShortcut['Polygon']}]` }}
             </v-list-item-title>
-            <v-menu activator="parent" no-click-animation :close-on-content-click="false" :location="'left'" :disabled="!isMobile">
+            <v-menu
+              activator="parent"
+              no-click-animation
+              :close-on-content-click="false"
+              :location="'left'"
+              :disabled="!isMobile"
+            >
               <div class="menu-content elevation-24">
                 <polygon-controls />
               </div>
@@ -141,7 +186,9 @@
         icon="mdi-crop"
         :name="'Crop' + '' || ` [${nameToShortcut['Crop']}]`"
         :active="active"
-        :disabled="noCurrentImage || isObliqueLayout"
+        :disabled="
+          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Crop)
+        "
         @click="toggle"
       >
         <crop-controls />
@@ -160,7 +207,9 @@ import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { useToolStore } from '@/src/store/tools';
+import { useToolStore, isToolAllowedFor } from '@/src/store/tools';
+import { useEffectiveView } from '@/src/composables/useEffectiveView';
+import { toRef } from 'vue';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
 import CropControls from '@/src/components/tools/crop/CropControls.vue';
 import ResetViews from '@/src/components/tools/ResetViews.vue';
@@ -170,11 +219,17 @@ import CircleControls from '@/src/components/CircleControls.vue';
 import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
-import { useCurrentImage, getImageMetadata } from '@/src/composables/useCurrentImage';
+import {
+  useCurrentImage,
+  getImageMetadata,
+} from '@/src/composables/useCurrentImage';
 import { useViewStore } from '@/src/store/views';
 import { getHoveredAnnotation } from '@/src/composables/annotationTool';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { useAnnotationToolStore, AnnotationToolStoreMap } from '@/src/store/tools';
+import {
+  useAnnotationToolStore,
+  AnnotationToolStoreMap,
+} from '@/src/store/tools';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
@@ -236,11 +291,20 @@ export default defineComponent({
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
-    const isObliqueLayout = computed(() => {
-      if (!viewStore.activeView) return false;
-      const view = viewStore.viewByID[viewStore.activeView];
-      return view.type === 'Oblique';
-    });
+
+    const activeViewRef = toRef(viewStore, 'activeView');
+    const activeEffective = useEffectiveView(
+      computed(() => activeViewRef.value ?? '')
+    );
+    // The rendered viewer is decided by effective kind, not stored slot type:
+    // a cine clip dropped into an Oblique slot still renders as cine, so the
+    // toolbar should treat it as cine, not Oblique.
+    const isObliqueLayout = computed(
+      () => activeEffective.value?.kind === 'oblique'
+    );
+    const isCineActive = computed(() => activeEffective.value?.kind === 'cine');
+    const isDisallowedOnCine = (tool: Tools) =>
+      isCineActive.value && !isToolAllowedFor(tool, activeEffective.value);
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -294,22 +358,25 @@ export default defineComponent({
       const currentSlice = slice.value;
       const metadata = currentImageMetadata.value;
 
-      (Object.entries(AnnotationToolStoreMap) as [AnnotationToolType, () => any][]).forEach(
-        ([type, useStore]) => {
-          const store = useStore();
-          store.finishedTools
-            .filter((tool: any) => {
-              if (tool.imageID !== imageID) return false;
-              const axisInfo = frameOfReferenceToImageSliceAndAxis(
-                tool.frameOfReference,
-                metadata
-              );
-              if (!axisInfo) return false;
-              return axisInfo.axis === orientation && tool.slice === currentSlice;
-            })
-            .forEach((tool: any) => selectionStore.addSelection(tool.id, type));
-        }
-      );
+      (
+        Object.entries(AnnotationToolStoreMap) as [
+          AnnotationToolType,
+          () => any,
+        ][]
+      ).forEach(([type, useStore]) => {
+        const store = useStore();
+        store.finishedTools
+          .filter((tool: any) => {
+            if (tool.imageID !== imageID) return false;
+            const axisInfo = frameOfReferenceToImageSliceAndAxis(
+              tool.frameOfReference,
+              metadata
+            );
+            if (!axisInfo) return false;
+            return axisInfo.axis === orientation && tool.slice === currentSlice;
+          })
+          .forEach((tool: any) => selectionStore.addSelection(tool.id, type));
+      });
     });
 
     // Copy selected annotations (Ctrl+C / Cmd+C)
@@ -318,50 +385,66 @@ export default defineComponent({
       const selectionStore = useToolSelectionStore();
       if (selectionStore.selection.length === 0) return;
       e.preventDefault();
-      annotationClipboard = selectionStore.selection.map(({ id, type }) => {
-        const store = useAnnotationToolStore(type);
-        const tool = store.toolByID[id] as any;
-        if (!tool) return null;
-        const { id: _id, placing: _placing, ...data } = JSON.parse(JSON.stringify(tool)); // eslint-disable-line @typescript-eslint/no-unused-vars
+      annotationClipboard = selectionStore.selection
+        .map(({ id, type }) => {
+          const store = useAnnotationToolStore(type);
+          const tool = store.toolByID[id] as any;
+          if (!tool) return null;
+          const {
+            id: _id,
+            placing: _placing,
+            ...data
+          } = JSON.parse(JSON.stringify(tool)); // eslint-disable-line @typescript-eslint/no-unused-vars
 
-        // Determine source view orientation from the tool's frameOfReference
-        const srcMeta = getImageMetadata(data.imageID);
-        const srcAxisInfo = frameOfReferenceToImageSliceAndAxis(
-          data.frameOfReference, srcMeta,
-          { allowOutOfBoundsSlice: true, allowNonIntegralSlice: true }
-        );
-        if (!srcAxisInfo) return null;
+          // Determine source view orientation from the tool's frameOfReference
+          const srcMeta = getImageMetadata(data.imageID);
+          const srcAxisInfo = frameOfReferenceToImageSliceAndAxis(
+            data.frameOfReference,
+            srcMeta,
+            { allowOutOfBoundsSlice: true, allowNonIntegralSlice: true }
+          );
+          if (!srcAxisInfo) return null;
 
-        // Get camera right/up vectors to decompose world offset from image center
-        const { right: srcRight, up: srcUp } = getCameraVectors(srcAxisInfo.axis, srcMeta.lpsOrientation);
-        const srcCenter = vtkBoundingBox.getCenter(srcMeta.worldBounds);
+          // Get camera right/up vectors to decompose world offset from image center
+          const { right: srcRight, up: srcUp } = getCameraVectors(
+            srcAxisInfo.axis,
+            srcMeta.lpsOrientation
+          );
+          const srcCenter = vtkBoundingBox.getCenter(srcMeta.worldBounds);
 
-        const canvasPoints: CopiedAnnotation['canvasPoints'] = [];
-        const toCanvas = (worldPt: number[]) => {
-          const offset: vec3 = [
-            worldPt[0] - srcCenter[0],
-            worldPt[1] - srcCenter[1],
-            worldPt[2] - srcCenter[2],
-          ];
-          return {
-            dx: vec3.dot(offset, srcRight),
-            dy: vec3.dot(offset, srcUp),
+          const canvasPoints: CopiedAnnotation['canvasPoints'] = [];
+          const toCanvas = (worldPt: number[]) => {
+            const offset: vec3 = [
+              worldPt[0] - srcCenter[0],
+              worldPt[1] - srcCenter[1],
+              worldPt[2] - srcCenter[2],
+            ];
+            return {
+              dx: vec3.dot(offset, srcRight),
+              dy: vec3.dot(offset, srcUp),
+            };
           };
-        };
-        if (data.firstPoint) {
-          canvasPoints.push({ key: 'firstPoint', ...toCanvas(data.firstPoint) });
-        }
-        if (data.secondPoint) {
-          canvasPoints.push({ key: 'secondPoint', ...toCanvas(data.secondPoint) });
-        }
-        if (data.points) {
-          data.points.forEach((pt: number[], i: number) => {
-            canvasPoints.push({ key: 'points', index: i, ...toCanvas(pt) });
-          });
-        }
+          if (data.firstPoint) {
+            canvasPoints.push({
+              key: 'firstPoint',
+              ...toCanvas(data.firstPoint),
+            });
+          }
+          if (data.secondPoint) {
+            canvasPoints.push({
+              key: 'secondPoint',
+              ...toCanvas(data.secondPoint),
+            });
+          }
+          if (data.points) {
+            data.points.forEach((pt: number[], i: number) => {
+              canvasPoints.push({ key: 'points', index: i, ...toCanvas(pt) });
+            });
+          }
 
-        return { type, data, canvasPoints } as CopiedAnnotation;
-      }).filter((item): item is CopiedAnnotation => item !== null);
+          return { type, data, canvasPoints } as CopiedAnnotation;
+        })
+        .filter((item): item is CopiedAnnotation => item !== null);
     });
 
     // Paste annotations (Ctrl+V / Cmd+V)
@@ -390,14 +473,21 @@ export default defineComponent({
 
       // Target camera vectors and image center
       const tgtMeta = currentImageMetadata.value;
-      const { right: tgtRight, up: tgtUp } = getCameraVectors(orientation, tgtMeta.lpsOrientation);
+      const { right: tgtRight, up: tgtUp } = getCameraVectors(
+        orientation,
+        tgtMeta.lpsOrientation
+      );
       const tgtCenter = vtkBoundingBox.getCenter(tgtMeta.worldBounds);
 
       // Compute slice offset: shift from image center's slice to the target slice
       const planeNormal = frameOfReference.value.planeNormal;
       const planeOrigin = frameOfReference.value.planeOrigin;
       const sliceShift = vec3.dot(
-        [planeOrigin[0] - tgtCenter[0], planeOrigin[1] - tgtCenter[1], planeOrigin[2] - tgtCenter[2]],
+        [
+          planeOrigin[0] - tgtCenter[0],
+          planeOrigin[1] - tgtCenter[1],
+          planeOrigin[2] - tgtCenter[2],
+        ],
         planeNormal
       );
 
@@ -411,9 +501,18 @@ export default defineComponent({
         // Rebuild world points: imageCenter + dx*right + dy*up + sliceShift*normal
         const toWorld = (dx: number, dy: number) => {
           const w: [number, number, number] = [
-            tgtCenter[0] + dx * tgtRight[0] + dy * tgtUp[0] + sliceShift * planeNormal[0],
-            tgtCenter[1] + dx * tgtRight[1] + dy * tgtUp[1] + sliceShift * planeNormal[1],
-            tgtCenter[2] + dx * tgtRight[2] + dy * tgtUp[2] + sliceShift * planeNormal[2],
+            tgtCenter[0] +
+              dx * tgtRight[0] +
+              dy * tgtUp[0] +
+              sliceShift * planeNormal[0],
+            tgtCenter[1] +
+              dx * tgtRight[1] +
+              dy * tgtUp[1] +
+              sliceShift * planeNormal[1],
+            tgtCenter[2] +
+              dx * tgtRight[2] +
+              dy * tgtUp[2] +
+              sliceShift * planeNormal[2],
           ];
           return w;
         };
@@ -483,15 +582,15 @@ export default defineComponent({
       isMobile: display.mobile,
 
       currentTool,
-      currentToolIsMeasurement: computed(() => [
-        Tools.Ruler,
-        Tools.Rectangle,
-        Tools.Circle,
-        Tools.Polygon,
-      ].includes(currentTool.value)),
+      currentToolIsMeasurement: computed(() =>
+        [Tools.Ruler, Tools.Rectangle, Tools.Circle, Tools.Polygon].includes(
+          currentTool.value
+        )
+      ),
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
       isObliqueLayout,
+      isDisallowedOnCine,
       Tools,
       paintMenu,
       cropMenu,

@@ -45,7 +45,7 @@ export type LoadedByBusRecord = {
         Axial?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
         Sagittal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
         Coronal?: { viewDirection?: LPSAxisDir; viewUp?: LPSAxisDir };
-      },
+      };
       slices: {
         width?: number;
         level?: number;
@@ -62,13 +62,16 @@ export type LoadedByBusRecord = {
 
   cachedFiles?: {
     fileNameToPath: Record<string, string>; // new file name to original file path mapping
-    fileByPath: Record<string, {
-      name: string; // original file name
-      tags?: Record<string, any>;
-      isVolume?: boolean; // check (0002,0002) Media Storage SOP Class UID
-      slice?: number;
-      dataID?: string;
-    }>;
+    fileByPath: Record<
+      string,
+      {
+        name: string; // original file name
+        tags?: Record<string, any>;
+        isVolume?: boolean; // check (0002,0002) Media Storage SOP Class UID
+        slice?: number;
+        dataID?: string;
+      }
+    >;
     primarySelection?: string | null;
   };
 };
@@ -170,7 +173,12 @@ export type Events = {
   };
   onmanagesegmentation?: {
     requestId?: string;
-    action?: 'list' | 'applyMask' | 'deleteGroup' | 'deleteSegment' | 'updateSegment';
+    action?:
+      | 'list'
+      | 'applyMask'
+      | 'deleteGroup'
+      | 'deleteSegment'
+      | 'updateSegment';
     segmentGroupId?: string;
     segmentGroupID?: string;
     segmentValue?: number;
@@ -187,9 +195,40 @@ export type Events = {
   onreadvolume?: {
     requestId?: string;
     action?: 'info' | 'chunk' | 'scan';
-    origin?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
-    size?: [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number; width?: number; height?: number; depth?: number };
-    stride?: number | [number, number, number] | { i?: number; j?: number; k?: number; x?: number; y?: number; z?: number };
+    origin?:
+      | [number, number, number]
+      | {
+          i?: number;
+          j?: number;
+          k?: number;
+          x?: number;
+          y?: number;
+          z?: number;
+        };
+    size?:
+      | [number, number, number]
+      | {
+          i?: number;
+          j?: number;
+          k?: number;
+          x?: number;
+          y?: number;
+          z?: number;
+          width?: number;
+          height?: number;
+          depth?: number;
+        };
+    stride?:
+      | number
+      | [number, number, number]
+      | {
+          i?: number;
+          j?: number;
+          k?: number;
+          x?: number;
+          y?: number;
+          z?: number;
+        };
     maxVoxels?: number;
     maxBytes?: number;
     maxChunkVoxels?: number;
@@ -203,8 +242,28 @@ export type Events = {
     maxSliceSummaries?: number;
     min?: number;
     max?: number;
-    threshold?: { name?: string; min?: number; max?: number; gt?: number; gte?: number; lt?: number; lte?: number; exclusiveMin?: boolean; exclusiveMax?: boolean };
-    thresholds?: Array<{ name?: string; min?: number; max?: number; gt?: number; gte?: number; lt?: number; lte?: number; exclusiveMin?: boolean; exclusiveMax?: boolean }>;
+    threshold?: {
+      name?: string;
+      min?: number;
+      max?: number;
+      gt?: number;
+      gte?: number;
+      lt?: number;
+      lte?: number;
+      exclusiveMin?: boolean;
+      exclusiveMax?: boolean;
+    };
+    thresholds?: Array<{
+      name?: string;
+      min?: number;
+      max?: number;
+      gt?: number;
+      gte?: number;
+      lt?: number;
+      lte?: number;
+      exclusiveMin?: boolean;
+      exclusiveMax?: boolean;
+    }>;
     viewID?: string;
     dataID?: string;
     component?: number;
@@ -275,7 +334,7 @@ export function useLoadingNotifications() {
     if (error) {
       logError(error);
       toast.dismiss(toastID);
-      messageStore.addError(NotificationMessages.Error, error);
+      messageStore.addError(NotificationMessages.Error, { error });
     } else {
       toast.update(toastID, {
         content: NotificationMessages.Done,
@@ -317,14 +376,20 @@ export const useLoadDataStore = defineStore('loadData', () => {
   const layerExtension = ref('');
 
   const $bus = {
-    emitter: null as any
+    emitter: null as any,
   };
-  const dataIDToVolumeKeyUID = shallowRef<Record<string, string>>(Object.create(null));
+  const dataIDToVolumeKeyUID = shallowRef<Record<string, string>>(
+    Object.create(null)
+  );
   const loadedByBus = shallowRef<LoadedByBus>(Object.create(null));
   const isLoadingByBus = ref(false);
   const isBusUnselected = ref(false);
-  const getLoadedByBusOptions = (volumeKeyUID?: string) => volumeKeyUID && loadedByBus.value[volumeKeyUID]?.options || {};
-  const setLoadedByBusOptions = (volumeKeyUID: string | undefined, options: LoadEventOptions) => {
+  const getLoadedByBusOptions = (volumeKeyUID?: string) =>
+    (volumeKeyUID && loadedByBus.value[volumeKeyUID]?.options) || {};
+  const setLoadedByBusOptions = (
+    volumeKeyUID: string | undefined,
+    options: LoadEventOptions
+  ) => {
     if (!volumeKeyUID) {
       return options;
     }

@@ -28,14 +28,24 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const { viewId, imageId, currentImageData, baseRep: sliceRep, slicingMode, hover } = toRefs(props);
+const {
+  viewId,
+  imageId,
+  currentImageData,
+  baseRep: sliceRep,
+  slicingMode,
+  hover,
+} = toRefs(props);
 
 const viewStore = useViewStore();
 const isViewMaximized = computed(() => {
   if (viewStore.currentLayoutName?.endsWith(' Only')) {
     return true;
   }
-  if (viewStore.visibleViews.length === 1 && viewStore.visibleViews[0].id === viewId.value) {
+  if (
+    viewStore.visibleViews.length === 1 &&
+    viewStore.visibleViews[0].id === viewId.value
+  ) {
     return viewStore.activeView === viewId.value;
   }
   return viewStore.isActiveViewMaximized;
@@ -69,7 +79,7 @@ const pointValue = ref({
   value: '',
 });
 
-onVTKEvent(view.interactor, 'onMouseMove', e => {
+onVTKEvent(view.interactor, 'onMouseMove', (e) => {
   if (!hover.value) {
     return;
   }
@@ -82,9 +92,17 @@ onVTKEvent(view.interactor, 'onMouseMove', e => {
 
   const { x, y, z } = e.position;
   coordinate.setValue([x, y, z]);
-  const xyz = probeStore.probeData ? probeStore.probeData.pos : coordinate.getComputedWorldValue(view.renderer);
+  const xyz = probeStore.probeData
+    ? probeStore.probeData.pos
+    : coordinate.getComputedWorldValue(view.renderer);
   const ijk = currentImageData.value.worldToIndex([xyz[0], xyz[1], xyz[2]]);
-  const val = (probeStore.probeData?.samples || []).find(sample => sample.id === imageId.value)?.displayValues.map(v => typeof v === 'number' ? shortenNumber(v).split('.')[0] : v).join(', ') || 0;
+  const val =
+    (probeStore.probeData?.samples || [])
+      .find((sample) => sample.id === imageId.value)
+      ?.displayValues.map((v) =>
+        typeof v === 'number' ? shortenNumber(v).split('.')[0] : v
+      )
+      .join(', ') || 0;
 
   switch (slicingMode.value) {
     case 'I': {
@@ -136,7 +154,9 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
   <view-overlay-grid class="overlay-no-events view-annotations">
     <template v-slot:top-left>
       <div class="annotation-cell">
-        <span class="image-metadata-name" v-if="isViewMaximized">{{ metadata.name }}</span>
+        <span class="image-metadata-name" v-if="isViewMaximized">{{
+          metadata.name
+        }}</span>
       </div>
     </template>
     <template v-slot:top-center>
@@ -152,7 +172,9 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
     <template v-slot:bottom-left>
       <div class="annotation-cell">
         <div v-if="sliceConfig">
-          Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}
+          <span class="slice-label">
+            Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}
+          </span>
         </div>
         <div v-if="wlConfig">
           W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
@@ -171,7 +193,10 @@ onVTKEvent(view.interactor, 'onPointerLeave', () => {
           :view-id="viewId"
           :image-id="imageId"
         />
-        <dicom-quick-info-button v-else :image-id="imageId"></dicom-quick-info-button>
+        <dicom-quick-info-button
+          v-else
+          :image-id="imageId"
+        ></dicom-quick-info-button>
       </div>
     </template>
     <template #bottom-right>

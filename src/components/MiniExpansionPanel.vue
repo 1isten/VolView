@@ -1,5 +1,5 @@
 <template>
-  <div class="text-body-2">
+  <div class="text-body-2 w-100 mb-4">
     <div class="d-flex flex-wrap align-center justify-space-between">
       <div class="d-flex">
         <slot name="title"> </slot>

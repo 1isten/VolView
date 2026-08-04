@@ -7,7 +7,11 @@
       <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
         <v-text-field
           v-model="fileName"
-          :hint="roiMode ? 'Filename to save.' : 'Filename that will appear in downloads.'"
+          :hint="
+            roiMode
+              ? 'Filename to save.'
+              : 'Filename that will appear in downloads.'
+          "
           label="Filename"
           :rules="[validFileName]"
           required
@@ -42,12 +46,14 @@ import { onMounted, ref, computed } from 'vue';
 import { onKeyDown, useUrlSearchParams } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { writeImage } from '@/src/io/readWriteImage';
+import { writeSegmentation } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
 import { useLoadDataStore } from '@/src/store/load-data';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { sanitizeSegmentGroupFileStem } from '@/src/io/state-file/segmentGroupArchivePath';
 
 const EXTENSIONS = [
+  'seg.nrrd',
   'nrrd',
   'nii',
   'nii.gz',
@@ -68,15 +74,23 @@ const emit = defineEmits(['done']);
 const query = useUrlSearchParams();
 const manualInputId = computed(() => `${query.manualInputId || ''}`);
 const roiMode = computed(() => query.roi === 'true' || query.roi === '1');
-const labelmapFormat = computed(() => query.labelmapFormat && query.labelmapFormat.toString().toLowerCase());
+const labelmapFormat = computed(
+  () => query.labelmapFormat && query.labelmapFormat.toString().toLowerCase()
+);
 
-const fileName = ref('');
+const fileNameValue = ref('');
 const valid = ref(true);
 const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
 const loadDataStore = useLoadDataStore();
 const segmentGroupStore = useSegmentGroupStore();
+const fileName = computed({
+  get: () => fileNameValue.value,
+  set: (value: string) => {
+    fileNameValue.value = sanitizeSegmentGroupFileStem(value, '');
+  },
+});
 
 async function saveSegmentGroup() {
   if (fileName.value.trim().length === 0) {
@@ -85,54 +99,28 @@ async function saveSegmentGroup() {
 
   saving.value = true;
   await useErrorMessage('Failed to save segment group', async () => {
-    // const parentImageID = segmentGroupStore.metadataByID[props.id].parentImage;
-    const image = segmentGroupStore.dataIndex[props.id];
-    // @ts-ignore
-    // eslint-disable-next-line no-undef
-    const serialized = await writeImage(fileFormat.value, image) as BlobPart;
-    if (roiMode.value && (fileFormat.value in FILE_EXT_TO_MIME)) {
+    const sanitizedFileName = sanitizeSegmentGroupFileStem(fileName.value);
+    fileNameValue.value = sanitizedFileName;
+    const serialized = await writeSegmentation(
+      fileFormat.value,
+      segmentGroupStore.dataIndex[props.id],
+      segmentGroupStore.metadataByID[props.id]
+    );
+    if (roiMode.value && fileFormat.value in FILE_EXT_TO_MIME) {
       if ('$electron' in window && manualInputId.value) {
         const emitter = loadDataStore.$bus.emitter;
         emitter?.emit('savesegmentation', {
           manualInputId: manualInputId.value,
           fileContent: serialized,
-          fileName: `${fileName.value.replaceAll(' ', '_')}.${fileFormat.value}`,
+          fileName: `${sanitizedFileName}.${fileFormat.value}`,
           fileType: fileFormat.value,
           fileMime: FILE_EXT_TO_MIME[fileFormat.value],
           createdAt: Date.now(),
         });
         return;
       }
-      /* deprecated ...
-      const fileContent = new Blob([serialized], { type: FILE_EXT_TO_MIME[fileFormat.value] });
-      const formData = new FormData();
-      formData.append('fileContent', fileContent);
-      formData.set('fileName', `${fileName.value.replaceAll(' ', '_')}.${fileFormat.value}`);
-      formData.set('fileType', fileFormat.value);
-      formData.set('pipelineId', query.pipelineId?.toString() || '');
-      if (query.manualNodeId) {
-        formData.set('meta', JSON.stringify({
-          manualNodeId: query.manualNodeId,
-          batch: query.pipelineEmbedded === 'embedded' ? true : undefined,
-          blackbox: query.blackboxTaskId ? true : undefined,
-        }));
-      }
-      formData.set('type', 'segmentation');
-      const res = await fetch('h3://localhost/api/volview/sessions', { method: 'POST', body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        console.log(data);
-        const emitter = loadDataStore.$bus.emitter;
-        emitter?.emit('savesegmentation', {
-          uid: loadDataStore.dataIDToVolumeKeyUID[parentImageID],
-          data,
-        });
-      } else {
-        console.error(res.status, res.statusText);
-      }
-      return; */
     }
-    saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
+    saveAs(new Blob([serialized]), `${sanitizedFileName}.${fileFormat.value}`);
   });
   saving.value = false;
   emit('done');
@@ -140,7 +128,9 @@ async function saveSegmentGroup() {
 
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
-  fileName.value = segmentGroupStore.metadataByID[props.id].name;
+  fileNameValue.value = sanitizeSegmentGroupFileStem(
+    segmentGroupStore.metadataByID[props.id].name
+  );
   if (labelmapFormat.value && EXTENSIONS.includes(labelmapFormat.value)) {
     fileFormat.value = labelmapFormat.value;
   }

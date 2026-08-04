@@ -15,7 +15,6 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
 import {
   type ChunkImage,
-  ThumbnailStrategy,
   ChunkStatus,
   ChunkImageEvents,
 } from '@/src/core/streaming/chunkImage';
@@ -27,6 +26,7 @@ import {
 import { ensureError } from '@/src/utils';
 import { computed } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -78,7 +78,7 @@ export default class DicomChunkImage
 {
   protected chunks: Chunk[];
   private chunkListeners: Array<() => void>;
-  private thumbnailCache: WeakMap<Chunk, Promise<unknown>>;
+  private thumbnailCache: WeakMap<Chunk, Promise<string>>;
   private events: Emitter<ChunkImageEvents>;
   private chunkStatus: ChunkStatus[];
 
@@ -247,10 +247,7 @@ export default class DicomChunkImage
     }
   }
 
-  getThumbnail(strategy: ThumbnailStrategy): Promise<any> {
-    if (strategy !== ThumbnailStrategy.MiddleSlice)
-      throw new Error('Can only handle MiddleSlice thumbnailing strategy');
-
+  getThumbnail(): Promise<string | null> {
     const middle = Math.floor(this.chunks.length / 2);
     const chunk = this.chunks[middle];
 
@@ -310,24 +307,34 @@ export default class DicomChunkImage
       const meta = new Map(this.chunks[0].metadata!);
       const ModalityTag = NAME_TO_TAG.get('Modality')!;
       const modality = meta.get(ModalityTag)?.trim() ?? null;
-      if (modality) {    
-        const seriesFiles: File[] = []
+      if (modality) {
+        const seriesFiles: File[] = [];
         let seriesFilesCompleted = true;
         this.chunks.forEach(async (chunk, chunkIndex) => {
           if (chunk.state === ChunkState.MetaOnly && !chunk.dataBlob) {
             await chunk.loadData();
           }
           if (chunk.metaBlob) {
-            const file: File = chunk.metaBlob instanceof File ? chunk.metaBlob : new File([chunk.metaBlob], `file-${chunkIndex}.dcm`, { type: chunk.metaBlob.type } );
+            const file: File =
+              chunk.metaBlob instanceof File
+                ? chunk.metaBlob
+                : new File([chunk.metaBlob], `file-${chunkIndex}.dcm`, {
+                    type: chunk.metaBlob.type,
+                  });
             seriesFiles[chunkIndex] = file;
             return;
           }
           seriesFilesCompleted = false;
         });
         if (seriesFiles.length > 0 && seriesFilesCompleted) {
-          const results = await DicomChunkImage.buildImage(seriesFiles, modality);
+          const results = await DicomChunkImage.buildImage(
+            seriesFiles,
+            modality
+          );
           if (results.builtImageResults.outputImage) {
-            const image = vtkITKHelper.convertItkToVtkImage(results.builtImageResults.outputImage);
+            const image = vtkITKHelper.convertItkToVtkImage(
+              results.builtImageResults.outputImage
+            );
             this.vtkImageData.value.delete();
             this.vtkImageData.value = image;
             return;
@@ -338,6 +345,48 @@ export default class DicomChunkImage
 
     this.vtkImageData.value.delete();
     this.vtkImageData.value = allocateImageFromChunks(this.chunks);
+    this.applyUltrasoundSpacing();
+  }
+
+  private applyUltrasoundSpacing() {
+    if (this.getModality() !== 'US') return;
+
+    // Ultrasound DICOMs are typically a single multi-frame chunk, so the
+    // region table on chunk[0] applies to the whole image. If a US series
+    // ever spanned multiple chunks with differing regions, this would
+    // silently use the first chunk's spacing for all of them.
+    const regions = this.chunks[0]?.ultrasoundRegions;
+    if (!regions?.region) return;
+
+    // VTK image data has a single global spacing, so multi-region images
+    // (e.g. dual-pane B-mode + Doppler) cannot be fully represented. The
+    // first region's spacing is applied to the whole image; warn so the
+    // mismatch on additional panes is at least visible in the console.
+    if (regions.regionCount > 1) {
+      console.warn(
+        `Ultrasound image has ${regions.regionCount} regions; only the first region's physical spacing is applied. Multi-region (e.g. dual-pane B-mode + Doppler) ultrasound is not fully supported.`
+      );
+    }
+
+    const { region } = regions;
+    const xFactor = unitToMm(region.physicalUnitsXDirection);
+    const yFactor = unitToMm(region.physicalUnitsYDirection);
+    // All-or-nothing: if either axis lacks a spatial unit (e.g. one axis is
+    // cm and the other is seconds, or unitless) the metadata can't be trusted
+    // as a 2D physical spacing, so leave the default 1mm fallback in place.
+    if (xFactor === null || yFactor === null) {
+      console.warn(
+        `Ultrasound spacing not applied: PhysicalUnitsXDirection=${region.physicalUnitsXDirection}, PhysicalUnitsYDirection=${region.physicalUnitsYDirection}; only code 3 (cm) is converted to mm.`
+      );
+      return;
+    }
+
+    const [, , zSpacing] = this.vtkImageData.value.getSpacing();
+    this.vtkImageData.value.setSpacing([
+      region.physicalDeltaX * xFactor,
+      region.physicalDeltaY * yFactor,
+      zSpacing,
+    ]);
   }
 
   private updateDataRangeFromChunks() {

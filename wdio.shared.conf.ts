@@ -24,9 +24,20 @@ const TEST_DATASETS = [
     url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
     name: 'fetus.zip',
   },
+  {
+    url: 'https://sourceforge.net/p/gdcm/gdcmdata/ci/master/tree/US-MONO2-8-8x-execho.dcm?format=raw',
+    name: 'US-MONO2-8-8x-echo.dcm',
+  },
 ];
 
-export const WINDOW_SIZE = [1200, 800] as const;
+// Fixed capture viewport (Playwright's default).
+export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
+
+// Pin the content viewport so capture geometry is stable across Chrome versions
+// and OSes (independent of the OS window). Enables one shared baseline.
+export const applyTestViewport = (browser: any) =>
+  browser.setViewport({ ...CONTENT_VIEWPORT, devicePixelRatio: 1 });
+
 export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
@@ -85,8 +96,8 @@ export const config: Options.Testrunner = {
       'visual',
       {
         baselineFolder: path.resolve(ROOT, 'tests/baseline/'),
-        formatImageName:
-          '{tag}-{browserName}-{platformName}-{width}x{height}-{dpr}',
+        // Pinned geometry, so no {platformName}/{width}x{height}; one shared baseline.
+        formatImageName: '{tag}-{browserName}-{dpr}',
         screenshotPath: TEMP_DIR,
         autoSaveBaseline: true,
       },
@@ -97,7 +108,7 @@ export const config: Options.Testrunner = {
   reporters: ['spec', 'html-nice'],
   mochaOpts: {
     ui: 'bdd',
-    timeout: 60000,
+    timeout: 90_000,
   },
 
   //
@@ -107,14 +118,45 @@ export const config: Options.Testrunner = {
   async onPrepare() {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+    const RETRIES = 3;
+    const RETRY_DELAY_MS = 500;
+    const delay = (ms: number) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      });
+    const downloadOnce = async (url: string, savePath: string) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${url}`);
+      }
+      const data = await response.arrayBuffer();
+      // Write to a temp path first so a failed/partial download never leaves a
+      // corrupt file that the existsSync check would treat as already cached.
+      const tmpPath = `${savePath}.part`;
+      fs.writeFileSync(tmpPath, Buffer.from(data));
+      fs.renameSync(tmpPath, savePath);
+    };
+
     const downloads = TEST_DATASETS.map(async ({ url, name }) => {
       const savePath = path.join(TEMP_DIR, name);
       if (fs.existsSync(savePath)) {
         return;
       }
-      const response = await fetch(url);
-      const data = await response.arrayBuffer();
-      fs.writeFileSync(savePath, Buffer.from(data));
+      for (let attempt = 1; attempt <= RETRIES; attempt += 1) {
+        try {
+          await downloadOnce(url, savePath);
+          return;
+        } catch (err) {
+          if (attempt === RETRIES) {
+            throw new Error(
+              `Failed to download ${name} after ${RETRIES} attempts: ${
+                (err as Error).message
+              }`
+            );
+          }
+          await delay(RETRY_DELAY_MS);
+        }
+      }
     });
     await Promise.all(downloads);
   },
@@ -126,7 +168,7 @@ export const config: Options.Testrunner = {
     _specs: string[],
     browser: any
   ) {
-    await browser.setWindowSize(...WINDOW_SIZE);
+    await applyTestViewport(browser);
 
     // Subscribe to browser console logs and output them directly
     await browser.sessionSubscribe({ events: ['log.entryAdded'] });

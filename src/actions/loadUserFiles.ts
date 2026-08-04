@@ -15,6 +15,7 @@ import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
 import {
   importDataSources,
+  importVolumeDataSources,
   toDataSelection,
 } from '@/src/io/import/importDataSources';
 import {
@@ -35,10 +36,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 import JSZip from 'jszip';
-import {
-  fetchSeries,
-  fetchInstance,
-} from '@/src/core/dicom-web-api';
+import { fetchSeries, fetchInstance } from '@/src/core/dicom-web-api';
 
 // higher value priority is preferred for picking a primary selection
 const BASE_MODALITY_TYPES = {
@@ -276,7 +274,23 @@ function loadSegmentations(
   });
 }
 
-function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSession?: boolean) {
+type DataSourceImporter = (
+  sources: DataSource[],
+  volumeKeySuffix?: string
+) => Promise<ImportDataSourcesResult[]>;
+
+type LoadDataSourcesOutcome = {
+  datasetIds: string[];
+  hadErrors: boolean;
+  completed: boolean;
+};
+
+function loadDataSourcesWithOutcome(
+  sources: DataSource[],
+  importer: DataSourceImporter,
+  volumeKeySuffix?: string,
+  isSession?: boolean
+): Promise<LoadDataSourcesOutcome> {
   const loadDataStore = useLoadDataStore();
   const imageCacheStore = useImageCacheStore();
   const viewStore = useViewStore();
@@ -285,13 +299,13 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
   const load = async () => {
     let results: ImportDataSourcesResult[];
     try {
-      results = (await importDataSources(sources, volumeKeySuffix)).filter((result) =>
+      results = (await importer(sources, volumeKeySuffix)).filter((result) =>
         // only look at data and error results
         ['data', 'error'].includes(result.type)
       );
     } catch (error) {
       loadDataStore.setError(error as Error);
-      return;
+      return { datasetIds: [], hadErrors: true, completed: false };
     }
 
     const [succeeded, errored] = partition(
@@ -302,10 +316,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
     let savedSession: any = null;
     let savedSessionFile: File | null = null;
 
-    const shouldShowData = viewStore
-      .getAllViews()
+    const shouldShowData =
       // .every((view) => !view.dataID);
-      .length;
+      viewStore.getAllViews().length;
 
     if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
@@ -328,7 +341,8 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
           let viewID: string | null | undefined;
           let s = -1;
 
-          const { volumes, options } = loadDataStore.loadedByBus[volumeKeySuffix];
+          const { volumes, options } =
+            loadDataStore.loadedByBus[volumeKeySuffix];
           if (options.savedSession) {
             savedSession = options.savedSession;
           }
@@ -341,8 +355,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
           ) {
             const vol = volumes[selection];
             if (vol) {
-              const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+              const layoutName =
+                options.layoutName || useUrlSearchParams().layoutName;
+              if (
+                options.changeLayout === false ||
+                viewStore.currentLayoutName === null
+              ) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
                 viewStore.setLayoutByName(layoutName.toString(), true);
@@ -353,9 +371,14 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
                 s = 0;
                 dataID = selection;
               }
-            } else { // maybe not dcm, like nifti etc.
-              const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+            } else {
+              // maybe not dcm, like nifti etc.
+              const layoutName =
+                options.layoutName || useUrlSearchParams().layoutName;
+              if (
+                options.changeLayout === false ||
+                viewStore.currentLayoutName === null
+              ) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
                 if (layoutName === 'Axial Primary') {
@@ -367,8 +390,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
           } else if (typeof options.s === 'number') {
             const vol = volumes[selection];
             if (vol) {
-              const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-              if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+              const layoutName =
+                options.layoutName || useUrlSearchParams().layoutName;
+              if (
+                options.changeLayout === false ||
+                viewStore.currentLayoutName === null
+              ) {
                 //
               } else if (layoutName && options.changeLayout !== 'auto') {
                 viewStore.setLayoutByName(layoutName.toString(), true);
@@ -386,8 +413,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol) {
-                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+                const layoutName =
+                  options.layoutName || useUrlSearchParams().layoutName;
+                if (
+                  options.changeLayout === false ||
+                  viewStore.currentLayoutName === null
+                ) {
                   //
                 } else if (layoutName && options.changeLayout !== 'auto') {
                   viewStore.setLayoutByName(layoutName.toString(), true);
@@ -408,8 +439,12 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             for (const volumeKey of Object.keys(volumes)) {
               const vol = volumes[volumeKey];
               if (vol) {
-                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+                const layoutName =
+                  options.layoutName || useUrlSearchParams().layoutName;
+                if (
+                  options.changeLayout === false ||
+                  viewStore.currentLayoutName === null
+                ) {
                   //
                 } else if (layoutName && options.changeLayout !== 'auto') {
                   viewStore.setLayoutByName(layoutName.toString(), true);
@@ -428,10 +463,20 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             }
           }
           try {
-            if (dataID && dataID === savedSession?.dataId && savedSession.filePath) {
-              const savedSessionBlob = await fetch(`h3://localhost/file/${encodeURIComponent(savedSession.filePath)}`).then(res => res.ok ? res.blob() : null);
+            if (
+              dataID &&
+              dataID === savedSession?.dataId &&
+              savedSession.filePath
+            ) {
+              const savedSessionBlob = await fetch(
+                `h3://localhost/file/${encodeURIComponent(savedSession.filePath)}`
+              ).then((res) => (res.ok ? res.blob() : null));
               if (savedSessionBlob) {
-                savedSessionFile = new File([savedSessionBlob], savedSession.fileName || 'session.volview.zip', { type: FILE_EXT_TO_MIME.zip });
+                savedSessionFile = new File(
+                  [savedSessionBlob],
+                  savedSession.fileName || 'session.volview.zip',
+                  { type: FILE_EXT_TO_MIME.zip }
+                );
               }
             }
           } catch (error) {
@@ -449,7 +494,9 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
               }
               return;
             }
-            const defaultLayoutName = dataID ? imageCacheStore.getImageDefaultLayoutName(dataID) : '';
+            const defaultLayoutName = dataID
+              ? imageCacheStore.getImageDefaultLayoutName(dataID)
+              : '';
             viewStore.getViewsForData(selection).forEach((v) => {
               const viewId = v.id as string;
               const dataId = v.dataID as string;
@@ -458,7 +505,11 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
                   viewID = viewId;
                   dataID = dataId;
                   if (v.name !== defaultLayoutName.replace(' Only', '')) {
-                    const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
+                    const defaultView =
+                      viewStore.availableViewsForSwitcher.find(
+                        ({ name: viewName }) =>
+                          viewName === defaultLayoutName.replace(' Only', '')
+                      );
                     if (defaultView) {
                       viewStore.replaceView(viewID, {
                         ...defaultView,
@@ -483,21 +534,36 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
                   dataID = dataId;
                   viewSliceStore.updateConfig(viewID, dataID, { slice: s });
                   viewStore.setActiveView(viewID);
-                  if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
+                  if (
+                    !viewStore.isActiveViewMaximized &&
+                    options.changeLayout !== false
+                  ) {
                     // viewStore.toggleActiveViewMaximized();
                   }
                 }
               }
               const wlConfig = useWindowingStore().getConfig(viewId, dataId);
-              if ((!wlConfig?.width || !wlConfig?.level || wlConfig?.level === 2 ** 32 - 1) && wlConfig?.auto) {
-                useWindowingStore().updateConfig(viewId, dataId, {
-                  auto: wlConfig.auto,
-                }, true);
+              if (
+                (!wlConfig?.width ||
+                  !wlConfig?.level ||
+                  wlConfig?.level === 2 ** 32 - 1) &&
+                wlConfig?.auto
+              ) {
+                useWindowingStore().updateConfig(
+                  viewId,
+                  dataId,
+                  {
+                    auto: wlConfig.auto,
+                  },
+                  true
+                );
               }
             });
             setTimeout(() => {
               if (defaultLayoutName) {
-                const button = document.querySelector('button.reset-views-reset-all-cameras') as HTMLButtonElement | null;
+                const button = document.querySelector(
+                  'button.reset-views-reset-all-cameras'
+                ) as HTMLButtonElement | null;
                 if (button) {
                   button.click();
                 }
@@ -509,12 +575,21 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
             if (useUrlSearchParams().layoutName) {
               return;
             }
-            const defaultLayoutName = selection ? imageCacheStore.getImageDefaultLayoutName(selection) : '';
+            const defaultLayoutName = selection
+              ? imageCacheStore.getImageDefaultLayoutName(selection)
+              : '';
             if (defaultLayoutName) {
-              const viewID = viewStore.getViewsForData(selection).find((v) => v.name === defaultLayoutName?.replace(' Only', ''))?.id;
+              const viewID = viewStore
+                .getViewsForData(selection)
+                .find(
+                  (v) => v.name === defaultLayoutName?.replace(' Only', '')
+                )?.id;
               if (viewID) {
                 viewStore.setActiveView(viewID);
-                if (!viewStore.isActiveViewMaximized && useUrlSearchParams().changeLayout === 'auto') {
+                if (
+                  !viewStore.isActiveViewMaximized &&
+                  useUrlSearchParams().changeLayout === 'auto'
+                ) {
                   viewStore.toggleActiveViewMaximized();
                 }
               }
@@ -540,6 +615,10 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
       } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
 
+    // Every error importDataSources returns is unreported by contract
+    // (failures it already surfaced itself — e.g. in the restore's
+    // consolidated notice — come back as 'ok' results), so all of them get
+    // the generic load error here.
     if (errored.length) {
       const errorMessages = (errored as ErrorResult[]).map((errResult) => {
         const { dataSource, error } = errResult;
@@ -554,18 +633,32 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
       loadDataStore.setError(failedError);
     } else if (loadDataStore.isLoadingByBus) {
       if (savedSessionFile) {
-        return loadFiles([savedSessionFile], volumeKeySuffix, !!savedSession);
+        return loadDataSourcesWithOutcome(
+          [savedSessionFile].map(fileToDataSource),
+          importDataSources,
+          volumeKeySuffix,
+          !!savedSession
+        );
       }
       loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
     }
+    return {
+      datasetIds: filterLoadableDataSources(succeeded).map(
+        (result) => result.dataID
+      ),
+      hadErrors: errored.length > 0,
+      completed: true,
+    };
   };
 
-  const wrapWithLoading = <T extends (...args: any[]) => void>(fn: T) => {
+  const wrapWithLoading = <Args extends unknown[], Result>(
+    fn: (...args: Args) => Promise<Result>
+  ) => {
     const { startLoading, stopLoading } = useLoadDataStore();
-    return async function wrapper(...args: any[]) {
+    return async function wrapper(...args: Args): Promise<Result> {
       try {
         startLoading();
-        await fn(...args);
+        return await fn(...args);
       } finally {
         stopLoading();
       }
@@ -573,6 +666,25 @@ function loadDataSources(sources: DataSource[], volumeKeySuffix?: string, isSess
   };
 
   return wrapWithLoading(load)();
+}
+
+export function loadDataSources(
+  sources: DataSource[],
+  volumeKeySuffix?: string,
+  isSession?: boolean
+) {
+  return loadDataSourcesWithOutcome(
+    sources,
+    importDataSources,
+    volumeKeySuffix,
+    isSession
+  ).then(({ datasetIds, completed }) => (completed ? datasetIds : undefined));
+}
+
+export function loadVolumeDataSources(sources: DataSource[]) {
+  return loadDataSourcesWithOutcome(sources, importVolumeDataSources).then(
+    ({ datasetIds, completed }) => (completed ? datasetIds : undefined)
+  );
 }
 
 export function openFileDialog() {
@@ -589,7 +701,11 @@ export function openFileDialog() {
   });
 }
 
-export async function loadFiles(files: File[], volumeKeySuffix?: string, isSession?: boolean) {
+export async function loadFiles(
+  files: File[],
+  volumeKeySuffix?: string,
+  isSession?: boolean
+) {
   const dataSources = files.map(fileToDataSource);
   return loadDataSources(dataSources, volumeKeySuffix, isSession);
 }
@@ -613,11 +729,24 @@ type LoadUrlsParams = {
   config?: string[];
 };
 
-export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: LoadEventOptions) {
+export async function loadUrls(
+  params: UrlParams | LoadUrlsParams,
+  options?: LoadEventOptions
+) {
+  return (await loadUrlsWithOutcome(params, options)).datasetIds;
+}
+
+export async function loadUrlsWithOutcome(
+  params: UrlParams | LoadUrlsParams,
+  options?: LoadEventOptions
+): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
+  const outcomes: LoadDataSourcesOutcome[] = [];
   if (params.config) {
     const configUrls = wrapInArray(params.config);
-    const configSources = urlsToDataSources(configUrls);
-    await loadDataSources(configSources);
+    const configSources = urlsToDataSources(configUrls, []);
+    outcomes.push(
+      await loadDataSourcesWithOutcome(configSources, importDataSources)
+    );
   }
 
   if (params.urls) {
@@ -630,21 +759,34 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
       const imageCacheStore = useImageCacheStore();
       const viewStore = useViewStore();
       const viewSliceStore = useViewSliceStore();
-      let volumeKeySuffix = loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options).volumeKeySuffix!;
+      let volumeKeySuffix = loadDataStore.setLoadedByBusOptions(
+        options.volumeKeySuffix,
+        options
+      ).volumeKeySuffix!;
 
       const beforeLoadByBus = async () => {
         let hitCachedFileDataID: string | null | undefined;
         const { openFolder, openFile } = options;
         // newSuffix for dicom volume
-        const patchedSuffix = openFile ? Object.keys(loadDataStore.loadedByBus).find(key => key.startsWith(`${volumeKeySuffix}#`) ? key === `${volumeKeySuffix}#${window.btoa(encodeURIComponent(openFile))}` : false) : null;
+        const patchedSuffix = openFile
+          ? Object.keys(loadDataStore.loadedByBus).find((key) =>
+              key.startsWith(`${volumeKeySuffix}#`)
+                ? key ===
+                  `${volumeKeySuffix}#${window.btoa(encodeURIComponent(openFile))}`
+                : false
+            )
+          : null;
         if (patchedSuffix) {
           volumeKeySuffix = patchedSuffix;
         }
-        const { volumeKeys, volumes, cachedFiles } = loadDataStore.loadedByBus[volumeKeySuffix];
+        const { volumeKeys, volumes, cachedFiles } =
+          loadDataStore.loadedByBus[volumeKeySuffix];
         if (volumeKeys?.length && volumes) {
           if (openFolder && openFile && cachedFiles) {
             const cachedFilePath = cachedFiles.fileNameToPath[openFile];
-            const cachedFile = cachedFilePath ? cachedFiles.fileByPath[cachedFilePath] : null;
+            const cachedFile = cachedFilePath
+              ? cachedFiles.fileByPath[cachedFilePath]
+              : null;
             if (cachedFile?.slice !== undefined) {
               cachedFiles.primarySelection = openFile;
               options.s = cachedFile.slice;
@@ -657,25 +799,44 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
             //
           } else if (
             options.changeSlice === false ||
-            options.s === undefined &&
-            options.n === undefined &&
-            options.i === undefined
+            (options.s === undefined &&
+              options.n === undefined &&
+              options.i === undefined)
           ) {
-            if (names.some(name => name.toLowerCase().endsWith('.zip') && name !== 'archive.zip')) {
+            if (
+              names.some(
+                (name) =>
+                  name.toLowerCase().endsWith('.zip') && name !== 'archive.zip'
+              )
+            ) {
               const datasetStore = useDatasetStore();
-              volumeKeys.forEach(imageID => datasetStore.remove(imageID));
-              loadDataStore.setLoadedByBusOptions(options.volumeKeySuffix, options);
+              volumeKeys.forEach((imageID) => datasetStore.remove(imageID));
+              loadDataStore.setLoadedByBusOptions(
+                options.volumeKeySuffix,
+                options
+              );
               return loadDataStore.setIsLoadingByBus(true);
             }
             for (const dataID of Object.keys(volumes)) {
               const vol = volumes[dataID];
-              const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+              const defaultLayoutName =
+                imageCacheStore.getImageDefaultLayoutName(dataID);
               if (defaultLayoutName) {
-                const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+                const layoutName =
+                  options.layoutName || useUrlSearchParams().layoutName;
+                if (
+                  options.changeLayout === false ||
+                  viewStore.currentLayoutName === null
+                ) {
                   //
-                } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                  viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                } else if (
+                  (vol?.layoutName && options.changeLayout === 'auto') ||
+                  layoutName
+                ) {
+                  viewStore.setLayoutByName(
+                    vol.layoutName ?? layoutName.toString(),
+                    true
+                  );
                 }
                 viewStore.setDataForActiveView(dataID);
                 return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
@@ -685,134 +846,230 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
             for (const dataID of Object.keys(volumes)) {
               const vol = volumes[dataID];
               const s = options.s;
-              if (hitCachedFileDataID ? hitCachedFileDataID === dataID && vol : vol?.slices[options.s]) {
-                const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+              if (
+                hitCachedFileDataID
+                  ? hitCachedFileDataID === dataID && vol
+                  : vol?.slices[options.s]
+              ) {
+                const defaultLayoutName =
+                  imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
-                  const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                  if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+                  const layoutName =
+                    options.layoutName || useUrlSearchParams().layoutName;
+                  if (
+                    options.changeLayout === false ||
+                    viewStore.currentLayoutName === null
+                  ) {
                     //
-                  } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                    viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                  } else if (
+                    (vol?.layoutName && options.changeLayout === 'auto') ||
+                    layoutName
+                  ) {
+                    viewStore.setLayoutByName(
+                      vol.layoutName ?? layoutName.toString(),
+                      true
+                    );
                   }
                   requestAnimationFrame(() => {
-                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
-                      if (viewID === viewStore.activeView) {
-                        if (v.name !== defaultLayoutName.replace(' Only', '')) {
-                          const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
-                          if (defaultView) {
-                            viewStore.replaceView(viewID, {
-                              ...defaultView,
-                              dataID,
-                            });
+                    viewStore
+                      .getViewsForData(dataID)
+                      .forEach(({ id: viewID, ...v }) => {
+                        if (viewID === viewStore.activeView) {
+                          if (
+                            v.name !== defaultLayoutName.replace(' Only', '')
+                          ) {
+                            const defaultView =
+                              viewStore.availableViewsForSwitcher.find(
+                                ({ name: viewName }) =>
+                                  viewName ===
+                                  defaultLayoutName.replace(' Only', '')
+                              );
+                            if (defaultView) {
+                              viewStore.replaceView(viewID, {
+                                ...defaultView,
+                                dataID,
+                              });
+                            }
                           }
                         }
-                      }
-                    });
-                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
-                      if (viewID !== viewStore.activeView) {
-                        return;
-                      }
-                      if (v.name === defaultLayoutName.replace(' Only', '')) {
-                        viewSliceStore.updateConfig(viewID, dataID, { slice: s });
-                        viewStore.setActiveView(viewID);
-                        if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
-                          // viewStore.toggleActiveViewMaximized();
+                      });
+                    viewStore
+                      .getViewsForData(dataID)
+                      .forEach(({ id: viewID, ...v }) => {
+                        if (viewID !== viewStore.activeView) {
+                          return;
                         }
-                      }
-                    });
+                        if (v.name === defaultLayoutName.replace(' Only', '')) {
+                          viewSliceStore.updateConfig(viewID, dataID, {
+                            slice: s,
+                          });
+                          viewStore.setActiveView(viewID);
+                          if (
+                            !viewStore.isActiveViewMaximized &&
+                            options.changeLayout !== false
+                          ) {
+                            // viewStore.toggleActiveViewMaximized();
+                          }
+                        }
+                      });
                   });
                   viewStore.setDataForActiveView(dataID);
-                  return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+                  return loadDataStore.setIsLoadingByBus(
+                    false,
+                    volumeKeySuffix
+                  );
                 }
               }
             }
           } else if (typeof options.n === 'number') {
             for (const dataID of Object.keys(volumes)) {
               const vol = volumes[dataID];
-              const s = vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
+              const s =
+                vol?.slices?.findIndex(({ n }) => n === options.n) ?? -1;
               if (s !== -1) {
-                const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+                const defaultLayoutName =
+                  imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
-                  const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                  if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+                  const layoutName =
+                    options.layoutName || useUrlSearchParams().layoutName;
+                  if (
+                    options.changeLayout === false ||
+                    viewStore.currentLayoutName === null
+                  ) {
                     //
-                  } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                    viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                  } else if (
+                    (vol?.layoutName && options.changeLayout === 'auto') ||
+                    layoutName
+                  ) {
+                    viewStore.setLayoutByName(
+                      vol.layoutName ?? layoutName.toString(),
+                      true
+                    );
                   }
                   requestAnimationFrame(() => {
-                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
-                      if (viewID === viewStore.activeView) {
-                        if (v.name !== defaultLayoutName.replace(' Only', '')) {
-                          const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
-                          if (defaultView) {
-                            viewStore.replaceView(viewID, {
-                              ...defaultView,
-                              dataID,
-                            });
+                    viewStore
+                      .getViewsForData(dataID)
+                      .forEach(({ id: viewID, ...v }) => {
+                        if (viewID === viewStore.activeView) {
+                          if (
+                            v.name !== defaultLayoutName.replace(' Only', '')
+                          ) {
+                            const defaultView =
+                              viewStore.availableViewsForSwitcher.find(
+                                ({ name: viewName }) =>
+                                  viewName ===
+                                  defaultLayoutName.replace(' Only', '')
+                              );
+                            if (defaultView) {
+                              viewStore.replaceView(viewID, {
+                                ...defaultView,
+                                dataID,
+                              });
+                            }
                           }
                         }
-                      }
-                    });
-                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
-                      if (viewID !== viewStore.activeView) {
-                        return;
-                      }
-                      if (v.name === defaultLayoutName.replace(' Only', '')) {
-                        viewSliceStore.updateConfig(viewID, dataID, { slice: s });
-                        viewStore.setActiveView(viewID);
-                        if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
-                          // viewStore.toggleActiveViewMaximized();
+                      });
+                    viewStore
+                      .getViewsForData(dataID)
+                      .forEach(({ id: viewID, ...v }) => {
+                        if (viewID !== viewStore.activeView) {
+                          return;
                         }
-                      }
-                    });
+                        if (v.name === defaultLayoutName.replace(' Only', '')) {
+                          viewSliceStore.updateConfig(viewID, dataID, {
+                            slice: s,
+                          });
+                          viewStore.setActiveView(viewID);
+                          if (
+                            !viewStore.isActiveViewMaximized &&
+                            options.changeLayout !== false
+                          ) {
+                            // viewStore.toggleActiveViewMaximized();
+                          }
+                        }
+                      });
                   });
                   viewStore.setDataForActiveView(dataID);
-                  return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+                  return loadDataStore.setIsLoadingByBus(
+                    false,
+                    volumeKeySuffix
+                  );
                 }
               }
             }
           } else if (typeof options.i === 'number') {
             for (const dataID of Object.keys(volumes)) {
               const vol = volumes[dataID];
-              const s = vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
+              const s =
+                vol?.slices?.findIndex(({ i }) => i === options.i) ?? -1;
               if (s !== -1) {
-                const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(dataID);
+                const defaultLayoutName =
+                  imageCacheStore.getImageDefaultLayoutName(dataID);
                 if (defaultLayoutName) {
-                  const layoutName = options.layoutName || useUrlSearchParams().layoutName;
-                  if (options.changeLayout === false || viewStore.currentLayoutName === null) {
+                  const layoutName =
+                    options.layoutName || useUrlSearchParams().layoutName;
+                  if (
+                    options.changeLayout === false ||
+                    viewStore.currentLayoutName === null
+                  ) {
                     //
-                  } else if (vol?.layoutName && options.changeLayout === 'auto' || layoutName) {
-                    viewStore.setLayoutByName(vol.layoutName ?? layoutName.toString(), true);
+                  } else if (
+                    (vol?.layoutName && options.changeLayout === 'auto') ||
+                    layoutName
+                  ) {
+                    viewStore.setLayoutByName(
+                      vol.layoutName ?? layoutName.toString(),
+                      true
+                    );
                   }
                   requestAnimationFrame(() => {
-                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
-                      if (viewID === viewStore.activeView) {
-                        if (v.name !== defaultLayoutName.replace(' Only', '')) {
-                          const defaultView = viewStore.availableViewsForSwitcher.find(({ name: viewName }) => viewName === defaultLayoutName.replace(' Only', ''));
-                          if (defaultView) {
-                            viewStore.replaceView(viewID, {
-                              ...defaultView,
-                              dataID,
-                            });
+                    viewStore
+                      .getViewsForData(dataID)
+                      .forEach(({ id: viewID, ...v }) => {
+                        if (viewID === viewStore.activeView) {
+                          if (
+                            v.name !== defaultLayoutName.replace(' Only', '')
+                          ) {
+                            const defaultView =
+                              viewStore.availableViewsForSwitcher.find(
+                                ({ name: viewName }) =>
+                                  viewName ===
+                                  defaultLayoutName.replace(' Only', '')
+                              );
+                            if (defaultView) {
+                              viewStore.replaceView(viewID, {
+                                ...defaultView,
+                                dataID,
+                              });
+                            }
                           }
                         }
-                      }
-                    });
-                    viewStore.getViewsForData(dataID).forEach(({ id: viewID, ...v }) => {
-                      if (viewID !== viewStore.activeView) {
-                        return;
-                      }
-                      if (v.name === defaultLayoutName.replace(' Only', '')) {
-                        viewSliceStore.updateConfig(viewID, dataID, { slice: s });
-                        viewStore.setActiveView(viewID);
-                        if (!viewStore.isActiveViewMaximized && options.changeLayout !== false) {
-                          // viewStore.toggleActiveViewMaximized();
+                      });
+                    viewStore
+                      .getViewsForData(dataID)
+                      .forEach(({ id: viewID, ...v }) => {
+                        if (viewID !== viewStore.activeView) {
+                          return;
                         }
-                      }
-                    });
+                        if (v.name === defaultLayoutName.replace(' Only', '')) {
+                          viewSliceStore.updateConfig(viewID, dataID, {
+                            slice: s,
+                          });
+                          viewStore.setActiveView(viewID);
+                          if (
+                            !viewStore.isActiveViewMaximized &&
+                            options.changeLayout !== false
+                          ) {
+                            // viewStore.toggleActiveViewMaximized();
+                          }
+                        }
+                      });
                   });
                   viewStore.setDataForActiveView(dataID);
-                  return loadDataStore.setIsLoadingByBus(false, volumeKeySuffix);
+                  return loadDataStore.setIsLoadingByBus(
+                    false,
+                    volumeKeySuffix
+                  );
                 }
               }
             }
@@ -830,19 +1087,30 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
           loadDataStore.setIsLoadingByBus(true);
           options.loading = true;
           const zip = new JSZip();
-          const zipBlob = await Promise.all(urls.map((url, i, arr) => {
-            return fetch(url).then((res) => res.ok ? res.blob() : null).then((blob) => {
-              if (blob) {
-                const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
-                const name = file?.split('.')?.[0]
-                const ext = (file?.slice(name?.length) || '.dcm').trim();
-                const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
-                zip.file(fileName, blob);
-              }
-            }).catch(console.error);
-          })).then(() => {
-            return zip.generateAsync({ type: 'blob' });
-          }).catch(console.error);
+          const zipBlob = await Promise.all(
+            urls.map((url, i, arr) => {
+              return fetch(url)
+                .then((res) => (res.ok ? res.blob() : null))
+                .then((blob) => {
+                  if (blob) {
+                    const file =
+                      names[i] || url?.split('/')?.pop()?.split('\\')?.pop();
+                    const name = file?.split('.')?.[0];
+                    const ext = (file?.slice(name?.length) || '.dcm').trim();
+                    const fileName =
+                      arr.length === 1 && file
+                        ? file
+                        : `${name || 'file-' + i}${ext}`.replaceAll(' ', '_');
+                    zip.file(fileName, blob);
+                  }
+                })
+                .catch(console.error);
+            })
+          )
+            .then(() => {
+              return zip.generateAsync({ type: 'blob' });
+            })
+            .catch(console.error);
           if (zipBlob) {
             options.zipObjectUrl = URL.createObjectURL(zipBlob);
             urls = [options.zipObjectUrl];
@@ -855,127 +1123,181 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   url
               )
             );
-          }     
+          }
         }
-        if (options.prefetchFiles && urls.length > 0 || openFolder) {
+        if ((options.prefetchFiles && urls.length > 0) || openFolder) {
           if (openFolder) {
-            const data = await Promise.all(await fetch(`h3://localhost/api/roots/read-directory?${new URLSearchParams({ path: openFolder })}`).then(res => res.ok ? res.json() : null).then(res => ((res?.data || []) as any[]).filter((fileOrFolder: any) => {
-              if (fileOrFolder?.isFolder === false) {
-                const fileName = fileOrFolder.name.toLowerCase();
-                if (openFile) {
-                  const targetFileName = openFile.toLowerCase();
-                  if (!targetFileName.includes('.')) {
-                    return !fileName.includes('.');
-                  }
-                  if (targetFileName.endsWith('.dcm')) {
-                    return fileName.endsWith('.dcm');
-                  }
-                  return fileName === targetFileName; // exact match one if not dcm (like nii, nii.gz, png, jpg etc.)
-                }
-                return fileName.endsWith('.dcm');
-              }
-              return false;
-            }).map(async ({ name: fileName, path: filePath }: any) => {
-              if (filePath) {
-                filePath = normalizePath(filePath);
-              } else {
-                return null;
-              }
-              if (hitCachedFileDataID === null) {
-                const cachedFileName = Object.entries(cachedFiles!.fileNameToPath).find(([fn, fp]) => fn === fileName && fp === filePath)?.[0];
-                if (cachedFileName) {
-                  const cachedFilePath = cachedFiles!.fileNameToPath[cachedFileName];
-                  const cachedFile = cachedFilePath ? cachedFiles!.fileByPath[cachedFilePath] : null;
-                  if (cachedFile?.dataID && cachedFile?.slice !== undefined) {
-                    const cachedImage = imageCacheStore.imageById[cachedFile.dataID];
-                    if (cachedImage?.loaded && 'chunks' in cachedImage) {
-                      const cachedChunk = (cachedImage.chunks as any[])[cachedFile?.isVolume ? 0 : cachedFile?.slice];
-                      if (cachedChunk) {
-                        const dataBlob = cachedChunk.dataBlob;
-                        if (dataBlob && dataBlob instanceof File && dataBlob.name === fileName) {
-                          // console.warn(`already fetched ${fileName}:`, filePath);
+            const data = await Promise.all(
+              await fetch(
+                `h3://localhost/api/roots/read-directory?${new URLSearchParams({ path: openFolder })}`
+              )
+                .then((res) => (res.ok ? res.json() : null))
+                .then((res) =>
+                  ((res?.data || []) as any[])
+                    .filter((fileOrFolder: any) => {
+                      if (fileOrFolder?.isFolder === false) {
+                        const fileName = fileOrFolder.name.toLowerCase();
+                        if (openFile) {
+                          const targetFileName = openFile.toLowerCase();
+                          if (!targetFileName.includes('.')) {
+                            return !fileName.includes('.');
+                          }
+                          if (targetFileName.endsWith('.dcm')) {
+                            return fileName.endsWith('.dcm');
+                          }
+                          return fileName === targetFileName; // exact match one if not dcm (like nii, nii.gz, png, jpg etc.)
+                        }
+                        return fileName.endsWith('.dcm');
+                      }
+                      return false;
+                    })
+                    .map(async ({ name: fileName, path: filePath }: any) => {
+                      if (filePath) {
+                        filePath = normalizePath(filePath);
+                      } else {
+                        return null;
+                      }
+                      if (hitCachedFileDataID === null) {
+                        const cachedFileName = Object.entries(
+                          cachedFiles!.fileNameToPath
+                        ).find(
+                          ([fn, fp]) => fn === fileName && fp === filePath
+                        )?.[0];
+                        if (cachedFileName) {
+                          const cachedFilePath =
+                            cachedFiles!.fileNameToPath[cachedFileName];
+                          const cachedFile = cachedFilePath
+                            ? cachedFiles!.fileByPath[cachedFilePath]
+                            : null;
+                          if (
+                            cachedFile?.dataID &&
+                            cachedFile?.slice !== undefined
+                          ) {
+                            const cachedImage =
+                              imageCacheStore.imageById[cachedFile.dataID];
+                            if (
+                              cachedImage?.loaded &&
+                              'chunks' in cachedImage
+                            ) {
+                              const cachedChunk = (cachedImage.chunks as any[])[
+                                cachedFile?.isVolume ? 0 : cachedFile?.slice
+                              ];
+                              if (cachedChunk) {
+                                const dataBlob = cachedChunk.dataBlob;
+                                if (
+                                  dataBlob &&
+                                  dataBlob instanceof File &&
+                                  dataBlob.name === fileName
+                                ) {
+                                  // console.warn(`already fetched ${fileName}:`, filePath);
+                                  return {
+                                    name: fileName,
+                                    path: filePath,
+                                    type: FILE_EXT_TO_MIME.dcm,
+                                    data: dataBlob,
+                                    tags: cachedFile.tags,
+                                  };
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      const buffer = await fetch(
+                        `h3://localhost/file/${encodeURIComponent(filePath)}`
+                      ).then((r) => (r.ok ? r.arrayBuffer() : null));
+                      if (buffer) {
+                        if (
+                          !fileName.includes('.') ||
+                          fileName.toLowerCase().endsWith('.dcm')
+                        ) {
+                          const dcmjs = (window as any).dcmjs;
+                          try {
+                            const DicomDict =
+                              dcmjs?.data.DicomMessage.readFile(buffer);
+                            if (DicomDict) {
+                              const SOPClassUID =
+                                DicomDict.meta['00020002']?.Value?.[0] || '';
+                              // Subset of those listed at:
+                              // http://dicom.nema.org/medical/dicom/current/output/html/part04.html#sect_B.5
+                              const isVolume = SOPClassUID
+                                ? [
+                                    '1.2.840.10008.5.1.4.1.1.2.1', // Enhanced CT Image Storage
+                                    '1.2.840.10008.5.1.4.1.1.4.1', // Enhanced MR Image Storage
+                                    '1.2.840.10008.5.1.4.1.1.4.3', // Enhanced MR Color Image
+                                    '1.2.840.10008.5.1.4.1.1.6.2', // Enhanced US Volume
+                                    '1.2.840.10008.5.1.4.1.1.12.1.1', // Enhanced XA Image Storage
+                                    '1.2.840.10008.5.1.4.1.1.12.2.1', // Enhanced XRF Image Storage
+                                    '1.2.840.10008.5.1.4.1.1.88.22', // Enhanced SR
+                                    '1.2.840.10008.5.1.4.1.1.130', // EnhancedPETImage
+                                    // ...
+                                  ].includes(SOPClassUID)
+                                : false;
+                              return {
+                                name: fileName,
+                                path: filePath,
+                                type: FILE_EXT_TO_MIME.dcm,
+                                data: buffer,
+                                tags: {
+                                  SOPClassUID,
+                                  SeriesInstanceUID:
+                                    DicomDict.dict['0020000E']?.Value?.[0] ??
+                                    '',
+                                  SOPInstanceUID:
+                                    DicomDict.dict['00080018']?.Value?.[0] ??
+                                    '',
+                                  InstanceNumber:
+                                    DicomDict.dict['00200013']?.Value?.[0] ??
+                                    '',
+                                },
+                                isVolume,
+                              };
+                            }
+                          } catch (e) {
+                            // not a valid DICOM file
+                            console.warn(e);
+                          }
+                        } else {
                           return {
                             name: fileName,
                             path: filePath,
-                            type: FILE_EXT_TO_MIME.dcm,
-                            data: dataBlob,
-                            tags: cachedFile.tags,
+                            type: FILE_EXT_TO_MIME.nii,
+                            data: buffer,
                           };
                         }
                       }
-                    }
-                  }
-                }
-              }
-              const buffer = await fetch(`h3://localhost/file/${encodeURIComponent(filePath)}`).then(r => r.ok ? r.arrayBuffer() : null);
-              if (buffer) {
-                if (
-                  !fileName.includes('.') ||
-                  fileName.toLowerCase().endsWith('.dcm')
-                ) {
-                  const dcmjs = (window as any).dcmjs;
-                  try {
-                    const DicomDict = dcmjs?.data.DicomMessage.readFile(buffer);
-                    if (DicomDict) {
-                      const SOPClassUID = DicomDict.meta['00020002']?.Value?.[0] || '';
-                      // Subset of those listed at:
-                      // http://dicom.nema.org/medical/dicom/current/output/html/part04.html#sect_B.5
-                      const isVolume = SOPClassUID ? [
-                        '1.2.840.10008.5.1.4.1.1.2.1', // Enhanced CT Image Storage
-                        '1.2.840.10008.5.1.4.1.1.4.1', // Enhanced MR Image Storage
-                        '1.2.840.10008.5.1.4.1.1.4.3', // Enhanced MR Color Image
-                        '1.2.840.10008.5.1.4.1.1.6.2', // Enhanced US Volume
-                        '1.2.840.10008.5.1.4.1.1.12.1.1', // Enhanced XA Image Storage
-                        '1.2.840.10008.5.1.4.1.1.12.2.1', // Enhanced XRF Image Storage
-                        '1.2.840.10008.5.1.4.1.1.88.22', // Enhanced SR
-                        '1.2.840.10008.5.1.4.1.1.130', // EnhancedPETImage
-                        // ...
-                      ].includes(SOPClassUID) : false;
-                      return {
-                        name: fileName,
-                        path: filePath,
-                        type: FILE_EXT_TO_MIME.dcm,
-                        data: buffer,
-                        tags: {
-                          SOPClassUID,
-                          SeriesInstanceUID: DicomDict.dict['0020000E']?.Value?.[0] ?? '',
-                          SOPInstanceUID: DicomDict.dict['00080018']?.Value?.[0] ?? '',
-                          InstanceNumber: DicomDict.dict['00200013']?.Value?.[0] ?? '',
-                        },
-                        isVolume,
-                      };
-                    }
-                  } catch (e) {
-                    // not a valid DICOM file
-                    console.warn(e);
-                  }
-                } else {
-                  return {
-                    name: fileName,
-                    path: filePath,
-                    type: FILE_EXT_TO_MIME.nii,
-                    data: buffer,
-                  }
-                }
-              }
-              return null;
-            })));
+                      return null;
+                    })
+                )
+            );
             const files: File[] = [];
             let targetFileName = '';
             let targetSeriesInstanceUID = '';
-            const targetFile = openFile ? data.find(f => f?.name === openFile) : data[0];
+            const targetFile = openFile
+              ? data.find((f) => f?.name === openFile)
+              : data[0];
             if (targetFile) {
               targetSeriesInstanceUID = targetFile.tags?.SeriesInstanceUID;
               if (targetSeriesInstanceUID) {
-                data.forEach(f => {
+                data.forEach((f) => {
                   if (targetFile.isVolume && f !== targetFile) {
                     return;
                   }
-                  if (f && f.tags?.SeriesInstanceUID === targetSeriesInstanceUID) {
-                    const name = f.name?.split('.')?.[0]
+                  if (
+                    f &&
+                    f.tags?.SeriesInstanceUID === targetSeriesInstanceUID
+                  ) {
+                    const name = f.name?.split('.')?.[0];
                     const ext = (f.name?.slice(name?.length) || '.dcm').trim();
-                    const fileName = `${name || ('file-' + files.length)}${ext}`.replaceAll(' ', '_');
-                    const file = f.data instanceof File ? f.data : new File([f.data], fileName, { type: f.type });
+                    const fileName =
+                      `${name || 'file-' + files.length}${ext}`.replaceAll(
+                        ' ',
+                        '_'
+                      );
+                    const file =
+                      f.data instanceof File
+                        ? f.data
+                        : new File([f.data], fileName, { type: f.type });
                     files.push(file);
                     if (f === targetFile) {
                       targetFileName = file.name;
@@ -991,7 +1313,9 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                   }
                 });
               } else if (targetFile.type === FILE_EXT_TO_MIME.nii) {
-                const file = new File([targetFile.data], targetFile.name, { type: targetFile.type });
+                const file = new File([targetFile.data], targetFile.name, {
+                  type: targetFile.type,
+                });
                 files.push(file);
                 targetFileName = file.name;
                 if (cachedFiles) {
@@ -1007,7 +1331,8 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
                 if (targetFile?.tags && targetFile.isVolume) {
                   const newSuffix = `${volumeKeySuffix}#${window.btoa(encodeURIComponent(targetFile.name))}`;
                   options.volumeKeySuffix = newSuffix;
-                  loadDataStore.loadedByBus[newSuffix] = loadDataStore.loadedByBus[volumeKeySuffix];
+                  loadDataStore.loadedByBus[newSuffix] =
+                    loadDataStore.loadedByBus[volumeKeySuffix];
                   delete loadDataStore.loadedByBus[volumeKeySuffix];
                   volumeKeySuffix = newSuffix;
                 }
@@ -1020,14 +1345,24 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
           }
           // console.warn('[prefetch]', urls, names);
           loadDataStore.setIsLoadingByBus(true);
-          const files = await Promise.all(urls.map((url, i, arr) => fetch(url).then(res => res.blob()).then(blob => {
-            const file = names[i] || url?.split('/')?.pop()?.split('\\')?.pop()
-            const name = file?.split('.')?.[0]
-            const ext = (file?.slice(name?.length) || '.dcm').trim();
-            const fileName = arr.length === 1 && file ? file : `${name || ('file-' + i)}${ext}`.replaceAll(' ', '_');
-            const mimeType = FILE_EXT_TO_MIME[ext.slice(1).toLowerCase()];
-            return new File([blob], fileName, { type: mimeType });
-          })));
+          const files = await Promise.all(
+            urls.map((url, i, arr) =>
+              fetch(url)
+                .then((res) => res.blob())
+                .then((blob) => {
+                  const file =
+                    names[i] || url?.split('/')?.pop()?.split('\\')?.pop();
+                  const name = file?.split('.')?.[0];
+                  const ext = (file?.slice(name?.length) || '.dcm').trim();
+                  const fileName =
+                    arr.length === 1 && file
+                      ? file
+                      : `${name || 'file-' + i}${ext}`.replaceAll(' ', '_');
+                  const mimeType = FILE_EXT_TO_MIME[ext.slice(1).toLowerCase()];
+                  return new File([blob], fileName, { type: mimeType });
+                })
+            )
+          );
           loadFiles(files, volumeKeySuffix);
           return false;
         }
@@ -1054,24 +1389,57 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams, options?: Loa
             }
           } else {
             try {
-              const files = await fetchSeries(dicomWebURL, {
-                studyInstanceUID,
-                seriesInstanceUID,
-              }, ({ loaded, total }: ProgressEvent) => {
-                console.info(`fetching series ${loaded} of ${total}`);
-              });
+              const files = await fetchSeries(
+                dicomWebURL,
+                {
+                  studyInstanceUID,
+                  seriesInstanceUID,
+                },
+                ({ loaded, total }: ProgressEvent) => {
+                  console.info(`fetching series ${loaded} of ${total}`);
+                }
+              );
               dicomWebFiles.push(...files);
             } catch (error) {
               console.error(error);
             }
           }
         }
-        return (await beforeLoadByBus()) && await loadFiles(dicomWebFiles, volumeKeySuffix);
+        if (await beforeLoadByBus()) {
+          outcomes.push(
+            await loadDataSourcesWithOutcome(
+              dicomWebFiles.map(fileToDataSource),
+              importDataSources,
+              volumeKeySuffix
+            )
+          );
+        }
+      } else if (await beforeLoadByBus()) {
+        outcomes.push(
+          await loadDataSourcesWithOutcome(
+            sources,
+            importDataSources,
+            volumeKeySuffix
+          )
+        );
       }
-
-      return (await beforeLoadByBus()) && await loadDataSources(sources, volumeKeySuffix);
+    } else {
+      outcomes.push(
+        await loadDataSourcesWithOutcome(sources, importDataSources)
+      );
     }
-
-    await loadDataSources(sources);
   }
+  return {
+    datasetIds: outcomes.flatMap(({ datasetIds }) => datasetIds),
+    hadErrors: outcomes.some(({ hadErrors }) => hadErrors),
+  };
+}
+
+export async function loadVolumeUrls(
+  params: Pick<LoadUrlsParams, 'urls' | 'names'>
+) {
+  if (!params.urls) return [];
+  const urls = wrapInArray(params.urls);
+  const names = wrapInArray(params.names ?? []);
+  return (await loadVolumeDataSources(urlsToDataSources(urls, names))) ?? [];
 }

@@ -19,7 +19,7 @@
       :tool-store="activeToolStore"
       v-slot="{ context }"
     >
-      <v-list-item @click.stop>
+      <v-list-item v-if="!isCurrentImageCine" @click.stop>
         <template #prepend>
           <v-icon>mdi-grid</v-icon>
         </template>
@@ -84,7 +84,14 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onUnmounted, PropType, toRefs, watch } from 'vue';
+import {
+  computed,
+  defineComponent,
+  onUnmounted,
+  PropType,
+  toRefs,
+  watch,
+} from 'vue';
 import { storeToRefs } from 'pinia';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
@@ -101,10 +108,10 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { Maybe } from '@/src/types';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useViewLocator } from '@/src/composables/useViewLocator';
+import { locatorPatch } from '@/src/core/annotations/locator';
 import { useMagicKeys, watchImmediate } from '@vueuse/core';
 import { fillPoly } from '@thi.ng/rasterize';
 import type { IGrid2D } from '@thi.ng/api';
@@ -119,6 +126,7 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import ColorDot from '@/src/components/ColorDot.vue';
 import { SegmentMask } from '@/src/types/segment';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
 const toolType = Tools.Polygon;
@@ -178,8 +186,7 @@ export default defineComponent({
     const activeToolStore = useActiveToolStore();
     const { activeLabel } = storeToRefs(activeToolStore);
 
-    const sliceInfo = useSliceInfo(viewId, imageId);
-    const slice = computed(() => sliceInfo.value?.slice ?? 0);
+    const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
     const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -187,20 +194,13 @@ export default defineComponent({
 
     // --- active tool management --- //
 
-    const frameOfReference = useFrameOfReference(
-      viewDirection,
-      slice,
-      imageMetadata
-    );
-
     const placingTool = usePlacingAnnotationTool(
       activeToolStore,
       computed(() => {
         if (!imageId.value) return {};
         return {
           imageID: imageId.value,
-          frameOfReference: frameOfReference.value,
-          slice: slice.value,
+          ...locatorPatch(locator.value),
           label: activeLabel.value,
           ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
         };
@@ -270,10 +270,15 @@ export default defineComponent({
     const currentTools = useCurrentTools(
       activeToolStore,
       viewAxis,
-      computed(() => (placingTool.id.value ? [placingTool.id.value] : []))
+      computed(() => (placingTool.id.value ? [placingTool.id.value] : [])),
+      frame
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice, activeToolStore);
+    const { onHover: baseOnHover, overlayInfo } = useHover(
+      currentTools,
+      slice,
+      activeToolStore
+    );
 
     const onHover = (id: ToolID, event: any) => {
       if (shouldSuppressInteraction(id)) {
@@ -289,7 +294,9 @@ export default defineComponent({
 
     const segmentGroupStore = useSegmentGroupStore();
     const paintStore = usePaintToolStore();
+    const isCurrentImageCine = computed(() => isCineImage(imageId.value));
     const currentSegmentGroup = computed(() => {
+      if (isCurrentImageCine.value) return null;
       if (!imageId.value) return null;
       const groups = segmentGroupStore.orderByParent[imageId.value];
       if (!groups?.length) return null;
@@ -299,6 +306,9 @@ export default defineComponent({
     function rasterize(toolId: ToolID, segment: SegmentMask) {
       if (!imageId.value) {
         throw new Error('No image ID available for rasterization');
+      }
+      if (isCurrentImageCine.value) {
+        throw new Error('Rasterization is not supported for cine images');
       }
 
       const groups = segmentGroupStore.orderByParent[imageId.value];
@@ -364,6 +374,7 @@ export default defineComponent({
       overlayInfo,
       rasterize,
       currentSegmentGroup,
+      isCurrentImageCine,
     };
   },
 });

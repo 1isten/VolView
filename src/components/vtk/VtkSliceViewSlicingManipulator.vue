@@ -10,15 +10,15 @@ import vtkMouseRangeManipulator, {
 } from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { syncRef } from '@vueuse/core';
-import { inject, toRefs, unref, watch, computed } from 'vue';
+import { inject, toRefs, unref, computed } from 'vue';
 import { useViewStore } from '@/src/store/views';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   manipulatorConfig?: IMouseRangeManipulatorInitialValues;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, imageId, manipulatorConfig } = toRefs(props);
@@ -55,13 +55,11 @@ const scroll = useMouseRangeManipulatorListener(
   sliceConfig.range,
   1,
   sliceConfig.slice.value,
-  -1 // Invert scroll: scroll down = decrease slice for anatomical consistency
+  -1, // Invert scroll: scroll down = decrease slice for anatomical consistency
+  () => {
+    useViewStore().setActiveView(unref(viewId));
+  }
 );
-
-watch(scroll, () => {
-  const viewStore = useViewStore();
-  viewStore.setActiveView(unref(viewId));
-});
 
 syncRef(scroll, sliceConfig.slice, { immediate: true });
 </script>

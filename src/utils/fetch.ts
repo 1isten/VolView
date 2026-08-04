@@ -27,14 +27,19 @@ function mergeHeaders(base: Headers, supplementInit?: HeadersInit) {
   return merged;
 }
 
+/**
+ * The authenticated browser HTTP primitive: merges every global header
+ * (bearer/auth) into the request, honoring precedence
+ * `globalHeaders < Request.headers < RequestInit.headers`.
+ */
 export const $fetch: typeof fetch = (
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> => {
-  return fetch(input, {
-    ...init,
-    headers: mergeHeaders(globalHeaders, init?.headers),
-  });
+  let headers = new Headers(globalHeaders);
+  if (input instanceof Request) headers = mergeHeaders(headers, input.headers);
+  headers = mergeHeaders(headers, init?.headers);
+  return fetch(input, { ...init, headers });
 };
 
 /**

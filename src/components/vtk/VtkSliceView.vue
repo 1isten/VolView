@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, toRefs, provide, markRaw, effectScope, onUnmounted } from 'vue';
+import {
+  ref,
+  computed,
+  toRefs,
+  provide,
+  markRaw,
+  effectScope,
+  onUnmounted,
+} from 'vue';
 import { storeToRefs } from 'pinia';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
@@ -16,12 +24,12 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { useLoadDataStore } from '@/src/store/load-data';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
-}
+};
 
 const props = defineProps<Props>();
 const {
@@ -35,7 +43,9 @@ const loadDataStore = useLoadDataStore();
 const volCameraInfo = computed(() => {
   if (imageID.value && viewID.value) {
     const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[imageID.value];
-    const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID.value];
+    const vol =
+      volumeKeySuffix &&
+      loadDataStore.loadedByBus[volumeKeySuffix].volumes[imageID.value];
     if (vol) {
       return vol.camera || null;
     }
@@ -88,7 +98,8 @@ useResizeObserver(vtkContainerRef, () => {
 });
 
 function resetCamera() {
-  const cameraInfo = volCameraInfo.value?.[viewID.value as keyof typeof volCameraInfo.value];
+  const cameraInfo =
+    volCameraInfo.value?.[viewID.value as keyof typeof volCameraInfo.value];
 
   autoFit.autoFit.value = true;
   autoFit.withPaused(() => {
@@ -116,6 +127,12 @@ watchImmediate(
   }
 );
 
+// Must run before the clipping-range watcher below: resetCameraClippingRange
+// computes near/far from the camera's current position, so on remount the
+// saved position must be syncRef'd back first or the slice falls outside
+// the clip volume and the canvas goes black.
+usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
+
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
   if (!imageMetadata.value) return;
   if (
@@ -125,9 +142,6 @@ watchImmediate([imageMetadata, disableCameraAutoReset], () => {
     view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
   }
 });
-
-// persistent camera config
-usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 // exposed API
 const api: VtkViewApi = markRaw({

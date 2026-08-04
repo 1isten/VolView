@@ -1,11 +1,11 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { MaybeRef } from 'vue';
-import { computed, unref } from 'vue';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { computed } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { Maybe } from '@/src/types';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import { useViewStore } from '@/src/store/views';
+import { useEffectiveView } from '@/src/composables/useEffectiveView';
+import { AXIAL_FRAME_OF_REFERENCE } from '@/src/utils/frameOfReference';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
 /**
@@ -22,17 +22,28 @@ export function useSliceInfo(
   viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>
 ) {
-  const viewStore = useViewStore();
+  const effective = useEffectiveView(viewID);
   const { metadata: imageMetadata } = useImage(imageID);
-  const view = computed(() => viewStore.getView(unref(viewID)));
   const { slice } = useSliceConfig(viewID, imageID);
   return computed(() => {
-    if (!view.value || view.value.type !== '2D') return null;
+    const eff = effective.value;
+    if (!eff) return null;
 
-    const { orientation } = view.value.options;
-    const { viewDirection } = get2DViewingVectors(orientation);
+    if (eff.kind === 'cine') {
+      return {
+        axisName: 'Axial' as const,
+        axisIndex: 2,
+        slice: 0,
+        planeNormal: AXIAL_FRAME_OF_REFERENCE.planeNormal,
+        planeOrigin: AXIAL_FRAME_OF_REFERENCE.planeOrigin,
+      };
+    }
+
+    if (eff.kind !== 'volume2D') return null;
+
+    const { axis } = eff;
+    const { viewDirection } = get2DViewingVectors(axis);
     const { lpsOrientation } = imageMetadata.value;
-    const axis = getLPSAxisFromDir(viewDirection);
     const planeOrigin = [0, 0, 0] as Vector3;
     planeOrigin[lpsOrientation[axis]] = slice.value;
     return {

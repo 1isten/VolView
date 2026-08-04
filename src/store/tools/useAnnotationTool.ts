@@ -5,16 +5,39 @@ import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
 } from '@/src/config';
-import { removeFromArray } from '@/src/utils';
+import { isRecord, removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
-import { useViewStore } from '@/src/store/views';
+import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
-import useViewSliceStore from '../view-configs/slicing';
+import { applyLocator } from '@/src/core/annotations/locator';
 import { useLabels, type Labels } from './useLabels';
+
+// Shared manifest-ref declaration for the annotation-tool stores. Each store
+// calls this at module scope next to its serialize, pairing the dev-backstop
+// coverage with the onImageDeleted cascade this composable registers.
+export const declareAnnotationToolManifestRefs = (
+  key: 'rulers' | 'rectangles' | 'polygons'
+) =>
+  declareManifestRefs(`tools.${key}`, (manifest) => {
+    const tools = isRecord(manifest.tools) ? manifest.tools : {};
+    const section = tools[key];
+    if (!isRecord(section) || !Array.isArray(section.tools)) return [];
+    return section.tools.flatMap((entry, index) =>
+      isRecord(entry) && typeof entry.imageID === 'string'
+        ? [
+            {
+              kind: 'dataset' as const,
+              id: entry.imageID,
+              where: `tools.${key}[${index}].imageID`,
+            },
+          ]
+        : []
+    );
+  });
 
 const annotationToolLabelDefault = Object.freeze({
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
@@ -117,6 +140,17 @@ export const useAnnotationTool = <
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
 
+  // Delete-base cleanup: a removed image's tools
+  // must not linger — they are invisible in the UI (tool lists filter to the
+  // current image) and an orphaned imageID in the next save manifest is the
+  // backend's intentional fail-closed 400. Mirrors the segment-group cascade.
+  onImageDeleted((deletedIDs) => {
+    const deleted = new Set(deletedIDs);
+    toolIDs.value
+      .filter((id) => deleted.has(toolByID.value[id].imageID))
+      .forEach((id) => removeTool(id));
+  });
+
   // updates props controlled by labels
   watch(labels.labels, () => {
     toolIDs.value.forEach((id) => {
@@ -126,7 +160,7 @@ export const useAnnotationTool = <
     });
   });
 
-  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
+  const { currentImageID } = useCurrentImage('global');
 
   function jumpToTool(toolID: ToolID) {
     const tool = toolByID.value[toolID];
@@ -134,26 +168,7 @@ export const useAnnotationTool = <
     const imageID = currentImageID.value;
     if (!imageID || tool.imageID !== imageID) return;
 
-    const toolImageFrame = frameOfReferenceToImageSliceAndAxis(
-      tool.frameOfReference,
-      currentImageMetadata.value
-    );
-
-    if (!toolImageFrame) return;
-
-    const viewStore = useViewStore();
-    const relevantViews = viewStore.getAllViews().filter((view) => {
-      if (view.type !== '2D') return false;
-      const axis = view.options.orientation;
-      return axis === toolImageFrame.axis;
-    });
-
-    const viewSliceStore = useViewSliceStore();
-    relevantViews.forEach((view) => {
-      viewSliceStore.updateConfig(view.id, imageID, {
-        slice: tool.slice!,
-      });
-    });
+    applyLocator(imageID, tool);
   }
 
   const serializeTools = () => {
@@ -238,5 +253,5 @@ export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
   getPoints(id: ToolID): Vector3[];
 };
 
-export interface AnnotationToolStore<T extends AnnotationTool = AnnotationTool>
-  extends UnwrapAll<AnnotationToolAPI<T>>, IToolStore {}
+export type AnnotationToolStore<T extends AnnotationTool = AnnotationTool> =
+  UnwrapAll<AnnotationToolAPI<T>> & IToolStore;

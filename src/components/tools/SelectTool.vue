@@ -4,7 +4,10 @@ import { WIDGET_PRIORITY } from '@kitware/vtk.js/Widgets/Core/AbstractWidget/Con
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useToolStore, useAnnotationToolStore } from '@/src/store/tools';
 import { Tools, AnnotationToolType } from '@/src/store/tools/types';
-import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/types';
+import type {
+  vtkAnnotationToolWidget,
+  vtkAnnotationWidgetState,
+} from '@/src/vtk/ToolWidgetUtils/types';
 import { inject, toRefs, computed } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { ToolID } from '@/src/types/annotation-tool';
@@ -31,12 +34,19 @@ const { currentImageMetadata } = useCurrentImage();
 
 const viewAxis = computed(() => {
   const v = viewStore.getView(viewId.value);
-  return v?.type === '2D' ? (v.options as { orientation: LPSAxis }).orientation : null;
+  return v?.type === '2D'
+    ? (v.options as { orientation: LPSAxis }).orientation
+    : null;
 });
 const sliceInfo = useSliceInfo(viewId, imageId);
 const currentSlice = computed(() => sliceInfo.value?.slice);
 
-const PLACING_TOOLS = [Tools.Ruler, Tools.Rectangle, Tools.Circle, Tools.Polygon];
+const PLACING_TOOLS = [
+  Tools.Ruler,
+  Tools.Rectangle,
+  Tools.Circle,
+  Tools.Polygon,
+];
 
 const isToolPlacing = (id: ToolID, type: AnnotationToolType) => {
   try {
@@ -52,8 +62,13 @@ const isToolVisibleInView = (id: ToolID, type: AnnotationToolType) => {
     const store = useAnnotationToolStore(type);
     const tool = store.toolByID[id];
     if (!tool) return false;
-    if (viewAxis.value && !doesToolFrameMatchViewAxis(viewAxis.value, tool, currentImageMetadata)) return false;
-    if (currentSlice.value != null && tool.slice !== currentSlice.value) return false;
+    if (
+      viewAxis.value &&
+      !doesToolFrameMatchViewAxis(viewAxis.value, tool, currentImageMetadata)
+    )
+      return false;
+    if (currentSlice.value != null && tool.slice !== currentSlice.value)
+      return false;
     return true;
   } catch {
     return false;
@@ -62,7 +77,10 @@ const isToolVisibleInView = (id: ToolID, type: AnnotationToolType) => {
 
 // When the GPU picker returns a tool not visible on the current slice,
 // find a visible tool of the same type at this slice (same canvas position).
-const findVisibleToolAtSamePosition = (pickedId: ToolID, type: AnnotationToolType): ToolID | null => {
+const findVisibleToolAtSamePosition = (
+  pickedId: ToolID,
+  type: AnnotationToolType
+): ToolID | null => {
   try {
     const store = useAnnotationToolStore(type);
     const pickedTool = store.toolByID[pickedId] as any;
@@ -81,6 +99,17 @@ const findVisibleToolAtSamePosition = (pickedId: ToolID, type: AnnotationToolTyp
   }
 };
 
+const isAnnotationWidgetState = (
+  widgetState: unknown
+): widgetState is vtkAnnotationWidgetState => {
+  const candidate = widgetState as Partial<vtkAnnotationWidgetState> | null;
+  return (
+    !!candidate &&
+    typeof candidate.getId === 'function' &&
+    typeof candidate.getToolType === 'function'
+  );
+};
+
 onVTKEvent(
   view.interactor,
   'onLeftButtonPress',
@@ -90,9 +119,16 @@ onVTKEvent(
     const selectedData = view.widgetManager.getSelectedData();
     let handled = false;
     if ('widget' in selectedData) {
-      const widget = selectedData.widget as vtkAnnotationToolWidget;
-      const widgetState = widget.getWidgetState();
-      if (!widgetState) return;
+      const widget =
+        selectedData.widget as Partial<vtkAnnotationToolWidget> | null;
+      const widgetState = widget?.getWidgetState?.();
+      if (!isAnnotationWidgetState(widgetState)) {
+        if (!withModifiers) {
+          selectionStore.clearSelection();
+        }
+        return;
+      }
+
       let id = widgetState.getId() as ToolID;
       const type = widgetState.getToolType();
       // Don't select the tool currently being placed

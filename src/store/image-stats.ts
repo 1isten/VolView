@@ -19,6 +19,7 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { ensureError } from '@/src/utils';
 import { useImageCacheStore } from './image-cache';
 import { useMessageStore } from './messages';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 
 export type ImageStats = {
   scalarMin: number;
@@ -127,6 +128,9 @@ export const useImageStatsStore = defineStore('image-stats', () => {
   };
 
   const setupImageWatchers = (id: string) => {
+    // Cine: 8-bit display-encoded, no histogram.
+    if (isCineImage(id)) return;
+
     const { imageData, isLoading: isImageLoading } = useImage(
       computed(() => id)
     );
@@ -178,7 +182,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
           );
           messageStore.addError(
             `Auto range computation failed for image ${id}`,
-            ensureError(error)
+            { error: ensureError(error) }
           );
         })
         .finally(() => {

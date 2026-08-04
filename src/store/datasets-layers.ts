@@ -61,12 +61,13 @@ export const useLayersStore = defineStore('layer', () => {
 
     const name = imageCacheStore.getImageMetadata(source)?.name ?? NO_NAME;
     imageCacheStore.addVTKImageData(image, name, { id });
+    return id;
   }
 
   async function addLayer(parent: DataSelection, source: DataSelection) {
     return useErrorMessage('Failed to build layer', async () => {
       try {
-        await _addLayer(parent, source);
+        return await _addLayer(parent, source);
       } catch (error) {
         // remove failed layer from parent's layer list
         parentToLayers[parent] = parentToLayers[parent]?.filter(
@@ -106,7 +107,7 @@ export const useLayersStore = defineStore('layer', () => {
   const remove = (selectionToRemove: DataSelection) => {
     // delete as parent
     getLayers(selectionToRemove).forEach(({ selection }) =>
-      deleteLayer(selection, selection)
+      deleteLayer(selectionToRemove, selection)
     );
     // delete from layer lists
     Object.keys(parentToLayers).forEach((parent) =>

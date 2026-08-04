@@ -30,6 +30,8 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { ToolID } from '@/src/types/annotation-tool';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useCineFrame } from '@/src/composables/useCineFrame';
+import { toolRenderSlice } from '@/src/core/annotations/locator';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
@@ -65,6 +67,7 @@ export default defineComponent({
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice);
+    const { frame: cineFrame } = useCineFrame(viewId, imageId);
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
@@ -80,9 +83,9 @@ export default defineComponent({
       widgetFactory.delete();
     });
 
-    // --- reset on slice/image changes --- //
-
-    watch([slice, imageId], () => {
+    // Reset unfinished placement when the view's cursor moves: slice for
+    // volume views, frame for cine.
+    watch([slice, cineFrame, imageId], () => {
       if (isPlacing.value) {
         widget.resetInteractions();
         widget.getWidgetState().clearHandles();
@@ -137,7 +140,7 @@ export default defineComponent({
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        tool.value?.slice ?? slice.value ?? 0,
+        toolRenderSlice(tool.value, slice.value),
         imageMetadata.value
       );
     });

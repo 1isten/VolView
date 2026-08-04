@@ -8,12 +8,11 @@ import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { computed, ref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { ViewInfo2D } from '@/src/types/views';
-import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { computeEffectiveView } from '@/src/core/views/effectiveView';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
@@ -46,10 +45,12 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
 
   // const otherViews = computed(() => {
   const all2DViews = computed(() => {
-    return viewStore
-      // .getViewsForData(unref(currentImageID))
-      .getAllViews()
-      .filter((view): view is ViewInfo2D => view.type === '2D');
+    return (
+      viewStore
+        // .getViewsForData(unref(currentImageID))
+        .getAllViews()
+        .filter((view): view is ViewInfo2D => view.type === '2D')
+    );
   });
 
   function getWidgetFactory(this: _This) {
@@ -86,10 +87,9 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
       const indexPos = vec3.create();
       vec3.transformMat4(indexPos, worldPos, metadata.worldToIndex);
 
-      const { orientation } = view.options;
-      const { viewDirection } = get2DViewingVectors(orientation);
-      const axis = getLPSAxisFromDir(viewDirection);
-      const index = lpsOrientation[axis];
+      const effective = computeEffectiveView(view, imageID);
+      if (effective.kind !== 'volume2D') return;
+      const index = lpsOrientation[effective.axis];
       const slice = Math.round(indexPos[index]);
       viewSliceStore.updateConfig(view.id, imageID, { slice });
     });

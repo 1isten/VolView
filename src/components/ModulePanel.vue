@@ -3,13 +3,15 @@
     <div id="module-switcher">
       <v-tabs
         id="module-switcher-tabs"
-        v-model="selectedModuleIndex"
+        v-model="selectedModule"
+        grow
         icons-and-text
         show-arrows
       >
         <v-tab
           v-for="item in modules"
           :key="item.name"
+          :value="item.name"
           :data-testid="`module-tab-${item.name}`"
           :disabled="item.disabled"
         >
@@ -21,15 +23,16 @@
       </v-tabs>
     </div>
     <div id="module-container">
-      <v-window v-model="selectedModuleIndex" touchless class="fill-height">
+      <v-window v-model="selectedModule" touchless class="module-window">
         <v-window-item
           v-for="mod in modules"
           :key="mod.name"
-          class="fill-height"
+          :value="mod.name"
+          class="module-window-item"
         >
           <component
             :key="mod.name"
-            v-show="modules[selectedModuleIndex] === mod"
+            v-show="selectedModule === mod.name"
             :is="mod.component"
             :module-panel-opened="modulePanelOpened"
           />
@@ -44,6 +47,7 @@
 import { Component, computed, defineComponent, ref, watch } from 'vue';
 
 import { ConnectionState, useServerStore } from '@/src/store/server';
+import { JobsModule, useProcessingJobsStore } from '@/src/processing';
 // import DataBrowser from './DataBrowser.vue';
 import DicomTagBrowser from './DicomTagBrowser.vue';
 import DicomLabelingDetails from './DicomLabelingDetails.vue';
@@ -54,14 +58,14 @@ import ProbeView from './ProbeView.vue';
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 
-interface Module {
+type Module = {
   name: string;
   icon: string;
   component: Component;
   disabled?: boolean;
-}
+};
 
-const Modules: Module[] = [
+const CoreModules: Module[] = [
   {
     name: 'DICOM Tags',
     icon: 'table-search',
@@ -90,12 +94,13 @@ const Modules: Module[] = [
     icon: 'cube',
     component: RenderingModule,
   },
-  {
-    name: 'Remote',
-    icon: 'server-network',
-    component: ServerModule,
-  },
 ];
+
+const RemoteModule: Module = {
+  name: 'Remote',
+  icon: 'server-network',
+  component: ServerModule,
+};
 
 const autoSwitchToAnnotationsTools = [
   Tools.Rectangle,
@@ -114,28 +119,43 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const selectedModuleIndex = ref(1);
+    const selectedModule = ref(CoreModules[1].name);
 
     const toolStore = useToolStore();
     watch(
       () => toolStore.currentTool,
       (newTool) => {
         if (autoSwitchToAnnotationsTools.includes(newTool))
-          selectedModuleIndex.value = 1;
+          selectedModule.value = 'Annotations';
       }
     );
 
     const serverStore = useServerStore();
+
+    // Jobs tab appears only after a provider registers.
+    const providersStore = useProcessingJobsStore();
+    const jobsModule = computed(() =>
+      providersStore.configs.size > 0
+        ? ({ name: 'Jobs', icon: 'creation', component: JobsModule } as Module)
+        : null
+    );
+
     const modules = computed(() => {
+      const filtered = [
+        ...CoreModules,
+        ...(jobsModule.value ? [jobsModule.value] : []),
+        RemoteModule,
+      ];
+
       if (!serverStore.url) {
-        return Modules.filter((m) => m.name !== 'Remote');
+        return filtered.filter((m) => m.name !== 'Remote');
       }
 
       if (serverStore.connState === ConnectionState.Connected) {
-        return Modules;
+        return filtered;
       }
 
-      return Modules.map((m) => {
+      return filtered.map((m) => {
         if (m.name === 'Remote') {
           return { ...m, disabled: true };
         }
@@ -143,8 +163,23 @@ export default defineComponent({
       });
     });
 
+    watch(
+      modules,
+      (available) => {
+        const selected = available.find(
+          (item) => item.name === selectedModule.value
+        );
+        if (!selected || selected.disabled) {
+          selectedModule.value =
+            available.find((item) => !item.disabled)?.name ??
+            CoreModules[0].name;
+        }
+      },
+      { immediate: true }
+    );
+
     return {
-      selectedModuleIndex,
+      selectedModule,
       modules,
       modulePanelOpened: computed(() => props.leftSideBar),
     };
@@ -171,8 +206,26 @@ export default defineComponent({
 #module-container {
   position: relative;
   flex: 2;
-  overflow: auto;
-  /* scrollbar-gutter: stable; */
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.module-window {
+  height: 100%;
+}
+
+/* Keep a definite height after the window transition so fill-height module
+   content (DICOM Tags, Labeling) doesn't collapse once the slide ends. */
+.module-window :deep(.v-window__container) {
+  height: 100%;
+}
+
+/* Definite height lets fill-height modules self-scroll; overflow-y lets
+   natural-height modules (Annotations, Rendering) scroll within the item. */
+.module-window-item {
+  height: 100%;
+  overflow-y: auto;
 }
 
 .module-text {
@@ -188,8 +241,9 @@ export default defineComponent({
   align-items: center;
 }
 
-#module-switcher-tabs :deep(.v-slide-group__content) {
-  justify-content: center;
+#module-switcher-tabs :deep(.v-tab.v-tab) {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 #module-switcher-tabs

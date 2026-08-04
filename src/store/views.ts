@@ -11,6 +11,45 @@ import {
   type LayoutConfig,
 } from '@/src/utils/layoutParsing';
 import type { Manifest, StateFile } from '../io/state-file/schema';
+import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
+import { isRecord } from '@/src/utils';
+
+// The manifest references this store's remove cascade keeps clean (see the
+// onImageDeleted registration below), declared for the dev-only save backstop.
+declareManifestRefs('views', (manifest) => {
+  const views = isRecord(manifest.viewByID) ? manifest.viewByID : {};
+  return [
+    ...Object.entries(views).flatMap(([id, raw]) =>
+      isRecord(raw) && typeof raw.dataID === 'string'
+        ? [
+            {
+              kind: 'dataset' as const,
+              id: raw.dataID,
+              where: `viewByID[${id}].dataID`,
+            },
+          ]
+        : []
+    ),
+    ...(typeof manifest.activeView === 'string'
+      ? [
+          {
+            kind: 'view' as const,
+            id: manifest.activeView,
+            where: 'activeView',
+          },
+        ]
+      : []),
+    ...(Array.isArray(manifest.layoutSlots)
+      ? manifest.layoutSlots
+      : []
+    ).flatMap((id) =>
+      typeof id === 'string'
+        ? [{ kind: 'view' as const, id, where: 'layoutSlots' }]
+        : []
+    ),
+  ];
+});
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
   type: '2D',
@@ -139,6 +178,7 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setActiveView(id: Maybe<string>) {
+    if (activeView.value === id) return;
     activeView.value = id;
   }
 
@@ -148,13 +188,14 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function ensureActiveViewIsVisible() {
-    if (!visibleViews.value.length) {
+    const views = visibleViews.value;
+    if (!views.length) {
       setActiveView(null);
       return;
     }
 
-    if (!visibleViews.value.find((view) => view.id === activeView.value)) {
-      setActiveView(visibleViews.value[0].id);
+    if (!views.find((view) => view.id === activeView.value)) {
+      setActiveView(views[0].id);
     }
   }
 
@@ -222,10 +263,16 @@ export const useViewStore = defineStore('view', () => {
       } else if (currentLayoutName.value !== layoutName) {
         prevLayoutName.value = currentLayoutName.value;
         switchToNamedLayout(layoutName);
-      } else if (prevLayoutName.value && parsedDefaultLayouts[prevLayoutName.value]?.layout) {
+      } else if (
+        prevLayoutName.value &&
+        parsedDefaultLayouts[prevLayoutName.value]?.layout
+      ) {
         switchToNamedLayout(prevLayoutName.value);
         prevLayoutName.value = '';
-      } else if (layoutName.includes(' Only') && parsedDefaultLayouts[firstLayoutName]?.layout) {
+      } else if (
+        layoutName.includes(' Only') &&
+        parsedDefaultLayouts[firstLayoutName]?.layout
+      ) {
         prevLayoutName.value = layoutName;
         switchToNamedLayout(firstLayoutName);
       }
@@ -284,9 +331,14 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setDataForView(viewID: string, dataID: Maybe<string>) {
-    if (!(viewID in viewByID)) return;
-    viewByID[viewID].dataID = dataID;
+    const view = viewByID[viewID];
+    if (!view) return;
+
+    view.dataID = dataID;
     ViewDataChangeEvent.trigger(viewID, dataID);
+    // If activeView is null/stale, fall back to a visible view so global
+    // tools (which resolve their image through activeView) have one to read.
+    ensureActiveViewIsVisible();
   }
 
   function setDataForActiveView(dataID: Maybe<string>) {
@@ -301,10 +353,11 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function removeDataFromViews(dataID: string) {
-    layoutSlots.value.forEach((id) => {
-      if (viewByID[id].dataID === dataID) {
-        setDataForView(id, null);
-      }
+    // Every `viewByID` entry is serialized (not just the ones currently in a
+    // layout slot), so a view preserved off-slot with a stale dataID would
+    // still dangle in the save manifest — unbind ALL matching views.
+    getViewsForData(dataID).forEach((view) => {
+      setDataForView(view.id, null);
     });
   }
 
@@ -366,8 +419,7 @@ export const useViewStore = defineStore('view', () => {
 
     Object.entries(manifest.viewByID).forEach(([id, view]) => {
       if (view.dataID === stateID && viewByID[id]) {
-        viewByID[id].dataID = storeID;
-        ViewDataChangeEvent.trigger(id, storeID);
+        setDataForView(id, storeID);
       }
     });
   }
@@ -375,12 +427,20 @@ export const useViewStore = defineStore('view', () => {
   // initialization
   /*
   firstLayout.views.forEach((viewInit) => {
-    layoutSlots.value.push(addView(viewInit));
+    const viewId = addView(viewInit);
+    layoutSlots.value.push(viewId);
+    if (!activeView.value) {
+      setActiveView(viewId);
+    }
   });
   */
 
   watch(disabledViewTypes, () => {
     applyDisabledViewTypesFilter();
+  });
+
+  onImageDeleted((deletedIDs) => {
+    deletedIDs.forEach((id) => removeDataFromViews(id));
   });
 
   return {

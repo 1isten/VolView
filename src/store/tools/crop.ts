@@ -8,12 +8,27 @@ import type { MaybeRef } from 'vue';
 import { computed, reactive, readonly, unref } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { arrayEqualsWithComparator } from '@/src/utils';
+import { arrayEqualsWithComparator, isRecord } from '@/src/utils';
 import { Maybe } from '@/src/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
 import { StateFile, Manifest } from '../../io/state-file/schema';
+
+// The manifest references this store's remove cascade keeps clean (see the
+// onImageDeleted registration below), declared for the dev-only save backstop.
+declareManifestRefs('tools.crop', (manifest) => {
+  const tools = isRecord(manifest.tools) ? manifest.tools : {};
+  return isRecord(tools.crop)
+    ? Object.keys(tools.crop).map((id) => ({
+        kind: 'dataset' as const,
+        id,
+        where: `tools.crop[${id}]`,
+      }))
+    : [];
+});
 
 type Plane = {
   origin: Vector3;
@@ -130,6 +145,14 @@ export const useCropStore = defineStore('crop', () => {
   const setCropping = (imageID: string, planes: LPSCroppingPlanes) => {
     state.croppingByImageID[imageID] = clampCroppingPlanes(imageID, planes);
   };
+
+  // Delete-base cleanup: crop state is keyed by dataset id, so a removed image
+  // must drop its entry or `serialize` carries an orphaned crop key.
+  onImageDeleted((deletedIDs) => {
+    deletedIDs.forEach((id) => {
+      delete state.croppingByImageID[id];
+    });
+  });
 
   const setCroppingForAxis = (
     imageID: string,

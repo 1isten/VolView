@@ -23,6 +23,12 @@ export const useImageCacheStore = defineStore('image-cache', () => {
   const imageLoading = reactive<Record<string, boolean>>({});
   const imageErrors = reactive<Record<string, Error[]>>({});
   const imageListenerCleanup: Record<string, () => void> = {};
+  const deletionCallbacks = new Set<(deletedIDs: string[]) => void>();
+
+  function onImageDeleted(callback: (deletedIDs: string[]) => void) {
+    deletionCallbacks.add(callback);
+    return () => deletionCallbacks.delete(callback);
+  }
 
   function getVtkImageData(id: Maybe<string>): Maybe<vtkImageData> {
     if (!id) return null;
@@ -40,7 +46,9 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     return imageById[id]?.getImageMetadata() ?? null;
   }
 
-  function getImageDefaultLayoutName(dataID: string): 'Axial Only' | 'Sagittal Only' | 'Coronal Only' | null {
+  function getImageDefaultLayoutName(
+    dataID: string
+  ): 'Axial Only' | 'Sagittal Only' | 'Coronal Only' | null {
     const id = dataID;
     const image = imageById[id];
     if (image && image.imageMetadata) {
@@ -77,7 +85,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
       imageErrors[id].push(error);
 
       const messageStore = useMessageStore();
-      messageStore.addError('Error loading DICOM data', error);
+      messageStore.addError('Error loading DICOM data', { error });
     };
 
     imageListenerCleanup[id] = () => {
@@ -125,20 +133,29 @@ export const useImageCacheStore = defineStore('image-cache', () => {
   function addVTKImageData(
     imageData: vtkImageData,
     name: string,
-    options: { id?: string } = {}
+    options: { id?: string; headerMetadata?: Map<string, string> } = {}
   ) {
-    return addProgressiveImage(new LoadedVtkImage(imageData, name), options);
+    const image = new LoadedVtkImage(imageData, name);
+    if (options.headerMetadata) image.headerMetadata = options.headerMetadata;
+    return addProgressiveImage(image, { id: options.id });
   }
 
   function removeImage(id: string) {
     if (!(id in imageById)) return;
     unregisterListeners(id);
 
+    // Release vtk data and any per-image caches (e.g. cine compressed frames
+    // and decoded-frame LRU). Without this, removing a dataset leaks all of
+    // its memory until the page reloads.
+    imageById[id].dispose();
+
     const idx = imageIds.value.indexOf(id);
     if (idx > -1) imageIds.value.splice(idx, 1);
     delete imageById[id];
     delete imageStatus[id];
     delete imageLoading[id];
+    delete imageErrors[id];
+    [...deletionCallbacks].forEach((callback) => callback([id]));
   }
 
   /**
@@ -166,6 +183,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     getVtkImageData,
     getImageMetadata,
     getImageDefaultLayoutName,
+    onImageDeleted,
     addProgressiveImage,
     addVTKImageData,
     updateVTKImageData,

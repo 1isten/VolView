@@ -4,7 +4,9 @@ import * as DICOM from '@/src/io/dicom';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { Tags } from '@/src/core/dicomTags';
+import DicomCineImage from '@/src/core/cine/DicomCineImage';
+import { parseCineDicom } from '@/src/core/cine/parseCineDicom';
+import { isUltrasoundMultiframeSopClass, Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
 import { useLoadDataStore } from './load-data';
 
@@ -17,13 +19,13 @@ export function imageCacheMultiKey(offset: number, asThumbnail: boolean) {
   return `${offset}!!${asThumbnail}`;
 }
 
-export interface VolumeKeys {
+export type VolumeKeys = {
   patientKey: string;
   studyKey: string;
   volumeKey: string;
-}
+};
 
-export interface PatientInfo {
+export type PatientInfo = {
   PatientID: string;
   PatientName: string;
   PatientBirthDate: string;
@@ -31,9 +33,9 @@ export interface PatientInfo {
   PatientAge?: string;
   PatientWeight?: string;
   PatientAddress?: string;
-}
+};
 
-export interface StudyInfo {
+export type StudyInfo = {
   StudyID: string;
   StudyInstanceUID: string;
   StudyDescription: string;
@@ -44,7 +46,7 @@ export interface StudyInfo {
   InstitutionName?: string;
   ReferringPhysicianName?: string;
   ManufacturerModelName?: string;
-}
+};
 
 export interface WindowingInfo {
   WindowLevel: string;
@@ -74,9 +76,12 @@ export interface VolumeInfo extends WindowingInfo {
 
   NumberOfSlices: number;
   VolumeID: string;
+  // For 'cine', NumberOfSlices is the frame count. Optional for back-compat
+  // with saved state that predates the field.
+  kind?: 'volume' | 'cine';
 }
 
-interface State {
+type State = {
   // volumeKey -> imageCacheMultiKey -> ITKImage
   sliceData: Record<string, Record<string, Image>>;
 
@@ -101,7 +106,7 @@ interface State {
   volumeStudy: Record<string, string>;
   // studyKey -> patientKey
   studyPatient: Record<string, string>;
-}
+};
 
 /**
  * Trims and collapses multiple spaces into one.
@@ -119,6 +124,19 @@ export const getDisplayName = (info: VolumeInfo) => {
     'NONAME'
   );
 };
+
+export function isCineChunkGroup(chunks: Chunk[]): boolean {
+  if (chunks.length !== 1) return false;
+  const meta = chunks[0].metadata;
+  if (!meta) return false;
+  const lookup = Object.fromEntries(meta);
+  const sopClass = lookup[Tags.SOPClassUID] ?? '';
+  const numberOfFrames = parseInt(
+    (lookup[Tags.NumberOfFrames] ?? '0').trim(),
+    10
+  );
+  return isUltrasoundMultiframeSopClass(sopClass) && numberOfFrames > 1;
+}
 
 export const getWindowLevels = (info: VolumeInfo | WindowingInfo) => {
   const { WindowWidth, WindowLevel } = info;
@@ -176,10 +194,21 @@ export const useDICOMStore = defineStore('dicom', {
 
       await Promise.all(
         Object.entries(chunksByVolume).map(async ([id, sortedChunks]) => {
-          const image = imageCacheStore.imageById[id] ?? new DicomChunkImage();
-          if (!(image instanceof DicomChunkImage)) {
-            throw new Error('image is not a DicomChunkImage');
+          if (isCineChunkGroup(sortedChunks)) {
+            const importedAsCine = await this._importCineChunk(
+              id,
+              sortedChunks[0]
+            );
+            if (importedAsCine) return;
           }
+
+          const cachedImage = imageCacheStore.imageById[id];
+          if (cachedImage && !(cachedImage instanceof DicomChunkImage)) {
+            throw new Error(
+              `Volume ${id} is already loaded as a non-chunk progressive image; cannot re-import as a chunk volume.`
+            );
+          }
+          const image = cachedImage ?? new DicomChunkImage();
 
           // Sten Noted:
           // inside the addChunks function call, DICOM.splitAndSort is called again
@@ -189,7 +218,9 @@ export const useDICOMStore = defineStore('dicom', {
 
           if (volumeKeySuffix) {
             const volumeKey = id;
-            if (!loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey]) {
+            if (
+              !loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey]
+            ) {
               loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey] = {
                 layoutName: '',
                 slices: [],
@@ -201,13 +232,20 @@ export const useDICOMStore = defineStore('dicom', {
               const windowWidths = [];
               for (let s = 0; s < sortedChunks.length; s++) {
                 const chunk = sortedChunks[s];
-                const tags = chunk.metadata && Array.isArray(chunk.metadata) ? Object.fromEntries(chunk.metadata) : {};
+                const tags =
+                  chunk.metadata && Array.isArray(chunk.metadata)
+                    ? Object.fromEntries(chunk.metadata)
+                    : {};
                 const SOPInstanceUID = tags['0008|0018'] || '';
                 const InstanceNumber = tags['0020|0013'] || '';
                 const WindowLevel = tags['0028|1050'] || '';
                 const WindowWidth = tags['0028|1051'] || '';
                 // can get more tags here if needed...
-                filesInOrder.push({ chunk, n: parseInt(InstanceNumber || '0', 10), uid: SOPInstanceUID });
+                filesInOrder.push({
+                  chunk,
+                  n: parseInt(InstanceNumber || '0', 10),
+                  uid: SOPInstanceUID,
+                });
                 const [wl] = getWindowLevels({ WindowLevel, WindowWidth });
                 if (wl) {
                   windowLevels.push(wl.level);
@@ -216,22 +254,31 @@ export const useDICOMStore = defineStore('dicom', {
               }
               filesInOrder.sort((a, b) => a.n - b.n);
               for (let s = 0; s < sortedChunks.length; s++) {
-                const i = filesInOrder.findIndex(({ chunk }) => chunk === sortedChunks[s]);
+                const i = filesInOrder.findIndex(
+                  ({ chunk }) => chunk === sortedChunks[s]
+                );
                 const n = filesInOrder[i].n;
                 const width = windowWidths[i];
                 const level = windowLevels[i];
-                loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].slices.push({
+                loadDataStore.loadedByBus[volumeKeySuffix].volumes[
+                  volumeKey
+                ].slices.push({
                   width,
                   level,
                   n,
                   i,
                 });
-                const cachedFiles = loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
+                const cachedFiles =
+                  loadDataStore.loadedByBus[volumeKeySuffix].cachedFiles;
                 if (cachedFiles) {
-                  if ((filesInOrder[i].chunk?.dataBlob instanceof File)) {
+                  if (filesInOrder[i].chunk?.dataBlob instanceof File) {
                     const fileName = filesInOrder[i].chunk.dataBlob.name;
                     const filePath = cachedFiles.fileNameToPath[fileName];
-                    if (filePath && cachedFiles.fileByPath[filePath].tags?.SOPInstanceUID === filesInOrder[i].uid) {
+                    if (
+                      filePath &&
+                      cachedFiles.fileByPath[filePath].tags?.SOPInstanceUID ===
+                        filesInOrder[i].uid
+                    ) {
                       cachedFiles.fileByPath[filePath].slice = s;
                       cachedFiles.fileByPath[filePath].dataID = id;
                     }
@@ -241,9 +288,17 @@ export const useDICOMStore = defineStore('dicom', {
                   }
                 }
               }
-              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlDiffers = Math.max(...windowLevels) !== Math.min(...windowLevels) || Math.max(...windowWidths) !== Math.min(...windowWidths);
-              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfiged = {};
-              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey].wlConfigedByUser = false;
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[
+                volumeKey
+              ].wlDiffers =
+                Math.max(...windowLevels) !== Math.min(...windowLevels) ||
+                Math.max(...windowWidths) !== Math.min(...windowWidths);
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[
+                volumeKey
+              ].wlConfiged = {};
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[
+                volumeKey
+              ].wlConfigedByUser = false;
             }
             loadDataStore.dataIDToVolumeKeyUID[volumeKey] = volumeKeySuffix;
           }
@@ -278,6 +333,7 @@ export const useDICOMStore = defineStore('dicom', {
             SeriesDescription: metadata[Tags.SeriesDescription],
             WindowLevel: metadata[Tags.WindowLevel],
             WindowWidth: metadata[Tags.WindowWidth],
+            kind: 'volume',
           };
 
           this._updateDatabase(patientInfo, studyInfo, volumeInfo);
@@ -288,32 +344,64 @@ export const useDICOMStore = defineStore('dicom', {
           if (volumeKeySuffix) {
             if (image.imageMetadata.value.lpsOrientation) {
               const volumeKey = id;
-              const vol = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
-              const defaultLayoutName = imageCacheStore.getImageDefaultLayoutName(volumeKey);
+              const vol =
+                loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+              const defaultLayoutName =
+                imageCacheStore.getImageDefaultLayoutName(volumeKey);
               if (defaultLayoutName) {
                 if (!vol.layoutName) {
-                  const layoutName = loadDataStore.loadedByBus[volumeKeySuffix].options.layoutName || defaultLayoutName;
+                  const layoutName =
+                    loadDataStore.loadedByBus[volumeKeySuffix].options
+                      .layoutName || defaultLayoutName;
                   if (layoutName) {
                     vol.layoutName = layoutName;
                   }
                 }
-                const viewOrientation = image.imageMetadata.value.orientation.slice(6);
+                const viewOrientation =
+                  image.imageMetadata.value.orientation.slice(6);
                 switch (defaultLayoutName) {
                   case 'Axial Only': {
-                    if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Superior)) {
-                      vol.camera = { Axial: { viewDirection: 'Superior', viewUp: 'Anterior' } };
+                    if (
+                      deepEqual(
+                        viewOrientation,
+                        image.imageMetadata.value.lpsOrientation.Superior
+                      )
+                    ) {
+                      vol.camera = {
+                        Axial: {
+                          viewDirection: 'Superior',
+                          viewUp: 'Anterior',
+                        },
+                      };
                     }
                     break;
                   }
                   case 'Sagittal Only': {
-                    if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Left)) {
-                      vol.camera = { Sagittal: { viewDirection: 'Left', viewUp: 'Inferior' } };
+                    if (
+                      deepEqual(
+                        viewOrientation,
+                        image.imageMetadata.value.lpsOrientation.Left
+                      )
+                    ) {
+                      vol.camera = {
+                        Sagittal: { viewDirection: 'Left', viewUp: 'Inferior' },
+                      };
                     }
                     break;
                   }
                   case 'Coronal Only': {
-                    if (deepEqual(viewOrientation, image.imageMetadata.value.lpsOrientation.Anterior)) {
-                      vol.camera = { Coronal: { viewDirection: 'Anterior', viewUp: 'Inferior' } };
+                    if (
+                      deepEqual(
+                        viewOrientation,
+                        image.imageMetadata.value.lpsOrientation.Anterior
+                      )
+                    ) {
+                      vol.camera = {
+                        Coronal: {
+                          viewDirection: 'Anterior',
+                          viewUp: 'Inferior',
+                        },
+                      };
                     }
                     break;
                   }
@@ -329,18 +417,79 @@ export const useDICOMStore = defineStore('dicom', {
 
       if (volumeKeySuffix) {
         let offset = 0;
-        Object.entries(loadDataStore.loadedByBus[volumeKeySuffix].volumes).map(([volumeKey, { slices }]) => ({ volumeKey, n0: slices[0]?.n })).sort((a, b) => a.n0 - b.n0).forEach(({ volumeKey }) => {
-          const volumeKeys = loadDataStore.loadedByBus[volumeKeySuffix].volumeKeys;
-          volumeKeys.push(volumeKey);
-          const { slices } = loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
-          slices.forEach((slice, s) => {
-            slices[s].i += offset;
+        Object.entries(loadDataStore.loadedByBus[volumeKeySuffix].volumes)
+          .map(([volumeKey, { slices }]) => ({ volumeKey, n0: slices[0]?.n }))
+          .sort((a, b) => a.n0 - b.n0)
+          .forEach(({ volumeKey }) => {
+            const volumeKeys =
+              loadDataStore.loadedByBus[volumeKeySuffix].volumeKeys;
+            volumeKeys.push(volumeKey);
+            const { slices } =
+              loadDataStore.loadedByBus[volumeKeySuffix].volumes[volumeKey];
+            slices.forEach((slice, s) => {
+              slices[s].i += offset;
+            });
+            offset += slices.length;
           });
-          offset += slices.length;
-        });
       }
 
       return chunksByVolume;
+    },
+
+    async _importCineChunk(id: string, chunk: Chunk): Promise<boolean> {
+      const imageCacheStore = useImageCacheStore();
+
+      // If we already created this cine image (state-file reload), bail.
+      if (this.volumeInfo[id]?.kind === 'cine') {
+        return true;
+      }
+
+      const cachedImage = imageCacheStore.imageById[id];
+      if (cachedImage && !(cachedImage instanceof DicomCineImage)) {
+        throw new Error(
+          `Volume ${id} is already loaded as a non-cine progressive image; cannot re-import as a cine clip.`
+        );
+      }
+
+      await chunk.loadData();
+      const blob = chunk.dataBlob;
+      if (!blob) throw new Error('Cine DICOM chunk has no data');
+      const buffer = await blob.arrayBuffer();
+      let parsed: ReturnType<typeof parseCineDicom>;
+      try {
+        parsed = parseCineDicom(buffer);
+      } catch (err) {
+        console.warn(
+          'Failed to parse cine DICOM; falling back to volume import',
+          err
+        );
+        return false;
+      }
+
+      if (!DicomCineImage.isSupported(parsed.header)) {
+        return false;
+      }
+
+      const image = new DicomCineImage(parsed);
+      imageCacheStore.addProgressiveImage(image, { id });
+
+      const { patient, study, series } = parsed.header;
+      const volumeInfo: VolumeInfo = {
+        NumberOfSlices: parsed.header.numberOfFrames,
+        VolumeID: id,
+        Modality: series.Modality,
+        SeriesInstanceUID: series.SeriesInstanceUID,
+        SeriesNumber: series.SeriesNumber,
+        SeriesDescription: series.SeriesDescription,
+        WindowLevel: '',
+        WindowWidth: '',
+        kind: 'cine',
+      };
+
+      this._updateDatabase(patient, study, volumeInfo);
+
+      image.setName(getDisplayName(volumeInfo));
+      return true;
     },
 
     _updateDatabase(
