@@ -53,4 +53,11 @@ export const PROCESS_DEFINITIONS: ProcessDefinition[] = [
     controls: GaussianSmoothParameterControls,
     getAlgorithm: () => useGaussianSmoothStore().computeAlgorithm,
   },
-];
+].sort((a, b) => {
+  const order = [
+    ProcessType.GaussianSmooth,
+    ProcessType.FillBetween,
+    ProcessType.FillHoles,
+  ];
+  return order.indexOf(a.type) - order.indexOf(b.type);
+});
