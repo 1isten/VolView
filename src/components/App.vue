@@ -508,7 +508,7 @@ export default defineComponent({
     );
     const leftSideBar = ref(false);
 
-    const drawerWidthMin = 350;
+    const drawerWidthMin = 422;
     const drawerWidthMax = 1024;
     const drawerWidth = useLocalStorage('vv-drawer-width', drawerWidthMin);
     const drawerResizerWidth = 8;

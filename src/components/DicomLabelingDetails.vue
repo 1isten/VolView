@@ -4,7 +4,13 @@
       <transition name="labeling-status-fade">
         <div v-if="mutationStatus" class="labeling-status-overlay pa-2">
           <v-alert
-            :type="mutationStatus.type === 'error' ? 'error' : mutationStatus.type === 'success' ? 'success' : 'info'"
+            :type="
+              mutationStatus.type === 'error'
+                ? 'error'
+                : mutationStatus.type === 'success'
+                  ? 'success'
+                  : 'info'
+            "
             variant="tonal"
             density="compact"
             class="labeling-status-alert"
@@ -13,16 +19,27 @@
           </v-alert>
         </div>
       </transition>
-      <div class="position-absolute top-0 left-0 w-100 h-100 pa-2 overflow-auto labeling-details-panel">
-        <div v-if="showNoSliceState" class="empty-state labeling-empty-state ma-4 text-center">
-          <v-icon size="28" color="medium-emphasis" class="mb-2">mdi-image-off-outline</v-icon>
+      <div
+        class="position-absolute top-0 left-0 w-100 h-100 pa-2 overflow-auto labeling-details-panel"
+      >
+        <div
+          v-if="showNoSliceState"
+          class="empty-state labeling-empty-state ma-4 text-center"
+        >
+          <v-icon size="28" color="medium-emphasis" class="mb-2"
+            >mdi-image-off-outline</v-icon
+          >
           <div class="text-subtitle-2 mb-1">No DICOM Slice Selected</div>
           <div class="text-body-2 text-medium-emphasis">
-            Load a DICOM series or move to a slice to view labeling details here.
+            Load a DICOM series or move to a slice to view labeling details
+            here.
           </div>
         </div>
 
-        <div v-else-if="!currentSliceLabeling?.matched" class="pa-2 d-flex flex-column ga-3">
+        <div
+          v-else-if="!currentSliceLabeling?.matched"
+          class="pa-2 d-flex flex-column ga-3"
+        >
           <v-card variant="tonal" color="info">
             <v-card-text class="pa-3">
               <div class="d-flex align-center ga-2 mb-2">
@@ -37,10 +54,18 @@
 
           <v-card variant="outlined">
             <v-card-text class="pa-3">
-              <div class="text-overline text-medium-emphasis mb-2">Current Slice</div>
-              <div class="text-caption text-medium-emphasis mb-1">SOP Instance UID</div>
+              <div class="text-overline text-medium-emphasis mb-2">
+                Current Slice
+              </div>
+              <div class="text-caption text-medium-emphasis mb-1">
+                SOP Instance UID
+              </div>
               <div class="text-body-2 labeling-text-break">
-                {{ currentSliceMetadata.SOPInstanceUID || currentSliceLabeling?.currentSlice?.sopInstanceUID || 'Unavailable' }}
+                {{
+                  currentSliceMetadata.SOPInstanceUID ||
+                  currentSliceLabeling?.currentSlice?.sopInstanceUID ||
+                  'Unavailable'
+                }}
               </div>
             </v-card-text>
           </v-card>
@@ -50,35 +75,70 @@
           <v-card variant="outlined" class="labeling-summary-card">
             <v-card-text class="pa-3">
               <div class="d-flex align-start ga-3">
-                <div class="labeling-summary-icon labeling-no-shrink d-flex align-center justify-center">
+                <div
+                  class="labeling-summary-icon labeling-no-shrink d-flex align-center justify-center"
+                >
                   <v-icon>mdi-file-image-outline</v-icon>
                 </div>
                 <div class="labeling-fill min-w-0">
                   <div class="d-flex align-start ga-2">
                     <div class="labeling-fill min-w-0">
-                      <div class="text-overline text-medium-emphasis">Current Slice</div>
-                      <div class="text-subtitle-1 labeling-text-break font-weight-medium">
-                        {{ currentSliceLabeling.itemName || currentSliceLabeling.instance?.fileName || 'Current DICOM Instance' }}
+                      <div class="text-overline text-medium-emphasis">
+                        Current Slice
+                      </div>
+                      <div
+                        class="text-subtitle-1 labeling-text-break font-weight-medium"
+                      >
+                        {{
+                          currentSliceLabeling.itemName ||
+                          currentSliceLabeling.instance?.fileName ||
+                          'Current DICOM Instance'
+                        }}
                       </div>
                     </div>
-                    <v-chip size="small" variant="tonal" color="primary" @click="openLabelAssignment()">
+                    <v-chip
+                      size="small"
+                      variant="tonal"
+                      color="primary"
+                      @click="openLabelAssignment()"
+                    >
                       {{ labelCountText }}
                     </v-chip>
                   </div>
 
-                  <div class="text-caption text-medium-emphasis labeling-text-break mt-1">
-                    {{ currentSliceLabeling.instance?.sopInstanceUID }}
+                  <div
+                    class="text-caption text-medium-emphasis labeling-text-break mt-1"
+                  >
+                    <small>{{
+                      currentSliceLabeling.instance?.sopInstanceUID
+                    }}</small>
                   </div>
 
                   <div class="d-flex flex-wrap ga-2 mt-3">
                     <v-chip size="small" variant="outlined" v-if="false">
                       {{ currentSliceLabeling.slot || 'instance' }}
                     </v-chip>
-                    <v-chip v-if="currentSliceLabeling.instance?.instanceNumber != null" size="small" variant="outlined">
-                      Instance #{{ currentSliceLabeling.instance.instanceNumber }}
+                    <v-chip
+                      v-if="
+                        currentSliceLabeling.instance?.instanceNumber != null
+                      "
+                      size="small"
+                      variant="outlined"
+                    >
+                      Instance #{{
+                        currentSliceLabeling.instance.instanceNumber
+                      }}
                     </v-chip>
-                    <v-chip size="small" variant="outlined" v-if="currentSliceLabeling.labels?.length === 0">
-                      {{ currentSliceLabeling.labels?.length ? 'Linked' : 'Unlabeled' }}
+                    <v-chip
+                      size="small"
+                      variant="outlined"
+                      v-if="currentSliceLabeling.labels?.length === 0"
+                    >
+                      {{
+                        currentSliceLabeling.labels?.length
+                          ? 'Linked'
+                          : 'Unlabeled'
+                      }}
                     </v-chip>
                   </div>
                 </div>
@@ -86,36 +146,90 @@
             </v-card-text>
           </v-card>
 
-          <v-card v-if="!currentSliceLabeling.labels?.length" variant="tonal" color="info">
+          <v-card
+            v-if="!currentSliceLabeling.labels?.length"
+            variant="tonal"
+            color="info"
+          >
             <v-card-text class="pa-4 text-center">
-              <v-icon size="26" color="info" class="mb-2">mdi-label-outline</v-icon>
+              <v-icon size="26" color="info" class="mb-2"
+                >mdi-label-outline</v-icon
+              >
               <div class="text-subtitle-2 mb-1">No Labels Assigned</div>
               <div class="text-body-2 text-medium-emphasis mb-3">
-                Assign one or more labels to start attaching details to this slice.
+                <small style="font-size: smaller"
+                  >Assign one or more labels to start attaching details to this
+                  slice.</small
+                >
               </div>
-              <v-btn size="small" variant="text" color="primary" @click="openLabelAssignment()">
+              <v-btn
+                size="small"
+                variant="text"
+                color="primary"
+                @click="openLabelAssignment()"
+              >
                 Assign Labels
               </v-btn>
             </v-card-text>
           </v-card>
 
-          <div v-for="label in currentSliceLabeling.labels || []" :key="label.name" class="label-card-wrapper">
+          <div
+            v-for="label in currentSliceLabeling.labels || []"
+            :key="label.name"
+            class="label-card-wrapper"
+          >
             <v-card variant="outlined" class="label-card">
               <v-card-text class="pa-3">
                 <div class="d-flex align-start ga-3 mb-3">
-                  <span class="label-swatch label-swatch-large mt-1" :style="{ backgroundColor: label.color || '#888888' }" />
+                  <span
+                    class="label-swatch label-swatch-large mt-1"
+                    :style="{ backgroundColor: label.color || '#888888' }"
+                  />
                   <div class="labeling-fill min-w-0">
                     <div class="d-flex align-start ga-2">
                       <div class="labeling-fill min-w-0">
-                        <div class="text-subtitle-2 labeling-text-break">{{ label.name }}</div>
+                        <div class="text-subtitle-2 labeling-text-break">
+                          {{ label.name }}
+                        </div>
                         <div class="d-flex flex-wrap ga-2 mt-2" v-if="false">
-                          <v-chip v-if="label.details?.description" size="x-small" variant="tonal">Noted</v-chip>
-                          <v-chip v-if="metaEntries(label).length" size="x-small" variant="tonal">{{ metaEntries(label).length }} Meta</v-chip>
-                          <v-chip v-if="fileEntries(label).length" size="x-small" variant="tonal">{{ fileEntries(label).length }} File{{ fileEntries(label).length === 1 ? '' : 's' }}</v-chip>
-                          <v-chip v-if="!label.details?.description && !metaEntries(label).length && !fileEntries(label).length" size="x-small" variant="outlined">No details yet</v-chip>
+                          <v-chip
+                            v-if="label.details?.description"
+                            size="x-small"
+                            variant="tonal"
+                            >Noted</v-chip
+                          >
+                          <v-chip
+                            v-if="metaEntries(label).length"
+                            size="x-small"
+                            variant="tonal"
+                            >{{ metaEntries(label).length }} Meta</v-chip
+                          >
+                          <v-chip
+                            v-if="fileEntries(label).length"
+                            size="x-small"
+                            variant="tonal"
+                            >{{ fileEntries(label).length }} File{{
+                              fileEntries(label).length === 1 ? '' : 's'
+                            }}</v-chip
+                          >
+                          <v-chip
+                            v-if="
+                              !label.details?.description &&
+                              !metaEntries(label).length &&
+                              !fileEntries(label).length
+                            "
+                            size="x-small"
+                            variant="outlined"
+                            >No details yet</v-chip
+                          >
                         </div>
                       </div>
-                      <v-btn size="small" variant="text" color="primary" @click="openLabelDetails(label)">
+                      <v-btn
+                        size="small"
+                        variant="text"
+                        color="primary"
+                        @click="openLabelDetails(label)"
+                      >
                         Open Details
                       </v-btn>
                     </div>
@@ -123,9 +237,19 @@
                 </div>
 
                 <div class="mb-3">
-                  <div class="text-caption text-medium-emphasis mb-1">Description</div>
-                  <template v-if="label.details?.description && !isEditingDescription(label)">
-                    <div class="labeling-section pa-3 text-body-2 whitespace-pre-wrap">{{ label.details.description }}</div>
+                  <div class="text-caption text-medium-emphasis mb-1">
+                    Description
+                  </div>
+                  <template
+                    v-if="
+                      label.details?.description && !isEditingDescription(label)
+                    "
+                  >
+                    <div
+                      class="labeling-section pa-3 text-body-2 whitespace-pre-wrap"
+                    >
+                      {{ label.details.description }}
+                    </div>
                     <div class="d-flex justify-end mt-2 mb-n5">
                       <v-btn
                         size="small"
@@ -137,9 +261,22 @@
                       </v-btn>
                     </div>
                   </template>
-                  <div v-else-if="!label.details?.description && !isEditingDescription(label)" class="labeling-section pa-3 d-flex align-center justify-space-between ga-3">
-                    <div class="text-body-2 text-medium-emphasis">No description yet.</div>
-                    <v-btn size="small" variant="text" color="primary" @click="startEditDescription(label)">
+                  <div
+                    v-else-if="
+                      !label.details?.description &&
+                      !isEditingDescription(label)
+                    "
+                    class="labeling-section pa-3 d-flex align-center justify-space-between ga-3"
+                  >
+                    <div class="text-body-2 text-medium-emphasis">
+                      No description yet.
+                    </div>
+                    <v-btn
+                      size="small"
+                      variant="text"
+                      color="primary"
+                      @click="startEditDescription(label)"
+                    >
                       Add Note
                     </v-btn>
                   </div>
@@ -154,29 +291,79 @@
                       hide-details="auto"
                     />
                     <div class="d-flex justify-end ga-2 mt-3">
-                      <v-btn size="small" variant="text" @click="cancelEditDescription()">Cancel</v-btn>
-                      <v-btn v-if="label.details?.description" size="small" variant="tonal" color="error" @click="clearDescription(label)">Clear</v-btn>
-                      <v-btn size="small" variant="tonal" color="primary" @click="saveDescription(label)">Save</v-btn>
+                      <v-btn
+                        size="small"
+                        variant="text"
+                        @click="cancelEditDescription()"
+                        >Cancel</v-btn
+                      >
+                      <v-btn
+                        v-if="label.details?.description"
+                        size="small"
+                        variant="tonal"
+                        color="error"
+                        @click="clearDescription(label)"
+                        >Clear</v-btn
+                      >
+                      <v-btn
+                        size="small"
+                        variant="tonal"
+                        color="primary"
+                        @click="saveDescription(label)"
+                        >Save</v-btn
+                      >
                     </div>
                   </div>
                 </div>
 
                 <div class="mb-3">
-                  <div class="text-caption text-medium-emphasis mb-1">Metadata</div>
-                  <div v-if="metaEntries(label).length && !isEditingMetadata(label)" class="labeling-section">
-                    <div v-for="([key, value], index) in metaEntries(label)" :key="`${label.name}-meta-${index}`" class="d-flex justify-space-between ga-3 text-body-2 px-3 py-2 labeling-row-divider">
-                      <span class="font-weight-medium labeling-text-break">{{ key }}</span>
-                      <span class="text-medium-emphasis text-right me-3 labeling-text-break">{{ formatMetaValue(value) }}</span>
+                  <div class="text-caption text-medium-emphasis mb-1">
+                    Metadata
+                  </div>
+                  <div
+                    v-if="
+                      metaEntries(label).length && !isEditingMetadata(label)
+                    "
+                    class="labeling-section"
+                  >
+                    <div
+                      v-for="([key, value], index) in metaEntries(label)"
+                      :key="`${label.name}-meta-${index}`"
+                      class="d-flex justify-space-between ga-3 text-body-2 px-3 py-2 labeling-row-divider"
+                    >
+                      <span class="font-weight-medium labeling-text-break">{{
+                        key
+                      }}</span>
+                      <span
+                        class="text-medium-emphasis text-right me-3 labeling-text-break"
+                        >{{ formatMetaValue(value) }}</span
+                      >
                     </div>
                   </div>
-                  <div v-else-if="!metaEntries(label).length && !isEditingMetadata(label)" class="labeling-section pa-3 d-flex align-center justify-space-between ga-3">
-                    <div class="text-body-2 text-medium-emphasis">No metadata yet.</div>
-                    <v-btn size="small" variant="text" color="primary" @click="startEditMetadata(label)">
+                  <div
+                    v-else-if="
+                      !metaEntries(label).length && !isEditingMetadata(label)
+                    "
+                    class="labeling-section pa-3 d-flex align-center justify-space-between ga-3"
+                  >
+                    <div class="text-body-2 text-medium-emphasis">
+                      No metadata yet.
+                    </div>
+                    <v-btn
+                      size="small"
+                      variant="text"
+                      color="primary"
+                      @click="startEditMetadata(label)"
+                    >
                       Add Meta
                     </v-btn>
                   </div>
                   <div v-else class="labeling-section pa-3">
-                    <div v-for="(row, index) in metadataDraftRows" :key="`${label.name}-meta-edit-${index}`" class="d-flex align-start ga-2 mb-2">
+                    <div
+                      v-for="(row, index) in metadataDraftRows"
+                      :key="`${label.name}-meta-edit-${index}`"
+                      class="d-flex align-start ga-2 mb-2"
+                    >
                       <v-text-field
                         v-model="row.key"
                         label="Key"
@@ -193,28 +380,84 @@
                         hide-details
                         class="labeling-fill"
                       />
-                      <v-btn icon size="small" variant="text" color="error" @click="removeMetadataRow(index)">
+                      <v-btn
+                        icon
+                        size="small"
+                        variant="text"
+                        color="error"
+                        @click="removeMetadataRow(index)"
+                      >
                         <v-icon size="18">mdi-delete-outline</v-icon>
                       </v-btn>
                     </div>
-                    <div class="d-flex justify-space-between align-center mt-3 ga-2">
-                      <v-btn size="small" variant="text" color="primary" @click="addMetadataRow()">Add Row</v-btn>
+                    <div
+                      class="d-flex justify-space-between align-center mt-3 ga-2"
+                    >
+                      <v-btn
+                        size="small"
+                        variant="text"
+                        color="primary"
+                        @click="addMetadataRow()"
+                        >Add Row</v-btn
+                      >
                       <div class="d-flex ga-2">
-                        <v-btn size="small" variant="text" @click="cancelEditMetadata()">Cancel</v-btn>
-                        <v-btn size="small" variant="tonal" color="primary" @click="saveMetadata(label)">Save</v-btn>
+                        <v-btn
+                          size="small"
+                          variant="text"
+                          @click="cancelEditMetadata()"
+                          >Cancel</v-btn
+                        >
+                        <v-btn
+                          size="small"
+                          variant="tonal"
+                          color="primary"
+                          @click="saveMetadata(label)"
+                          >Save</v-btn
+                        >
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div v-if="fileEntries(label).length" class="mb-3">
-                  <div class="text-caption text-medium-emphasis mb-1">Files</div>
+                  <div class="text-caption text-medium-emphasis mb-1">
+                    Files
+                  </div>
                   <div class="labeling-section">
-                    <div v-for="([path, file], index) in fileEntries(label)" :key="`${label.name}-file-${index}`" class="d-flex ga-3 pa-3 py-2 labeling-row-divider">
-                      <v-icon size="18" class="mt-1 labeling-no-shrink" :color="filePathExists[path] === false ? 'error' : 'medium-emphasis'">mdi-file-document-outline</v-icon>
+                    <div
+                      v-for="([path, file], index) in fileEntries(label)"
+                      :key="`${label.name}-file-${index}`"
+                      class="d-flex ga-3 pa-3 py-2 labeling-row-divider"
+                    >
+                      <v-icon
+                        size="18"
+                        class="mt-1 labeling-no-shrink"
+                        :color="
+                          filePathExists[path] === false
+                            ? 'error'
+                            : 'medium-emphasis'
+                        "
+                        >mdi-file-document-outline</v-icon
+                      >
                       <div class="labeling-fill min-w-0">
-                        <div class="text-body-2 labeling-text-break" :class="{ 'text-error': filePathExists[path] === false }">{{ file?.name || path }}</div>
-                        <div class="text-caption labeling-text-break mt-1" :class="filePathExists[path] === false ? 'text-error' : 'text-medium-emphasis'">{{ path }}</div>
+                        <div
+                          class="text-body-2 labeling-text-break"
+                          :class="{
+                            'text-error': filePathExists[path] === false,
+                          }"
+                        >
+                          {{ file?.name || path }}
+                        </div>
+                        <div
+                          class="text-caption labeling-text-break mt-1"
+                          :class="
+                            filePathExists[path] === false
+                              ? 'text-error'
+                              : 'text-medium-emphasis'
+                          "
+                        >
+                          {{ path }}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -222,7 +465,9 @@
 
                 <div class="d-flex justify-end ga-2 mt-1">
                   <v-btn
-                    v-if="!isEditingDescription(label) && !isEditingMetadata(label)"
+                    v-if="
+                      !isEditingDescription(label) && !isEditingMetadata(label)
+                    "
                     size="small"
                     variant="text"
                     color="error"
@@ -232,7 +477,9 @@
                     Remove Label
                   </v-btn>
                   <v-btn
-                    v-if="!isEditingMetadata(label) && metaEntries(label).length"
+                    v-if="
+                      !isEditingMetadata(label) && metaEntries(label).length
+                    "
                     size="small"
                     variant="text"
                     color="primary"
@@ -265,7 +512,11 @@ const loadDataStore = useLoadDataStore();
 
 const currentSliceMetadata = computed(() => loadDataStore.currentSliceMetadata);
 const currentSliceLabeling = computed(() => loadDataStore.currentSliceLabeling);
-const showNoSliceState = computed(() => !currentSliceMetadata.value || currentSliceLabeling.value?.reason === 'tree-files-view');
+const showNoSliceState = computed(
+  () =>
+    !currentSliceMetadata.value ||
+    currentSliceLabeling.value?.reason === 'tree-files-view'
+);
 const labelCountText = computed(() => {
   const count = currentSliceLabeling.value?.labels?.length || 0;
   return `${count} Label${count === 1 ? '' : 's'}`;
@@ -285,13 +536,19 @@ function requestPathExistsViaParent(path) {
   return new Promise((resolve) => {
     const requestId = `volview-path-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const handler = (e) => {
-      if (e.data?.type === 'volview:path-exists-result' && e.data?.requestId === requestId) {
+      if (
+        e.data?.type === 'volview:path-exists-result' &&
+        e.data?.requestId === requestId
+      ) {
         window.removeEventListener('message', handler);
         resolve(e.data.exists);
       }
     };
     window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'volview:path-exists', requestId, path }, '*');
+    window.parent.postMessage(
+      { type: 'volview:path-exists', requestId, path },
+      '*'
+    );
     setTimeout(() => {
       window.removeEventListener('message', handler);
       resolve(null);
@@ -370,7 +627,7 @@ function getCurrentSliceSnapshotKey() {
   }
   return JSON.stringify({
     dataKey: slice.dataKey,
-    labels: (slice.labels || []).map(label => ({
+    labels: (slice.labels || []).map((label) => ({
       name: label.name,
       description: label.details?.description || null,
       meta: label.details?.meta || null,
@@ -398,7 +655,8 @@ function setMutationStatus(type, text, options = {}) {
 }
 
 function emitHostMessage(type, payload) {
-  const message = payload === undefined ? type : { type, payload: cloneHostPayload(payload) };
+  const message =
+    payload === undefined ? type : { type, payload: cloneHostPayload(payload) };
   if (window.parent && window.parent !== window) {
     window.parent.postMessage(message, '*');
     return;
@@ -414,7 +672,10 @@ function openLabelDetails(label) {
     root: currentSliceLabeling.value.root,
     keys: [...(currentSliceLabeling.value.keys || [])],
     slot: currentSliceLabeling.value.slot || 'instance',
-    itemName: currentSliceLabeling.value.itemName || currentSliceLabeling.value.instance?.fileName || 'Current DICOM Instance',
+    itemName:
+      currentSliceLabeling.value.itemName ||
+      currentSliceLabeling.value.instance?.fileName ||
+      'Current DICOM Instance',
     label: label.name,
     color: label.color || '#888888',
   });
@@ -428,7 +689,10 @@ function openLabelAssignment() {
     root: currentSliceLabeling.value.root,
     keys: [...(currentSliceLabeling.value.keys || [])],
     slot: currentSliceLabeling.value.slot || 'instance',
-    itemName: currentSliceLabeling.value.itemName || currentSliceLabeling.value.instance?.fileName || 'Current DICOM Instance',
+    itemName:
+      currentSliceLabeling.value.itemName ||
+      currentSliceLabeling.value.instance?.fileName ||
+      'Current DICOM Instance',
   });
 }
 
@@ -443,7 +707,10 @@ function queueMutation(type, payload, successText) {
   mutationStatusTimer = setTimeout(() => {
     if (pendingMutation.value) {
       pendingMutation.value = null;
-      mutationStatus.value = { type: 'error', text: 'The change did not confirm yet. Please retry if needed.' };
+      mutationStatus.value = {
+        type: 'error',
+        text: 'The change did not confirm yet. Please retry if needed.',
+      };
     }
     mutationStatusTimer = null;
   }, 5000);
@@ -506,12 +773,16 @@ function saveDescription(label) {
     cancelEditDescription();
     return;
   }
-  queueMutation('volview:save-label-description', {
-    root: currentSliceLabeling.value.root,
-    keys: [...(currentSliceLabeling.value.keys || [])],
-    label: label.name,
-    description: descriptionDraft.value,
-  }, 'Note saved.');
+  queueMutation(
+    'volview:save-label-description',
+    {
+      root: currentSliceLabeling.value.root,
+      keys: [...(currentSliceLabeling.value.keys || [])],
+      label: label.name,
+      description: descriptionDraft.value,
+    },
+    'Note saved.'
+  );
   cancelEditDescription();
 }
 
@@ -519,12 +790,16 @@ function clearDescription(label) {
   if (!currentSliceLabeling.value?.matched || !label?.name) {
     return;
   }
-  queueMutation('volview:save-label-description', {
-    root: currentSliceLabeling.value.root,
-    keys: [...(currentSliceLabeling.value.keys || [])],
-    label: label.name,
-    description: '',
-  }, 'Note cleared.');
+  queueMutation(
+    'volview:save-label-description',
+    {
+      root: currentSliceLabeling.value.root,
+      keys: [...(currentSliceLabeling.value.keys || [])],
+      label: label.name,
+      description: '',
+    },
+    'Note cleared.'
+  );
   cancelEditDescription();
 }
 
@@ -533,20 +808,32 @@ function saveMetadata(label) {
     return;
   }
   const rows = metadataDraftRows.value
-    .map(row => ({ key: `${row?.key ?? ''}`.trim(), value: `${row?.value ?? ''}` }))
-    .filter(row => row.key);
-  const currentRows = metaEntries(label).map(([key, value]) => ({ key, value: value == null ? '' : String(value) }));
+    .map((row) => ({
+      key: `${row?.key ?? ''}`.trim(),
+      value: `${row?.value ?? ''}`,
+    }))
+    .filter((row) => row.key);
+  const currentRows = metaEntries(label).map(([key, value]) => ({
+    key,
+    value: value == null ? '' : String(value),
+  }));
   if (JSON.stringify(rows) === JSON.stringify(currentRows)) {
-    setMutationStatus('info', 'No metadata changes to save.', { autoClearMs: 1800 });
+    setMutationStatus('info', 'No metadata changes to save.', {
+      autoClearMs: 1800,
+    });
     cancelEditMetadata();
     return;
   }
-  queueMutation('volview:save-label-metadata', {
-    root: currentSliceLabeling.value.root,
-    keys: [...(currentSliceLabeling.value.keys || [])],
-    label: label.name,
-    rows,
-  }, rows.length ? 'Metadata saved.' : 'Metadata cleared.');
+  queueMutation(
+    'volview:save-label-metadata',
+    {
+      root: currentSliceLabeling.value.root,
+      keys: [...(currentSliceLabeling.value.keys || [])],
+      label: label.name,
+      rows,
+    },
+    rows.length ? 'Metadata saved.' : 'Metadata cleared.'
+  );
   cancelEditMetadata();
 }
 
@@ -554,11 +841,15 @@ function removeLabelAssignment(label) {
   if (!currentSliceLabeling.value?.matched || !label?.name) {
     return;
   }
-  queueMutation('volview:remove-label-assignment', {
-    root: currentSliceLabeling.value.root,
-    keys: [...(currentSliceLabeling.value.keys || [])],
-    label: label.name,
-  }, `Removed label "${label.name}".`);
+  queueMutation(
+    'volview:remove-label-assignment',
+    {
+      root: currentSliceLabeling.value.root,
+      keys: [...(currentSliceLabeling.value.keys || [])],
+      label: label.name,
+    },
+    `Removed label "${label.name}".`
+  );
 }
 
 watch(getCurrentSliceSnapshotKey, (nextKey) => {
@@ -572,31 +863,47 @@ watch(getCurrentSliceSnapshotKey, (nextKey) => {
   }
 });
 
-watch(() => currentSliceLabeling.value?.dataKey, () => {
-  cancelEditDescription();
-  cancelEditMetadata();
-  pendingMutation.value = null;
-  clearMutationStatusTimer();
-  mutationStatus.value = null;
-  checkFilePaths();
-});
-
-watch(() => props.modulePanelOpened, (opened) => {
-  if (!opened) {
+watch(
+  () => currentSliceLabeling.value?.dataKey,
+  () => {
     cancelEditDescription();
     cancelEditMetadata();
     pendingMutation.value = null;
     clearMutationStatusTimer();
     mutationStatus.value = null;
+    checkFilePaths();
   }
-});
+);
 
-watch(() => {
-  const labels = currentSliceLabeling.value?.labels || [];
-  return labels.map((label) => fileEntries(label).map(([path]) => path).join(',')).join('|');
-}, () => {
-  checkFilePaths();
-}, { immediate: true });
+watch(
+  () => props.modulePanelOpened,
+  (opened) => {
+    if (!opened) {
+      cancelEditDescription();
+      cancelEditMetadata();
+      pendingMutation.value = null;
+      clearMutationStatusTimer();
+      mutationStatus.value = null;
+    }
+  }
+);
+
+watch(
+  () => {
+    const labels = currentSliceLabeling.value?.labels || [];
+    return labels
+      .map((label) =>
+        fileEntries(label)
+          .map(([path]) => path)
+          .join(',')
+      )
+      .join('|');
+  },
+  () => {
+    checkFilePaths();
+  },
+  { immediate: true }
+);
 
 onBeforeUnmount(() => {
   clearMutationStatusTimer();
@@ -695,7 +1002,9 @@ onBeforeUnmount(() => {
 
 .labeling-status-fade-enter-active,
 .labeling-status-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
 .labeling-status-fade-enter-from,
