@@ -63,7 +63,13 @@ const EXTENSIONS = [
   'mha',
   'vtk',
   'iwi.cbor',
-].slice(2, 4);
+].filter((ext) =>
+  [
+    'nii.gz',
+    'dcm',
+    // ... only allow above formats for manual ROI mask
+  ].includes(ext)
+);
 
 const props = defineProps<{
   id: string;
@@ -104,7 +110,8 @@ async function saveSegmentGroup() {
     const serialized = await writeSegmentation(
       fileFormat.value,
       segmentGroupStore.dataIndex[props.id],
-      segmentGroupStore.metadataByID[props.id]
+      segmentGroupStore.metadataByID[props.id],
+      fileFormat.value !== 'dcm' // Explicit VR Little Endian (1.2.840.10008.1.2.1)
     );
     if (roiMode.value && fileFormat.value in FILE_EXT_TO_MIME) {
       if ('$electron' in window && manualInputId.value) {

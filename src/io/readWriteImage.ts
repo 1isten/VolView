@@ -41,7 +41,8 @@ export const readImage = async (file: File): Promise<ReadImageResult> => {
 export const writeImage = async (
   format: string,
   image: vtkImageData,
-  metadata?: Map<string, string>
+  metadata?: Map<string, string>,
+  useCompression?: boolean
 ) => {
   if (format === 'vti') {
     return vtiWriter(image);
@@ -55,7 +56,7 @@ export const writeImage = async (
 
   const result = await writeImageItk(itkImage, `image.${format}`, {
     webWorker: getWorker(),
-    useCompression: true,
+    useCompression: useCompression ?? true,
   });
   return result.serializedImage.data as Uint8Array<ArrayBuffer>;
 };
@@ -63,12 +64,13 @@ export const writeImage = async (
 export const writeSegmentation = (
   format: string,
   image: vtkImageData,
-  segMetadata: SegmentGroupMetadata
+  segMetadata: SegmentGroupMetadata,
+  useCompression?: boolean
 ) => {
   const metadata = maybeBuildSegNrrdMetadata(
     format,
     segMetadata,
     image.getDimensions() as [number, number, number]
   );
-  return writeImage(format, image, metadata);
+  return writeImage(format, image, metadata, useCompression);
 };
