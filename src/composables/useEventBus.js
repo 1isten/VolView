@@ -3,7 +3,15 @@ import { useUrlSearchParams } from '@vueuse/core';
 
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
-  const { uid, datasetId, projectId, pipelineId, blackboxTaskId, pipelineEmbedded, manualNodeId } = query;
+  const {
+    uid,
+    datasetId,
+    projectId,
+    pipelineId,
+    blackboxTaskId,
+    pipelineEmbedded,
+    manualNodeId,
+  } = query;
 
   const peerId = `volview-${projectId || datasetId || uid || window.btoa(encodeURIComponent(document.location.href))}`;
   const ports = Object.create(null);
@@ -122,7 +130,7 @@ export function useEventBus(handlers, loadDataStore) {
     if (onstopcine) {
       emitter.on('stopcine', onstopcine);
     }
-    onuserselectfiles = files => {
+    onuserselectfiles = (files) => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
         if (port) {
@@ -135,7 +143,7 @@ export function useEventBus(handlers, loadDataStore) {
         emitVolViewEvent('volview:userselectfiles', { files });
       }
     };
-    onsavesession = payload => {
+    onsavesession = (payload) => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
         if (port) {
@@ -146,7 +154,7 @@ export function useEventBus(handlers, loadDataStore) {
         }
       }
     };
-    onsavesegmentation = payload => {
+    onsavesegmentation = (payload) => {
       if (pipelineId && manualNodeId) {
         const oid = payload.uid ?? uid;
         const labelmap = payload?.data?.path || payload?.data?.filePath;
@@ -163,7 +171,11 @@ export function useEventBus(handlers, loadDataStore) {
           const port = ports[`comfyui-${pipelineId}`];
           if (port) {
             port.postMessage(msg);
-          } else if (isInsideIframe || blackboxTaskId || pipelineEmbedded === 'embedded') {
+          } else if (
+            isInsideIframe ||
+            blackboxTaskId ||
+            pipelineEmbedded === 'embedded'
+          ) {
             window.parent.postMessage(msg, '*');
           }
         }
@@ -171,28 +183,28 @@ export function useEventBus(handlers, loadDataStore) {
       }
       emitVolViewEvent('volview:created-segmentation', payload);
     };
-    onactiveview = payload => {
+    onactiveview = (payload) => {
       emitVolViewEvent('volview:activeview', payload);
     };
-    onfrontendstate = payload => {
+    onfrontendstate = (payload) => {
       emitVolViewEvent('volview:state', payload);
     };
-    onactiveviewsnapshot = payload => {
+    onactiveviewsnapshot = (payload) => {
       emitVolViewEvent('volview:activeviewsnapshot', payload);
     };
-    oncurrentsliceroisample = payload => {
+    oncurrentsliceroisample = (payload) => {
       emitVolViewEvent('volview:currentsliceroisample', payload);
     };
-    onannotationresult = payload => {
+    onannotationresult = (payload) => {
       emitVolViewEvent('volview:annotationresult', jsonClone(payload));
     };
-    onsegmentationresult = payload => {
+    onsegmentationresult = (payload) => {
       emitVolViewEvent('volview:segmentationresult', jsonClone(payload));
     };
-    onvolumeresult = payload => {
+    onvolumeresult = (payload) => {
       emitVolViewEvent('volview:volumeresult', jsonClone(payload));
     };
-    onslicing = payload => {
+    onslicing = (payload) => {
       if (projectId && datasetId) {
         const port = ports[peerId.replace('volview-', 'tab-project-')];
         if (port) {
@@ -290,7 +302,16 @@ export function useEventBus(handlers, loadDataStore) {
                 }
                 case 'set-current-slice-labeling': {
                   if (loadDataStore) {
-                    loadDataStore.currentSliceLabeling = jsonClone(payload);
+                    const next = jsonClone(payload);
+                    const prev = loadDataStore.currentSliceLabeling;
+                    // Never let matched:false overwrite an existing matched:true.
+                    // This prevents stale volview:state round-trips (which carry
+                    // the previous dataset's UIDs) from erasing the proactive
+                    // labeling sent by the parent on every tree click.
+                    if (prev?.matched && !next.matched) {
+                      break;
+                    }
+                    loadDataStore.currentSliceLabeling = next;
                   }
                   break;
                 }
@@ -382,9 +403,9 @@ export function useEventBus(handlers, loadDataStore) {
             loadDataStore.hasProjectPort = true;
           }
         }
-      })
+      });
       while (!window.$electron) {
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
       }
       if (window.$electron && projectId) {
         window.$electron.requestMessagePort({

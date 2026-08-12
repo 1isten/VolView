@@ -60,12 +60,12 @@
               <div class="text-caption text-medium-emphasis mb-1">
                 SOP Instance UID
               </div>
-              <div class="text-body-2 labeling-text-break">
-                {{
+              <div class="text-caption text-high-emphasis labeling-text-break">
+                <small>{{
                   currentSliceMetadata.SOPInstanceUID ||
                   currentSliceLabeling?.currentSlice?.sopInstanceUID ||
                   'Unavailable'
-                }}
+                }}</small>
               </div>
             </v-card-text>
           </v-card>
@@ -456,7 +456,7 @@
                               : 'text-medium-emphasis'
                           "
                         >
-                          {{ path }}
+                          {{ resolvedPaths[path] || path }}
                         </div>
                       </div>
                     </div>
@@ -529,8 +529,9 @@ const mutationStatus = ref(null);
 const pendingMutation = ref(null);
 let mutationStatusTimer = null;
 
-// Track whether referenced file paths exist on disk.
+// Track whether referenced file paths exist on disk, and their resolved real paths.
 const filePathExists = ref({});
+const resolvedPaths = ref({});
 
 function requestPathExistsViaParent(path) {
   return new Promise((resolve) => {
@@ -556,6 +557,30 @@ function requestPathExistsViaParent(path) {
   });
 }
 
+function requestResolvePathViaParent(path) {
+  return new Promise((resolve) => {
+    const requestId = `volview-resolve-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const handler = (e) => {
+      if (
+        e.data?.type === 'volview:resolve-path-result' &&
+        e.data?.requestId === requestId
+      ) {
+        window.removeEventListener('message', handler);
+        resolve(e.data.resolvedPath);
+      }
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage(
+      { type: 'volview:resolve-path', requestId, path },
+      '*'
+    );
+    setTimeout(() => {
+      window.removeEventListener('message', handler);
+      resolve(null);
+    }, 5000);
+  });
+}
+
 async function checkFilePaths() {
   const pathsToCheck = new Set();
   const labels = currentSliceLabeling.value?.labels || [];
@@ -566,6 +591,7 @@ async function checkFilePaths() {
   }
   if (!pathsToCheck.size) {
     filePathExists.value = {};
+    resolvedPaths.value = {};
     return;
   }
 
@@ -573,18 +599,22 @@ async function checkFilePaths() {
   // Fall back to postMessage when running inside an iframe.
   const directExists = window.$electron?.pathExists;
   const results = {};
+  const resolved = {};
   for (const path of pathsToCheck) {
     if (directExists) {
       try {
         results[path] = await directExists(path);
-        continue;
       } catch {
         // direct call failed, fall through to postMessage
+        results[path] = await requestPathExistsViaParent(path);
       }
+    } else {
+      results[path] = await requestPathExistsViaParent(path);
     }
-    results[path] = await requestPathExistsViaParent(path);
+    resolved[path] = (await requestResolvePathViaParent(path)) ?? path;
   }
   filePathExists.value = results;
+  resolvedPaths.value = resolved;
 }
 
 function metaEntries(label) {
