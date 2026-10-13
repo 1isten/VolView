@@ -125,9 +125,11 @@ export default defineComponent({
             }
             switch (meta.tool) {
               case 'Paint': {
-                // @ts-ignore
-                const roiHistogramData =
-                  document.getElementById('roi-histogram')?.roi_histogram;
+                // roi_histogram is a custom property attached to this element
+                // by SegmentPlotHistogram.vue.
+                const roiHistogramData = (
+                  document.getElementById('roi-histogram') as any
+                )?.roi_histogram;
                 if (roiHistogramData) {
                   const { mean, min, max } = roiHistogramData;
                   meta.measure = `mean: ${(mean || 0).toFixed(0)}, min: ${(min || 0).toFixed(0)}, max: ${(max || 0).toFixed(0)}`;
