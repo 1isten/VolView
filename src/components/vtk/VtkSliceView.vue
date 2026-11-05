@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  ref,
   computed,
+  ref,
   toRefs,
   provide,
   markRaw,
@@ -62,7 +62,13 @@ const { metadata: imageMetadata, imageData } = useImage(imageID);
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
 const scope = effectScope(true);
-const view = scope.run(() => useVtkView(vtkContainerRef))!;
+const view = scope.run(() =>
+  useVtkView(vtkContainerRef, {
+    separateImageLayer: true,
+    clippingBounds: computed(() => imageMetadata.value.worldBounds),
+  })
+)!;
+
 onUnmounted(() => {
   scope.stop();
 });
@@ -75,10 +81,25 @@ const { interactorStyle } = useVtkInteractorStyle(
   vtkInteractorStyleManipulator,
   view
 );
+// Camera manipulators fit clipping to image bounds; widgets pick the upper layer.
+interactorStyle.setFocusedRenderer(view.imageRenderer);
 
 // bind slice and window configs
 // resizeToFit camera controls
-const autoFit = useAutoFitState(view.renderer.getActiveCamera());
+const autoFitEnabled = computed({
+  get: () =>
+    viewCameraStore.getConfig(viewID.value, imageID.value)?.autoFit ?? true,
+  set: (autoFit) => {
+    if (imageID.value) {
+      viewCameraStore.updateConfig(viewID.value, imageID.value, { autoFit });
+    }
+  },
+});
+
+const autoFit = useAutoFitState(
+  view.renderer.getActiveCamera(),
+  autoFitEnabled
+);
 
 function autoFitImage() {
   if (!autoFit.autoFit.value) return;
@@ -149,7 +170,6 @@ usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera(), {
 });
 
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
-  if (!imageMetadata.value) return;
   if (
     viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
     disableCameraAutoReset.value

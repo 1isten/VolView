@@ -4,6 +4,8 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
+import { PET_CT_URLS } from './samples/petCT';
+import PETCTChestThumbnail from '@/src/assets/samples/PET-CT-Chest.png';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -27,14 +29,12 @@ export const InitViewIDs: Record<string, string> = {
 
 export const getAvailableViews = () => {
   const list: ViewInfoInit[] = [
-    /*
     {
       name: 'Oblique',
       type: 'Oblique',
       dataID: null,
       options: {},
     },
-    */
     {
       name: 'Volume',
       type: '3D',
@@ -79,13 +79,17 @@ export const getAvailableViews = () => {
 };
 
 export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
-  /*
-  'Quad View': [
-    ['axial', 'volume'],
-    ['coronal', 'sagittal'],
-  ],
-  */
-  /*
+  // PMT-ONLY: PMTaro opens NIfTI files with layoutName=Axial Primary.
+  'Axial Primary': {
+    direction: 'row',
+    items: [
+      'axial',
+      {
+        direction: 'column',
+        items: ['sagittal', 'coronal'],
+      },
+    ],
+  },
   'Four Up': [
     ['axial', 'coronal'],
     ['sagittal', 'volume'],
@@ -100,22 +104,8 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
       },
     ],
   },
-  */
-  'Axial Primary': {
-    direction: 'row',
-    items: [
-      'axial',
-      {
-        direction: 'column',
-        items: ['sagittal', 'coronal'],
-      },
-    ],
-  },
-  'Axial Only': [['axial']], // Z
-  'Sagittal Only': [['sagittal']], // X
-  'Coronal Only': [['coronal']], // Y
+  'Axial Only': [['axial']],
   '3D Only': [['volume']],
-  /*
   Oblique: [['oblique']],
   '3D Primary': {
     direction: 'row',
@@ -127,7 +117,6 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
       },
     ],
   },
-  */
 };
 
 export const SAMPLE_DATA: SampleDataset[] = [
@@ -181,9 +170,14 @@ export const SAMPLE_DATA: SampleDataset[] = [
     url: 'https://raw.githubusercontent.com/pydicom/pydicom/v3.0.1/src/pydicom/data/test_files/examples_ybr_color.dcm',
     image: USCineThumbnail,
   },
+  {
+    name: 'PET/CT Chest',
+    description: 'PET layered over chest CT. 6 MB',
+    urls: PET_CT_URLS,
+    image: PETCTChestThumbnail,
+  },
   // PMT-ONLY: PMTaro never shows VolView's built-in sample data.
 ].slice(0, 0);
-
 export const TOOL_COLORS = [
   '#58f24c',
   '#8de4d3',
@@ -200,13 +194,8 @@ export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   MR: 'CT-Coronary-Arteries-2',
   US: 'US-Fetal',
 };
-export const DEFAULT_PRESET = 'CT-AAA';
 
-export const LAYER_PRESET_BY_MODALITY: Record<string, string> = {
-  ...DEFAULT_PRESET_BY_MODALITY,
-  PT: '2hot-opaque',
-};
-export const LAYER_PRESET_DEFAULT = '2hot-opaque';
+export const DEFAULT_PRESET = 'CT-AAA';
 
 // Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {

@@ -280,6 +280,26 @@ export type DataSourceImporter = (
   volumeKeySuffix?: string
 ) => Promise<ImportDataSourcesResult[]>;
 
+export function showImportedData(results: ImportResult[]) {
+  const loadDataStore = useLoadDataStore();
+
+  const primaryDataSource = findBaseDataSource(
+    results,
+    loadDataStore.segmentationExtension,
+    loadDataStore.layerExtension
+  );
+  if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
+
+  useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
+  autoLayerDicoms(primaryDataSource, results);
+  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
+  loadSegmentations(
+    primaryDataSource,
+    results,
+    loadDataStore.segmentationExtension
+  );
+}
+
 type LoadDataSourcesOutcome = {
   datasetIds: string[];
   hadErrors: boolean;
@@ -697,16 +717,28 @@ export function loadVolumeDataSources(sources: DataSource[]) {
   );
 }
 
+let pendingFileInput: HTMLInputElement | undefined;
+
 export function openFileDialog() {
   return new Promise<File[]>((resolve) => {
+    pendingFileInput?.remove();
     const fileEl = document.createElement('input');
+    pendingFileInput = fileEl;
     fileEl.setAttribute('type', 'file');
     fileEl.setAttribute('multiple', 'multiple');
     fileEl.setAttribute('accept', '*');
-    fileEl.addEventListener('change', () => {
-      const files = [...(fileEl.files ?? [])];
-      resolve(files);
-    });
+    fileEl.hidden = true;
+    fileEl.addEventListener(
+      'change',
+      () => {
+        const files = [...(fileEl.files ?? [])];
+        fileEl.remove();
+        if (pendingFileInput === fileEl) pendingFileInput = undefined;
+        resolve(files);
+      },
+      { once: true }
+    );
+    document.body.appendChild(fileEl);
     fileEl.click();
   });
 }
@@ -725,7 +757,10 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
+export function urlsToDataSources(
+  urls: string[],
+  names: string[] = []
+): DataSource[] {
   return urls.map((url, idx) => {
     const defaultName =
       basename(parseUrl(url, window.location.href).pathname) || url;

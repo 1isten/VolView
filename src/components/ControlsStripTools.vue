@@ -9,17 +9,29 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
     >
-      <menu-control-button
-        icon="mdi-circle-half-full"
-        :name="
-          'Window & Level' + '' || ` [${nameToShortcut['Window & Level']}]`
-        "
-        :active="active"
-        :disabled="noCurrentImage"
-        @click="toggle"
+      <v-tooltip
+        :text="windowingUnavailableReason"
+        :disabled="!windowingUnavailableReason"
+        location="right"
       >
-        <window-level-controls />
-      </menu-control-button>
+        <template #activator="{ props: tooltipProps }">
+          <span
+            v-bind="tooltipProps"
+            :tabindex="windowingUnavailableReason ? 0 : undefined"
+            data-testid="windowing-tool"
+          >
+            <menu-control-button
+              icon="mdi-circle-half-full"
+              :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
+              :active="active"
+              :disabled="!!windowingUnavailableReason"
+              @click="toggle"
+            >
+              <window-level-controls />
+            </menu-control-button>
+          </span>
+        </template>
+      </v-tooltip>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
       <control-button
@@ -138,6 +150,7 @@
 import { computed, defineComponent, ref, watch, onMounted } from 'vue';
 import { useDisplay } from 'vuetify';
 import { onKeyDown } from '@vueuse/core';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -219,23 +232,39 @@ export default defineComponent({
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const { currentImageID, currentImageData, currentImageMetadata } =
+      useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
+
+    const windowingUnavailableReason = computed(() => {
+      if (!currentImageID.value) return 'Load an image to adjust window/level.';
+      const scalars = currentImageData.value?.getPointData().getScalars();
+      if (!scalars) return 'The image must finish loading first.';
+      if (isCineImage(currentImageID.value))
+        return 'Cine images already contain display-encoded pixels.';
+      const components = scalars.getNumberOfComponents();
+      if (components === 3 || components === 4)
+        return 'RGB and RGBA images use their original colors.';
+      return '';
+    });
 
     const activeViewRef = toRef(viewStore, 'activeView');
     const activeEffective = useEffectiveView(
       computed(() => activeViewRef.value ?? '')
     );
+
     // The rendered viewer is decided by effective kind, not stored slot type:
     // a cine clip dropped into an Oblique slot still renders as cine, so the
     // toolbar should treat it as cine, not Oblique.
     const isObliqueLayout = computed(
       () => activeEffective.value?.kind === 'oblique'
     );
+
     const isCineActive = computed(() => activeEffective.value?.kind === 'cine');
     const isDisallowedOnCine = (tool: Tools) =>
       isCineActive.value && !isToolAllowedFor(tool, activeEffective.value);
+
     const paintUnavailableReason = computed(
       () => toolStore.paintUnavailableReason
     );
@@ -471,6 +500,7 @@ export default defineComponent({
     });
 
     const enableTempCrosshairs = useActionHeld('temporaryCrosshairs');
+
     watch(enableTempCrosshairs, (enable) => {
       if (enable) toolStore.activateTemporaryCrosshairs();
       else toolStore.deactivateTemporaryCrosshairs();
@@ -518,13 +548,11 @@ export default defineComponent({
       ),
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
+      windowingUnavailableReason,
       isObliqueLayout,
       isDisallowedOnCine,
       paintUnavailableReason,
       Tools,
-      paintMenu,
-      cropMenu,
-      windowingMenu,
       nameToShortcut,
     };
   },
@@ -554,19 +582,10 @@ export default defineComponent({
 </style>
 
 <style scoped>
-.menu-more {
-  position: absolute;
-  right: -10%;
-}
-
 .tool-separator {
   width: 75%;
   height: 1px;
   border: none;
   border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
-}
-
-.popup-menu {
-  max-width: 400px; /* a little less than v-navigation-drawer in App.vue */
 }
 </style>
