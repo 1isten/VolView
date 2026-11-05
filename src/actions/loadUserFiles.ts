@@ -725,7 +725,6 @@ function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
 type LoadUrlsParams = {
   urls?: string[];
   names?: string[];
-  config?: string[];
 };
 
 export async function loadUrls(
@@ -739,15 +738,12 @@ export async function loadUrlsWithOutcome(
   params: UrlParams | LoadUrlsParams,
   options?: LoadEventOptions
 ): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
-  const outcomes: LoadDataSourcesOutcome[] = [];
-  if (params.config) {
-    const configUrls = wrapInArray(params.config);
-    const configSources = urlsToDataSources(configUrls, []);
-    outcomes.push(
-      await loadDataSourcesWithOutcome(configSources, importDataSources)
-    );
+  if (!params.urls) {
+    return { datasetIds: [], hadErrors: false };
   }
 
+  // PMT-ONLY: pmt keeps its bus/cached-file/openFolder loading pipeline.
+  const outcomes: LoadDataSourcesOutcome[] = [];
   if (params.urls) {
     let urls = wrapInArray(params.urls);
     let names = wrapInArray(params.names ?? []);

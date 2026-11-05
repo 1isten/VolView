@@ -149,14 +149,21 @@ export const useViewStore = defineStore('view', () => {
     );
   });
 
-  const visibleViews = computed(() => {
-    if (maximizedView.value) return [maximizedView.value];
+  // Every view the current layout assigns a slot to, whether or not it is on
+  // screen. Reading the layout rather than `viewByID` keeps views orphaned by a
+  // layout switch out of the list.
+  const layoutViews = computed(() => {
     const views: ViewInfo[] = [];
     iterLayout(layout.value, (item) => {
-      const viewId = layoutSlots.value[item.slotIndex];
-      views.push(viewByID[viewId]);
+      const view = viewByID[layoutSlots.value[item.slotIndex]];
+      if (view) views.push(view);
     });
     return views;
+  });
+
+  const visibleViews = computed(() => {
+    if (maximizedView.value) return [maximizedView.value];
+    return layoutViews.value;
   });
 
   const viewIDs = computed(() => Object.keys(viewByID));
@@ -453,6 +460,7 @@ export const useViewStore = defineStore('view', () => {
       return layout.value;
     }),
     visibleViews,
+    layoutViews,
     viewIDs,
     viewByID,
     activeView,

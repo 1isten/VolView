@@ -301,9 +301,6 @@ export async function serialize(opts?: {
     datasetFilePath: {},
     segmentGroups: [], // labelMaps
     tools: {
-      crosshairs: {
-        position: [0, 0, 0],
-      },
       paint: {
         activeSegmentGroupID: null,
         activeSegment: null,

@@ -3,6 +3,7 @@ import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
 import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
+import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
 import { SegmentMask } from '@/src/types/segment';
 import { standardizeColor } from './utils';
 import type { LayoutConfig } from './utils/layoutParsing';
@@ -175,6 +176,14 @@ export const SAMPLE_DATA: SampleDataset[] = [
       colorPreset: 'US-Fetal',
     },
   },
+  {
+    name: 'Ultrasound Cine',
+    filename: 'US_multiframe_30frames.dcm',
+    description: '30-frame echocardiogram with cine playback. (225 KB)',
+    url: 'https://raw.githubusercontent.com/pydicom/pydicom/v3.0.1/src/pydicom/data/test_files/examples_ybr_color.dcm',
+    image: USCineThumbnail,
+  },
+  // PMT-ONLY: PMTaro never shows VolView's built-in sample data.
 ].slice(0, 0);
 
 export const TOOL_COLORS = [

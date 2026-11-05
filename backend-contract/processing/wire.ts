@@ -11,12 +11,17 @@
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod';
-import { typeTagSchema } from './task-spec';
+import {
+  typeTagSchema,
+  TYPE_TAG_ANNOTATIONS,
+  TYPE_TAG_LABELMAP,
+} from './task-spec';
 import { pathSegmentIdSchema } from './ids';
 
 // Bump when the intent vocabulary's shape changes so producers and the applier
-// can negotiate compatibility.
-export const INTENT_VOCABULARY_VERSION = 1;
+// can negotiate compatibility. Adding an intent is a compatible bump: an older
+// client demotes the unknown intent through the fail-open branch above.
+export const INTENT_VOCABULARY_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // Input value: what the client sends at submit
@@ -36,20 +41,52 @@ export const inputValueSchema = z.object({
 export type InputValue = z.infer<typeof inputValueSchema>;
 
 // The typed descriptor that accompanies staged bytes. Staging creates a
-// labelmap resource bound to the image it overlays; the image value is the
-// same neutral, opaque-provenance shape used by ordinary task inputs.
-export const stageInputDescriptorSchema = z.strictObject({
-  type: z.literal('labelmap'),
+// resource bound to the image it overlays; the image value is the same neutral,
+// opaque-provenance shape used by ordinary task inputs.
+//
+// `referenceImage` stays REQUIRED for every stageable type: it is the access-
+// control linkage, the durable-reference check, and the one code path the
+// backend runs — a staged resource with no parent image has no owner.
+const stagedReferenceImageSchema = inputValueSchema
+  .extend({
+    type: z.literal('image'),
+    uris: z.array(z.string()).min(1),
+  })
+  .strict();
+
+const stagedDescriptorCommon = {
   name: z.string().min(1),
-  referenceImage: inputValueSchema
-    .extend({
-      type: z.literal('image'),
-      uris: z.array(z.string()).min(1),
-    })
-    .strict(),
+  referenceImage: stagedReferenceImageSchema,
+};
+
+// A parent-bound labelmap: the segment-group bytes overlaying the image.
+const stageLabelmapDescriptorSchema = z.strictObject({
+  type: z.literal(TYPE_TAG_LABELMAP),
+  ...stagedDescriptorCommon,
 });
 
+// A parent-bound annotations file: the vector annotations (rulers, rectangles,
+// polygons) drawn on the image, as the `annotations.ts` interchange format.
+const stageAnnotationsDescriptorSchema = z.strictObject({
+  type: z.literal(TYPE_TAG_ANNOTATIONS),
+  ...stagedDescriptorCommon,
+});
+
+// The stageable types, discriminated by `type` over an IDENTICAL key set — a
+// new stageable type adds a member here and nothing else. An unknown `type` is
+// rejected: staging is fail-closed, unlike the open input-value type tag.
+export const stageInputDescriptorSchema = z.discriminatedUnion('type', [
+  stageLabelmapDescriptorSchema,
+  stageAnnotationsDescriptorSchema,
+]);
+
 export type StageInputDescriptor = z.infer<typeof stageInputDescriptorSchema>;
+
+// Read off the union above rather than restated, so the list a backend
+// enumerates and the schema it validates against cannot drift apart.
+export type StageableType = StageInputDescriptor['type'];
+export const STAGEABLE_TYPES: readonly StageableType[] =
+  stageInputDescriptorSchema.options.map((option) => option.shape.type.value);
 
 // ---------------------------------------------------------------------------
 // Neutral job status
@@ -122,12 +159,12 @@ export const RESULT_INTENTS = [
   'add-base-image',
   'add-layer',
   'add-segment-group',
+  'add-annotations',
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
 
-// Provenance tag stamped on an applied segment group: an idempotency key.
-// Structurally identical to the `source?` field on `SegmentGroupMetadata` so it
-// round-trips the `.volview.zip`.
+// Provenance tag on a result: the durable idempotency identity the client
+// preserves on generated scene state so restored results can be recognized.
 export const resultSourceSchema = z.object({
   providerId: z.string(),
   jobId: z.string(),
@@ -188,7 +225,19 @@ const addSegmentGroup = z
   })
   .passthrough();
 
-// The STRICT half of the vocabulary: exactly the v1 state directives, each with its
+// `add-annotations` points at an `annotations.ts` interchange file: the vector
+// annotations to add to the referenced image. It carries NO `segments`
+// equivalent — the label namespaces ride inside the file itself — plus the same
+// optional `source` provenance tag used as the idempotency key.
+const addAnnotations = z
+  .object({
+    intent: z.literal('add-annotations'),
+    ...resultListItemSchema.shape,
+    source: resultSourceSchema.optional(),
+  })
+  .passthrough();
+
+// The STRICT half of the vocabulary: every declared state directive with its
 // declared shape. Exported so the single applier can gate on which union member
 // strictly matched — a name-known-but-shape-invalid result (e.g. a broken
 // `segments`) carries no state directive rather than being applied as valid.
@@ -196,6 +245,7 @@ export const knownResultIntentSchema = z.discriminatedUnion('intent', [
   addBaseImage,
   addLayer,
   addSegmentGroup,
+  addAnnotations,
 ]);
 
 export type KnownResultIntent = z.infer<typeof knownResultIntentSchema>;

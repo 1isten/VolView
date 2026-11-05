@@ -308,6 +308,10 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "multiple": {
+                "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. Only labelmap source refs bind plurally today — every group whose parent is the active dataset, in store order; on other type tags the flag has no effect yet.",
+                "type": "boolean"
               }
             },
             "required": [

@@ -16,7 +16,7 @@
       <v-expansion-panel value="run">
         <v-expansion-panel-title>
           <v-icon class="mr-2">mdi-console-line</v-icon>
-          <span>Run a job</span>
+          <span>Run Jobs</span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <v-select
@@ -121,42 +121,35 @@ import { getErrorDetail, ensureError } from '@/src/utils';
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useCropStore } from '@/src/store/tools/crop';
 import type {
   ProcessingProvider,
   ProcessingValue,
-  SubmittedJobDisplay,
-  SubmittedJobParameterDisplay,
   TaskSummary,
 } from '@/src/processing/types';
 import {
   buildTaskFormModel,
   initialFormValues,
   validateFormValues,
-  fieldLabel,
   type TaskFormModel,
   type FormValidationIssue,
 } from '@/src/processing/engine/formModel';
 import { type SourceRefBindingState } from '@/src/processing/engine/mintInput';
 import {
-  mintLabelmapValue,
-  mintLabelmapReferenceImage,
-  type SegmentGroupView,
-} from '@/src/processing/engine/mintLabelmap';
-import {
   bindSourceRefs,
   type BoundSourceRefType,
   type SourceRefBindings,
 } from '@/src/processing/engine/sourceRefs';
+import {
+  buildJobDisplay,
+  buildSourceRefNames,
+  type JobDisplayContext,
+} from '@/src/processing/engine/jobDisplay';
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
+import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useMessageStore } from '@/src/store/messages';
-import { writeSegmentation } from '@/src/io/readWriteImage';
-import { getDataSourceName } from '@/src/io/import/dataSource';
-import type { InputValue, VolViewTaskParameter } from '@/backend-contract';
-import { TYPE_TAG_LABELMAP } from '@/backend-contract';
 
 import TaskPicker from './TaskPicker.vue';
 import TaskForm from './TaskForm.vue';
@@ -165,11 +158,19 @@ import JobList from './JobList.vue';
 const providers = useProcessingJobsStore();
 const { currentImageID } = useCurrentImage('global');
 const imageCache = useImageCacheStore();
-const datasetStore = useDatasetStore();
 const cropStore = useCropStore();
 const paintStore = usePaintToolStore();
 const segmentGroupStore = useSegmentGroupStore();
 const messageStore = useMessageStore();
+
+const {
+  activeImageName,
+  finishedAnnotationCount,
+  sourceRefContext,
+  captureAnnotationsPayload,
+  stageLabelmapInputs,
+  stageAnnotationInputs,
+} = useInputStaging();
 
 const openPanels = ref<string[]>(['run', 'jobs']);
 
@@ -348,26 +349,53 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
   }
   // Display formatting reads live active image and segment-group state, so it
   // must render before the staging await.
-  const display = buildJobDisplay(model, finalValues);
+  const display = buildJobDisplay(
+    model,
+    jobDisplayContext(bindings),
+    finalValues
+  );
+  // Same reason, and it also outlives the staging awaits below: the annotations
+  // file, its name, and its reference image all come from the active image,
+  // which the user may switch while an upload is in flight. Only encoded when
+  // something is actually bound to it.
+  const annotations =
+    bindings.annotations.parameters.length > 0
+      ? captureAnnotationsPayload()
+      : null;
 
   submitting.value = true;
 
-  // The store does not surface staging failures, so report them here.
-  let stagedValues: Record<string, ProcessingValue>;
+  // The store does not surface staging failures, so report them here, each
+  // under its own message.
+  const stage = async (
+    message: string,
+    run: () => Promise<Record<string, ProcessingValue>>
+  ): Promise<Record<string, ProcessingValue>> => {
+    try {
+      return await run();
+    } catch (err) {
+      messageStore.addError(message, { error: ensureError(err) });
+      throw err;
+    }
+  };
+
+  // Concurrent: the two stages write disjoint parameter keys, and the
+  // annotations payload was snapshotted above.
+  let staged: Record<string, ProcessingValue>[];
   try {
-    stagedValues = await stageLabelmapInputs(
-      submitProvider,
-      model,
-      finalValues,
-      bindings
-    );
-  } catch (err) {
-    messageStore.addError('Failed to stage segment group input', {
-      error: ensureError(err),
-    });
+    staged = await Promise.all([
+      stage('Failed to stage segment group input', () =>
+        stageLabelmapInputs(submitProvider, bindings)
+      ),
+      stage('Failed to stage annotations input', () =>
+        stageAnnotationInputs(submitProvider, bindings, annotations)
+      ),
+    ]);
+  } catch {
     submitting.value = false;
     return;
   }
+  const stagedValues = { ...finalValues, ...staged[0], ...staged[1] };
 
   try {
     await providers.submitJob(providerId, taskId, stagedValues, {
@@ -411,46 +439,13 @@ function applyBoundsBindings(
   return next;
 }
 
-function activeDataSource() {
-  return datasetStore.getDataSource(currentImageID.value);
-}
-
-function activeImageName(): string | undefined {
-  const id = currentImageID.value;
-  return (
-    imageCache.getImageMetadata(id)?.name ??
-    getDataSourceName(activeDataSource()) ??
-    undefined
-  );
-}
-
-function segmentGroupView(): SegmentGroupView {
-  return {
-    orderByParent: segmentGroupStore.orderByParent,
-    metadataByID: segmentGroupStore.metadataByID,
-  };
-}
-
-function labelmapReferenceImage(segmentGroupId: string): InputValue | null {
-  return mintLabelmapReferenceImage(
-    segmentGroupId,
-    segmentGroupView(),
-    (imageId) => datasetStore.getDataSource(imageId)
-  );
-}
-
 function activeSourceBindings(model: TaskFormModel): SourceRefBindings {
-  return bindSourceRefs(model, {
-    activeDataSource: activeDataSource(),
-    backgroundImageId: currentImageID.value ?? undefined,
-    activeSegmentGroupId: paintStore.activeSegmentGroupID,
-    segmentGroups: segmentGroupView(),
-    getDataSource: (imageId) => datasetStore.getDataSource(imageId),
-  });
+  return bindSourceRefs(model, sourceRefContext());
 }
 
-// The labelmap value is not set here: a segment group has no server provenance,
-// so it earns URIs only at Run via `stageLabelmapInputs`.
+// Neither the labelmap nor the annotations value is set here: neither has
+// server provenance of its own, so both earn URIs only at Run via the staging
+// helpers below.
 function applyActiveBindings(
   model: TaskFormModel,
   base: Record<string, ProcessingValue>,
@@ -497,155 +492,31 @@ function refreshValidation(
   return validation.issues;
 }
 
-// The literal 'seg.nrrd' name is required for segment names and colors to be
-// embedded in the serialized output.
-async function stageLabelmapInputs(
-  p: ProcessingProvider,
-  model: TaskFormModel,
-  values: Record<string, ProcessingValue>,
-  bindings: SourceRefBindings = activeSourceBindings(model)
-): Promise<Record<string, ProcessingValue>> {
-  const targets = Object.entries(bindings.labelmap.groups);
-  if (targets.length === 0) return values;
-
-  const staged = await Promise.all(
-    targets.map(async ([parameterId, segmentGroupId]) => {
-      const metadata = segmentGroupStore.metadataByID[segmentGroupId];
-      const labelmap = segmentGroupStore.dataIndex[segmentGroupId];
-      const referenceImage = labelmapReferenceImage(segmentGroupId);
-      if (!referenceImage) {
-        throw new Error(
-          'Segment group reference image has no server provenance'
-        );
-      }
-      const serialized = await writeSegmentation(
-        'seg.nrrd',
-        labelmap,
-        metadata
-      );
-      const name = `${metadata.name}.seg.nrrd`;
-      const uris = await p.stageInput({
-        file: new Blob([serialized]),
-        descriptor: {
-          type: TYPE_TAG_LABELMAP,
-          name,
-          referenceImage: {
-            ...referenceImage,
-            type: 'image',
-          },
-        },
-      });
-      return [parameterId, mintLabelmapValue(uris)] as const;
-    })
-  );
-  return { ...values, ...Object.fromEntries(staged) };
-}
-
-// Binding can fall back to the current image's sole group, so reading
-// `paintStore.activeSegmentGroupID` directly would mislabel the job.
-type SourceRefContext = {
-  labelmapGroups: Record<string, string>;
-  types: Record<string, BoundSourceRefType>;
-  imageName: string | undefined;
-};
-
 // Resolved once per display pass: each binding re-runs a full field scan and
 // group resolution, so per-field resolution would redo identical work.
-function sourceRefContext(model: TaskFormModel): SourceRefContext {
-  const bindings = activeSourceBindings(model);
+function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
+  const labelmapNames = Object.fromEntries(
+    Object.entries(bindings.labelmap.groups).map(([parameterId, groupIds]) => [
+      parameterId,
+      groupIds.map((groupId) => segmentGroupStore.metadataByID[groupId].name),
+    ])
+  );
   return {
-    labelmapGroups: bindings.labelmap.groups,
+    labelmapNames,
     types: bindings.types,
     imageName: activeImageName(),
+    annotationCount: finishedAnnotationCount.value,
   };
-}
-
-function boundLabelmapName(
-  refs: SourceRefContext,
-  parameterId: string
-): string | undefined {
-  const groupId = refs.labelmapGroups[parameterId];
-  return groupId ? segmentGroupStore.metadataByID[groupId]?.name : undefined;
 }
 
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
   if (!model) return {};
-  const refs = sourceRefContext(model);
-  const names: Record<string, string> = {};
-  model.fields.forEach((field) => {
-    if (field.kind !== 'sourceRef') return;
-    const name =
-      refs.types[field.id] === TYPE_TAG_LABELMAP
-        ? boundLabelmapName(refs, field.id)
-        : refs.imageName;
-    if (name) names[field.id] = name;
-  });
-  return names;
-});
-
-function formatProcessingValue(
-  refs: SourceRefContext,
-  field: VolViewTaskParameter,
-  value: ProcessingValue
-): string {
-  if (field.kind === 'sourceRef') {
-    if (refs.types[field.id] === TYPE_TAG_LABELMAP) {
-      return boundLabelmapName(refs, field.id) ?? 'bound segment group';
-    }
-    return refs.imageName ?? 'active dataset';
-  }
-  if (field.kind === 'bounds') {
-    return Array.isArray(value) && value.length > 0
-      ? value.map((n) => (typeof n === 'number' ? n.toFixed(1) : n)).join(', ')
-      : 'not set';
-  }
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (Array.isArray(value)) return value.join(', ');
-  if (value && typeof value === 'object') {
-    const input = value as InputValue;
-    return input.type;
-  }
-  if (value === null || value === undefined || value === '') return 'not set';
-  return String(value);
-}
-
-function isSummaryParameter(
-  field: VolViewTaskParameter,
-  value: ProcessingValue
-): boolean {
-  if (field.kind === 'sourceRef' || field.kind === 'bounds') return false;
-  if (value === null || value === undefined || value === '') return false;
-  if (Array.isArray(value) && value.length === 0) return false;
-  return true;
-}
-
-function buildJobDisplay(
-  model: TaskFormModel,
-  values: Record<string, ProcessingValue>
-): SubmittedJobDisplay {
-  const refs = sourceRefContext(model);
-  let summaryCount = 0;
-  const parameters: SubmittedJobParameterDisplay[] = model.fields.map(
-    (field) => {
-      const value = values[field.id];
-      const summary = summaryCount < 2 && isSummaryParameter(field, value);
-      if (summary) summaryCount += 1;
-      return {
-        id: field.id,
-        label: fieldLabel(field),
-        value: formatProcessingValue(refs, field, value),
-        ...(summary ? { summary } : {}),
-      };
-    }
+  return buildSourceRefNames(
+    model,
+    jobDisplayContext(activeSourceBindings(model))
   );
-  const inputName = refs.imageName;
-  return {
-    taskTitle: model.title,
-    ...(inputName ? { inputName } : {}),
-    parameters,
-  };
-}
+});
 
 // Debounced: dragging a crop handle mutates the crop planes every frame, and
 // each rebind walks provenance and re-validates the whole form.
@@ -657,6 +528,9 @@ watchDebounced(
       crop: id ? cropStore.croppingByImageID[id] : undefined,
       activeSegmentGroup: paintStore.activeSegmentGroupID,
       groupCount: id ? (segmentGroupStore.orderByParent[id]?.length ?? 0) : 0,
+      // Placing the first (or removing the last) tool flips the annotations
+      // binding, so the form must revalidate.
+      annotationCount: finishedAnnotationCount.value,
     };
   },
   () => {

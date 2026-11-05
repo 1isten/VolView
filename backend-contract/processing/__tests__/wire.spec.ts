@@ -4,6 +4,7 @@ import {
   JOB_STATES,
   RESULT_INTENTS,
   INTENT_VOCABULARY_VERSION,
+  STAGEABLE_TYPES,
   inputValueSchema,
   stageInputDescriptorSchema,
   neutralJobStatusSchema,
@@ -65,6 +66,46 @@ describe('staged resource descriptor fixtures', () => {
     expect(descriptor.type).toBe('labelmap');
     expect(descriptor.referenceImage.type).toBe('image');
     expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('binds staged annotations bytes to a durable reference image', () => {
+    const descriptor = stageInputDescriptorSchema.parse(
+      wire['stage-input.annotations']
+    );
+    expect(descriptor.type).toBe('annotations');
+    expect(descriptor.name).toBe('chest-ct.annotations.json');
+    expect(descriptor.referenceImage.type).toBe('image');
+    expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('pins the stageable types and their identical key set', () => {
+    // A new stageable type adds a union member and nothing else: the descriptor
+    // key set is the same for every type, so the backend runs ONE code path.
+    expect([...STAGEABLE_TYPES]).toEqual(['labelmap', 'annotations']);
+    const keys = (name: string) =>
+      Object.keys(
+        stageInputDescriptorSchema.parse(wire[name]) as Record<string, unknown>
+      ).sort();
+    expect(keys('stage-input.annotations')).toEqual(
+      keys('stage-input.labelmap')
+    );
+  });
+
+  it('rejects an unknown staged resource type (staging is fail-closed)', () => {
+    const unknownType = loadFixture('negative/stage-input-unknown-type.json');
+    expect(stageInputDescriptorSchema.safeParse(unknownType).success).toBe(
+      false
+    );
+  });
+
+  it('rejects an annotations descriptor without reference provenance', () => {
+    expect(
+      stageInputDescriptorSchema.safeParse({
+        type: 'annotations',
+        name: 'rois.annotations.json',
+        referenceImage: { type: 'image', uris: [] },
+      }).success
+    ).toBe(false);
   });
 
   it('rejects a labelmap descriptor without reference provenance', () => {
@@ -153,12 +194,13 @@ describe('neutral job status fixtures', () => {
 // ---------------------------------------------------------------------------
 
 describe('result intent fixtures', () => {
-  it('exports vocabulary version 1 and the exactly-three state intents', () => {
-    expect(INTENT_VOCABULARY_VERSION).toBe(1);
+  it('exports vocabulary version 2 and the exactly-four state intents', () => {
+    expect(INTENT_VOCABULARY_VERSION).toBe(2);
     expect([...RESULT_INTENTS]).toEqual([
       'add-base-image',
       'add-layer',
       'add-segment-group',
+      'add-annotations',
     ]);
     expect(wire).not.toHaveProperty('intent.download');
   });
@@ -168,9 +210,47 @@ describe('result intent fixtures', () => {
     'intent.add-layer',
     'intent.add-segment-group.with-segments',
     'intent.add-segment-group.embedded',
+    'intent.add-annotations',
     'intent.unknown',
   ])('validates %s', (name) => {
     expect(() => resultIntentSchema.parse(wire[name])).not.toThrow();
+  });
+
+  it('parses add-annotations as a KNOWN intent carrying a source tag', () => {
+    const fixture = wire['intent.add-annotations'];
+    expect(knownResultIntentSchema.safeParse(fixture).success).toBe(true);
+    const parsed = resultIntentSchema.parse(fixture) as Record<string, unknown>;
+    expect(parsed.intent).toBe('add-annotations');
+    expect(parsed.source).toEqual({
+      providerId: 'analysis-provider',
+      jobId: 'job-abc123',
+      outputId: 'outputAnnotations',
+    });
+    // Labels ride inside the annotations file, so there is no `segments` peer.
+    expect(parsed).not.toHaveProperty('segments');
+  });
+
+  it('accepts add-annotations without a source (source is optional)', () => {
+    expect(
+      knownResultIntentSchema.safeParse({
+        id: 'r1',
+        intent: 'add-annotations',
+        url: '/rois.annotations.json',
+        name: 'rois.annotations.json',
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects an add-annotations source missing provider identity', () => {
+    expect(
+      knownResultIntentSchema.safeParse({
+        id: 'r1',
+        intent: 'add-annotations',
+        url: '/rois.annotations.json',
+        name: 'rois.annotations.json',
+        source: { jobId: 'job-abc123', outputId: 'outputAnnotations' },
+      }).success
+    ).toBe(false);
   });
 
   it('parses add-segment-group WITH segments and a source provenance tag', () => {
@@ -214,6 +294,17 @@ describe('result intent fixtures', () => {
     ).toBe(false);
     expect(parsed.url).toBeTruthy();
     expect(parsed.name).toBeTruthy();
+  });
+
+  it('keeps the unknown-intent fixture unknown after the vocabulary grew', () => {
+    // `add-polygon` is deliberately NOT a member of the vocabulary: it is the
+    // pinned fail-open example, and growing the vocabulary must not quietly
+    // adopt it. Adding an intent is exactly the kind of change that could.
+    const fixture = wire['intent.unknown'] as { intent: string };
+    expect(fixture.intent).toBe('add-polygon');
+    expect(RESULT_INTENTS).not.toContain(fixture.intent);
+    expect(knownResultIntentSchema.safeParse(fixture).success).toBe(false);
+    expect(resultIntentSchema.safeParse(fixture).success).toBe(true);
   });
 
   it.each([

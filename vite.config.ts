@@ -12,7 +12,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
 
-import { config } from './wdio.shared.conf';
+import { BASE_URL } from './tests/e2ePorts';
 
 function resolveNodeModulePath(moduleName: string) {
   const require = createRequire(import.meta.url);
@@ -29,6 +29,8 @@ function resolveNodeModulePath(moduleName: string) {
 function resolvePath(...args: string[]) {
   return normalizePath(path.resolve(...args));
 }
+
+const PLACEHOLDER_VERSION = '0.0.0';
 
 function getPackageInfo() {
   const mainPkgPath = path.resolve(__dirname, 'package.json');
@@ -48,11 +50,30 @@ function getPackageInfo() {
 
   return {
     versions: {
-      volview: mainPkg.version,
+      volview: getVolViewVersion(mainPkg.version),
       'vtk.js': vtkJsPkg.version,
       'itk-wasm': itkWasmPkg.version,
     },
   };
+}
+
+// package.json carries the placeholder 0.0.0 on main; the release workflow
+// stamps the real version from the pushed tag before it builds. Builds that
+// skip that step (Netlify, local dev) fall back to describing the tag directly.
+function getVolViewVersion(pkgVersion: string) {
+  if (pkgVersion !== PLACEHOLDER_VERSION) return pkgVersion;
+  return getGitDescribe() ?? pkgVersion;
+}
+
+function getGitDescribe() {
+  try {
+    const described = execSync('git describe --tags --always')
+      .toString()
+      .trim();
+    return described.replace(/^v/, '');
+  } catch {
+    return undefined;
+  }
 }
 
 function getGitShortSha() {
@@ -227,7 +248,7 @@ export default defineConfig({
     port: 8043,
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
-      '/tmp': config.baseUrl!,
+      '/tmp': BASE_URL,
       // Local Girder stack, so girder-launched sessions (urls=/api/v1/...)
       // work same-origin against the dev server.
       '/api': 'http://localhost:8080',

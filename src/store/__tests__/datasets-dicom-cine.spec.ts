@@ -68,6 +68,8 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/src/io/dicom', () => ({
   splitAndSort: mocks.splitAndSort,
+  // PMT-ONLY: the pmt DICOM store uses this helper at store creation.
+  volumeKeyGetSuffix: vi.fn(),
 }));
 
 vi.mock('@/src/core/cine/parseCineDicom', async (importOriginal) => {

@@ -1,130 +1,98 @@
-import {
-  useCurrentImage,
-  getImageMetadata,
-} from '@/src/composables/useCurrentImage';
 import vtkCrosshairsWidget from '@/src/vtk/CrosshairsWidget';
-import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
-import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { computed, ref, watch } from 'vue';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
-import { ViewInfo2D } from '@/src/types/views';
-import { computeEffectiveView } from '@/src/core/views/effectiveView';
+import { getImageMetadata } from '@/src/composables/useCurrentImage';
+import {
+  computeEffectiveView,
+  volume2DViewsOfImage,
+} from '@/src/core/views/effectiveView';
+import { IMAGE_BOX_INFLATION } from '@/src/constants';
+import { clampValue } from '@/src/utils';
+import type { ImageMetadata } from '@/src/types/image';
+
+/** The world point in `metadata`'s index space, pulled inside the image box. */
+function clampToImage(worldPosition: Vector3, metadata: ImageMetadata) {
+  const index = vec3.transformMat4(
+    vec3.create(),
+    worldPosition as vec3,
+    metadata.worldToIndex
+  );
+  metadata.dimensions.forEach((dim, axis) => {
+    index[axis] = clampValue(
+      index[axis],
+      -IMAGE_BOX_INFLATION,
+      dim - 1 + IMAGE_BOX_INFLATION
+    );
+  });
+  return index;
+}
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
 
   const factory = vtkCrosshairsWidget.newInstance();
   const widgetState = factory.getWidgetState();
-  const handle = widgetState.getHandle();
-
-  const active = ref(false);
-  const {
-    // currentImageID,
-    currentImageMetadata,
-  } = useCurrentImage('global');
-
-  // world-space
-  const position = ref<Vector3>([0, 0, 0]);
-  // image space
-  const imagePosition = computed(() => {
-    const out = vec3.create();
-    vec3.transformMat4(
-      out,
-      position.value,
-      currentImageMetadata.value.worldToIndex
-    );
-    return out as Vector3;
-  });
 
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
-
-  // const otherViews = computed(() => {
-  const all2DViews = computed(() => {
-    return (
-      viewStore
-        // .getViewsForData(unref(currentImageID))
-        .getAllViews()
-        .filter((view): view is ViewInfo2D => view.type === '2D')
-    );
-  });
 
   function getWidgetFactory(this: _This) {
     return factory;
   }
 
-  function setPosition(pos: Vector3) {
-    position.value = pos;
-  }
+  /**
+   * Moves the crosshair to a world point picked in `viewId` and slices the
+   * views showing that same image to match.
+   *
+   * The image comes from the view the point was picked in rather than from
+   * whichever view happens to be active, so images sharing a layout keep their
+   * own slicing.
+   *
+   * All registered views of the image are sliced, not just those in the
+   * current layout, so views hidden by a layout switch come back consistent.
+   */
+  function setPosition(worldPosition: Vector3, viewId: string) {
+    const view = viewStore.getView(viewId);
+    const host = view && computeEffectiveView(view, view.dataID);
+    if (host?.kind !== 'volume2D') return;
 
-  // update the slicing
-  // watch(imagePosition, (indexPos) => {
-  // for all 2D views, including those showing different images
-  watch(position, (worldPos) => {
-    if (!active.value) {
-      return;
-    }
-    /*
-    const imageID = unref(currentImageID);
-    if (!imageID) {
-      return;
-    }
-    const { lpsOrientation } = unref(currentImageMetadata);
-    */
-    // otherViews.value.forEach((view) => {
-    all2DViews.value.forEach((view) => {
-      const imageID = view.dataID;
-      if (!imageID) return;
+    const imageID = host.renderDataID;
+    const metadata = getImageMetadata(imageID);
+    const indexPosition = clampToImage(worldPosition, metadata);
 
-      const metadata = getImageMetadata(imageID);
-      const { lpsOrientation } = metadata;
+    const { lpsOrientation } = metadata;
+    volume2DViewsOfImage(imageID, viewStore.getAllViews()).forEach(
+      ({ viewId: peerId, axis }) => {
+        const slice = Math.round(indexPosition[lpsOrientation[axis]]);
+        viewSliceStore.updateConfig(peerId, imageID, { slice });
+      }
+    );
 
-      // transform world position to this image's index space
-      const indexPos = vec3.create();
-      vec3.transformMat4(indexPos, worldPos, metadata.worldToIndex);
-
-      const effective = computeEffectiveView(view, imageID);
+    // PMT-ONLY: also slice views that show a *different* image, using this
+    // world point transformed into that image's index space. PMTaro shows
+    // registered datasets side by side and expects one crosshair to drive all
+    // of them. Upstream deliberately keeps images independent (see its
+    // crosshairs.spec "leaves views showing another image untouched"), so keep
+    // this block when merging upstream.
+    viewStore.getAllViews().forEach((peer) => {
+      if (peer.type !== '2D' || !peer.dataID || peer.dataID === imageID) return;
+      const effective = computeEffectiveView(peer, peer.dataID);
       if (effective.kind !== 'volume2D') return;
-      const index = lpsOrientation[effective.axis];
-      const slice = Math.round(indexPos[index]);
-      viewSliceStore.updateConfig(view.id, imageID, { slice });
+
+      const peerImageID = effective.renderDataID;
+      const peerMetadata = getImageMetadata(peerImageID);
+      const peerIndex = clampToImage(worldPosition, peerMetadata);
+      const slice = Math.round(
+        peerIndex[peerMetadata.lpsOrientation[effective.axis]]
+      );
+      viewSliceStore.updateConfig(peer.id, peerImageID, { slice });
     });
-  });
-
-  // update widget state based on current image
-  watch(
-    currentImageMetadata,
-    (metadata) => {
-      widgetState.setIndexToWorld(metadata.indexToWorld);
-      widgetState.setWorldToIndex(metadata.worldToIndex);
-      const [xDim, yDim, zDim] = metadata.dimensions;
-      const imageBounds: Bounds = [0, xDim - 1, 0, yDim - 1, 0, zDim - 1];
-      // inflate by 0.5, since the image slice rendering is inflated
-      // by 0.5.
-      handle.setBounds(vtkBoundingBox.inflate(imageBounds, 0.5));
-    },
-    { immediate: true }
-  );
-
-  // update the position
-  handle.onModified(() => {
-    const origin = handle.getOrigin();
-    if (origin) {
-      position.value = origin;
-    }
-  });
-
-  function activateTool() {
-    active.value = true;
-    return true;
   }
 
   function deactivateTool() {
-    active.value = false;
     widgetState.setDragging(false);
   }
 
@@ -132,28 +100,10 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     widgetState.setDragging(dragging);
   }
 
-  function serialize(state: StateFile) {
-    const crosshairs = state.manifest.tools?.crosshairs;
-    if (!crosshairs) return;
-    crosshairs.position = position.value;
-  }
-
-  function deserialize(manifest: Manifest) {
-    const crosshairsPosition = manifest.tools?.crosshairs?.position;
-    if (crosshairsPosition) {
-      position.value = crosshairsPosition;
-    }
-  }
-
   return {
     getWidgetFactory,
     setPosition,
-    position,
-    imagePosition,
-    activateTool,
     deactivateTool,
     setDragging,
-    serialize,
-    deserialize,
   };
 });

@@ -25,11 +25,15 @@ export const SPEC_VERSION = 1;
 
 // Semantic type tag. OPEN vocabulary (no closed server enum): the
 // tag says what an input/output IS to the task, not its byte format. Unknown
-// tags are ACCEPTED, never rejected — a `z.string()`, not a `z.enum`. v1 seed
-// vocabulary is `image | labelmap`; modality refinements (`ct`, `pet`) extend
-// it when a task needs them.
+// tags are ACCEPTED, never rejected — a `z.string()`, not a `z.enum`. The seed
+// vocabulary is `image | labelmap | annotations`; modality refinements (`ct`,
+// `pet`) extend it when a task needs them. Adding a tag needs no schema change
+// — these constants exist so the tags are greppable, not enumerable.
 export const TYPE_TAG_IMAGE = 'image';
 export const TYPE_TAG_LABELMAP = 'labelmap';
+// Vector annotations (rulers, rectangles, polygons) as the `annotations.ts`
+// interchange file.
+export const TYPE_TAG_ANNOTATIONS = 'annotations';
 export const typeTagSchema = z.string();
 const identifierSchema = z.string().regex(/\S/, 'id must not be empty');
 
@@ -128,6 +132,12 @@ const sourceRefParam = z.object({
   kind: z.literal('sourceRef'),
   ...paramCommon,
   accepts: z.array(typeTagSchema).min(1),
+  multiple: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. Only labelmap source refs bind plurally today — every group whose parent is the active dataset, in store order; on other type tags the flag has no effect yet.'
+    ),
 });
 
 const boundsParam = z.object({

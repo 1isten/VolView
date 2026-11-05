@@ -5,9 +5,9 @@ import type { FormValidationIssue, TaskFormModel } from './formModel';
 import type { SourceRefBindingState, SourceRefField } from './mintInput';
 import {
   ambiguousBinding,
-  bindingStateMessage,
   mintInputValue,
   sourceRefFields,
+  unboundBinding,
 } from './mintInput';
 
 export const labelmapInputFields = (model: TaskFormModel): SourceRefField[] =>
@@ -29,34 +29,35 @@ export const mintLabelmapReferenceImage = (
 };
 
 export type LabelmapResolution =
-  | { kind: 'resolved'; groupId: string }
+  | { kind: 'resolved'; groupIds: string[] }
   | { kind: 'unresolved' };
 
-export const resolveLabelmapGroup = (
+export const resolveLabelmapGroups = (
   backgroundImageId: string | undefined,
   activeSegmentGroupId: string | null | undefined,
+  multiple: boolean,
   view: SegmentGroupView
 ): LabelmapResolution => {
   if (!backgroundImageId) return { kind: 'unresolved' };
 
-  const belongsToBackground = (groupId: string): boolean =>
-    view.metadataByID[groupId]?.parentImage === backgroundImageId;
-
-  if (activeSegmentGroupId && belongsToBackground(activeSegmentGroupId)) {
-    return { kind: 'resolved', groupId: activeSegmentGroupId };
+  const groupIds = (view.orderByParent[backgroundImageId] ?? []).filter(
+    (groupId) => view.metadataByID[groupId]?.parentImage === backgroundImageId
+  );
+  if (multiple) {
+    return groupIds.length > 0
+      ? { kind: 'resolved', groupIds }
+      : { kind: 'unresolved' };
   }
-
-  // No picker exists, so an ambiguous background fails closed.
-  const groups = view.orderByParent[backgroundImageId] ?? [];
-  if (groups.length === 1 && belongsToBackground(groups[0])) {
-    return { kind: 'resolved', groupId: groups[0] };
+  if (activeSegmentGroupId && groupIds.includes(activeSegmentGroupId)) {
+    return { kind: 'resolved', groupIds: [activeSegmentGroupId] };
   }
-
-  return { kind: 'unresolved' };
+  return groupIds.length === 1
+    ? { kind: 'resolved', groupIds }
+    : { kind: 'unresolved' };
 };
 
 export type LabelmapBindingResult = {
-  groups: Record<string, string>;
+  groups: Record<string, string[]>;
   states: Record<string, SourceRefBindingState>;
   // Caller must suppress its generic issue for these param ids.
   issues: FormValidationIssue[];
@@ -83,23 +84,12 @@ const bindLabelmapFields = (
   if (resolution.kind === 'unresolved') {
     return {
       groups: {},
-      states: { [field.id]: 'no-segment-group' },
-      issues: field.required
-        ? [
-            {
-              parameter: field.id,
-              message: bindingStateMessage(
-                'no-segment-group',
-                'segment group'
-              )!,
-            },
-          ]
-        : [],
+      ...unboundBinding(field, 'no-segment-group', 'segment group'),
     };
   }
 
   return {
-    groups: { [field.id]: resolution.groupId },
+    groups: { [field.id]: resolution.groupIds },
     states: { [field.id]: 'bound' },
     issues: [],
   };
@@ -111,22 +101,17 @@ export const bindResolvedLabelmapInputs = (
 ): LabelmapBindingResult =>
   bindLabelmapFields(labelmapInputFields(model), resolution);
 
-export const bindLabelmapInputs = (
-  model: TaskFormModel,
-  backgroundImageId: string | undefined,
-  activeSegmentGroupId: string | null | undefined,
-  view: SegmentGroupView
-): LabelmapBindingResult => {
-  const fields = labelmapInputFields(model);
-  const resolution =
-    fields.length === 1
-      ? resolveLabelmapGroup(backgroundImageId, activeSegmentGroupId, view)
-      : { kind: 'unresolved' as const };
-  return bindLabelmapFields(fields, resolution);
-};
-
 // `format` is omitted: the staged uri already carries the extension.
 export const mintLabelmapValue = (uris: string[]): InputValue => ({
   type: TYPE_TAG_LABELMAP,
   uris,
 });
+
+// The `.seg.nrrd` extension is what makes the writer embed segment names and
+// colors. Group names are not unique, so a parameter taking more than one
+// numbers its files (1-based) to keep them distinguishable in the job folder.
+export const stagedLabelmapFileNames = (groupNames: string[]): string[] =>
+  groupNames.map(
+    (name, index) =>
+      `${name}${groupNames.length > 1 ? `-${index + 1}` : ''}.seg.nrrd`
+  );
