@@ -66,12 +66,14 @@ const mocks = vi.hoisted(() => {
   };
 });
 
+// eslint-disable-next-line no-restricted-syntax -- DICOM splitting runs in wasm; unavailable in the node test environment
 vi.mock('@/src/io/dicom', () => ({
   splitAndSort: mocks.splitAndSort,
   // PMT-ONLY: the pmt DICOM store uses this helper at store creation.
   volumeKeyGetSuffix: vi.fn(),
 }));
 
+// eslint-disable-next-line no-restricted-syntax -- reads real DICOM bytes through wasm
 vi.mock('@/src/core/cine/parseCineDicom', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/src/core/cine/parseCineDicom')>();
@@ -81,6 +83,7 @@ vi.mock('@/src/core/cine/parseCineDicom', async (importOriginal) => {
   };
 });
 
+// eslint-disable-next-line no-restricted-syntax -- needs a streaming chunk source the node environment cannot provide
 vi.mock('@/src/core/streaming/dicomChunkImage', () => ({
   default: mocks.MockDicomChunkImage,
 }));

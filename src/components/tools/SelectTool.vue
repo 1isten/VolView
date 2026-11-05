@@ -113,10 +113,18 @@ const isAnnotationWidgetState = (
 onVTKEvent(
   view.interactor,
   'onLeftButtonPress',
-  (event: any) => {
-    const isPlacing = PLACING_TOOLS.includes(toolStore.currentTool);
+  async (event: any) => {
+    if (PLACING_TOOLS.includes(toolStore.currentTool)) {
+      // avoid bugs when starting a placing tool on an existing tool and right clicking and deleting existing tools
+      return;
+    }
+
     const withModifiers = !!(event.shiftKey || event.controlKey);
-    const selectedData = view.widgetManager.getSelectedData();
+    // Pick where the button went down. The widget manager's standing pick is
+    // whatever its last tracked mouse move resolved, which can be a different
+    // position or, mid capture, nothing at all.
+    const { x, y } = event.position;
+    const selectedData = await view.widgetManager.getSelectedDataForXY(x, y);
     let handled = false;
     if ('widget' in selectedData) {
       const widget =
@@ -150,7 +158,7 @@ onVTKEvent(
         }
       }
     }
-    if (!handled && !withModifiers && !isPlacing) {
+    if (!handled && !withModifiers) {
       selectionStore.clearSelection();
     }
   },

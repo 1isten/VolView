@@ -274,8 +274,9 @@ function loadSegmentations(
   });
 }
 
-type DataSourceImporter = (
+export type DataSourceImporter = (
   sources: DataSource[],
+  // PMT-ONLY: PMTaro's bus volume key suffix.
   volumeKeySuffix?: string
 ) => Promise<ImportDataSourcesResult[]>;
 
@@ -669,12 +670,22 @@ function loadDataSourcesWithOutcome(
 
 export function loadDataSources(
   sources: DataSource[],
-  volumeKeySuffix?: string,
+  volumeKeySuffixOrImporter?: string | DataSourceImporter,
   isSession?: boolean
 ) {
+  // PMT-ONLY: PMTaro passes the bus volume key suffix; upstream tests inject
+  // an importer. Accept both call shapes.
+  const importer =
+    typeof volumeKeySuffixOrImporter === 'function'
+      ? volumeKeySuffixOrImporter
+      : importDataSources;
+  const volumeKeySuffix =
+    typeof volumeKeySuffixOrImporter === 'string'
+      ? volumeKeySuffixOrImporter
+      : undefined;
   return loadDataSourcesWithOutcome(
     sources,
-    importDataSources,
+    importer,
     volumeKeySuffix,
     isSession
   ).then(({ datasetIds, completed }) => (completed ? datasetIds : undefined));
@@ -736,11 +747,20 @@ export async function loadUrls(
 
 export async function loadUrlsWithOutcome(
   params: UrlParams | LoadUrlsParams,
-  options?: LoadEventOptions
+  optionsOrImporter?: LoadEventOptions | DataSourceImporter
 ): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
   if (!params.urls) {
     return { datasetIds: [], hadErrors: false };
   }
+
+  // PMT-ONLY: PMTaro passes load options (volumeKeySuffix/openFolder/...);
+  // upstream tests inject an importer. Accept both call shapes.
+  const importer =
+    typeof optionsOrImporter === 'function'
+      ? optionsOrImporter
+      : importDataSources;
+  const options =
+    typeof optionsOrImporter === 'function' ? undefined : optionsOrImporter;
 
   // PMT-ONLY: pmt keeps its bus/cached-file/openFolder loading pipeline.
   const outcomes: LoadDataSourcesOutcome[] = [];
@@ -1404,7 +1424,7 @@ export async function loadUrlsWithOutcome(
           outcomes.push(
             await loadDataSourcesWithOutcome(
               dicomWebFiles.map(fileToDataSource),
-              importDataSources,
+              importer,
               volumeKeySuffix
             )
           );
@@ -1413,14 +1433,14 @@ export async function loadUrlsWithOutcome(
         outcomes.push(
           await loadDataSourcesWithOutcome(
             sources,
-            importDataSources,
+            importer,
             volumeKeySuffix
           )
         );
       }
     } else {
       outcomes.push(
-        await loadDataSourcesWithOutcome(sources, importDataSources)
+        await loadDataSourcesWithOutcome(sources, importer)
       );
     }
   }

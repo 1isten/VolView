@@ -210,11 +210,12 @@ export const useDICOMStore = defineStore('dicom', {
           }
           const image = cachedImage ?? new DicomChunkImage();
 
-          // Sten Noted:
-          // inside the addChunks function call, DICOM.splitAndSort is called again
-          // and may mutate the sortedChunks order one more time, only after that the chunks are truly sorted
-          await image.addChunks(sortedChunks, id);
-          imageCacheStore.addProgressiveImage(image, { id });
+          // PMT: inside addChunks, DICOM.splitAndSort runs again and may
+          // reorder the chunks; addChunks mutates sortedChunks to match.
+          await image.addChunks(sortedChunks);
+          // Registration starts the first load; a re-import starts its own.
+          if (cachedImage) image.startLoad();
+          else imageCacheStore.addProgressiveImage(image, { id });
 
           if (volumeKeySuffix) {
             const volumeKey = id;

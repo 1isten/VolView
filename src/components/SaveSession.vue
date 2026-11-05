@@ -47,7 +47,10 @@ import { onKeyDown } from '@vueuse/core';
 import { useLoadDataStore } from '@/src/store/load-data';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
-import { serialize } from '../io/state-file/serialize';
+import {
+  serialize,
+  serializeWithManifest,
+} from '../io/state-file/serialize';
 import { Manifest } from '../io/state-file/schema';
 
 // import { usePaintToolStore } from '@/src/store/tools/paint';
@@ -115,10 +118,10 @@ export default defineComponent({
               ? { stateIDToStoreID }
               : {};
           // @ts-ignore
-          const [blob, manifest]: [Blob, Manifest] = await serialize({
-            stateIDToStoreID: meta.stateIDToStoreID,
-            returnWithManifest: true,
-          });
+          const [blob, manifest]: [Blob, Manifest] =
+            await serializeWithManifest({
+              stateIDToStoreID: meta.stateIDToStoreID,
+            });
           if (saveAsHyperLink.value) {
             if (manifest.tools?.current) {
               meta.tool = manifest.tools.current;

@@ -259,12 +259,15 @@ export const useDatasetStore = defineStore('dataset', () => {
     // Anonymous volume.
     loadedData.value = loadedData.value.filter((d) => d.dataID !== id);
     dicomStore.deleteVolume(id);
-    imageStore.deleteData(id);
     layersStore.remove(id);
     useViewConfigStore().removeData(id);
     useImageStatsStore().removeData(id);
-
+    // PMT-ONLY: drop the bus bookkeeping for this dataset as well.
     loadDataStore.removeLoadedByBus(id);
+
+    // Cache eviction disposes the VTK object after Vue has flushed consumers.
+    // Run every other synchronous reference cleanup before starting eviction.
+    imageStore.deleteData(id);
   };
 
   const removeAll = () => {

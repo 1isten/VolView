@@ -10,13 +10,14 @@ import {
   ManifestSchema,
   ParentToLayers,
   SegmentGroup,
+  StateFile,
 } from '@/src/io/state-file/schema';
 
 import { retypeFile } from '@/src/io';
 import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
-import { useMessageStore } from '@/src/store/messages';
+import { useMessageStore, type MessageOptions } from '@/src/store/messages';
 import {
   collectManifestRefs,
   declareManifestRefs,
@@ -275,24 +276,46 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   return { manifest: normalized, omitted };
 }
 
-export async function serialize(opts?: {
-  stateIDToStoreID?: Record<string, string>;
-  returnWithManifest?: false;
-}): Promise<Blob>;
-export async function serialize(opts: {
-  stateIDToStoreID?: Record<string, string>;
-  returnWithManifest: true;
-}): Promise<[Blob, Manifest]>;
-export async function serialize(opts?: {
-  stateIDToStoreID?: Record<string, string>;
-  returnWithManifest?: boolean;
-}) {
-  const datasetStore = useDatasetStore();
-  const viewStore = useViewStore();
-  const labelStore = useSegmentGroupStore();
-  const toolStore = useToolStore();
-  const layersStore = useLayersStore();
+/**
+ * Everything `serialize` reaches outside itself: the writers that each
+ * contribute their slice of the manifest, in order, and the sink that reports
+ * content the normalizer had to drop.
+ */
+export type SerializeDependencies = {
+  writers: Array<(stateFile: StateFile) => void | Promise<void>>;
+  addWarning: (title: string, options: MessageOptions) => void;
+};
 
+// PMT-ONLY: PMTaro saves an already-open session and needs the dataset id map
+// plus the manifest back. Kept as an additive wrapper so upstream's
+// `serialize(dependencies?)` signature stays intact for its tests.
+export type SerializeOptions = {
+  stateIDToStoreID?: Record<string, string>;
+};
+
+const serializingStoreHooks = [
+  useDatasetStore,
+  useViewStore,
+  useViewConfigStore,
+  useSegmentGroupStore,
+  useToolStore,
+  useLayersStore,
+];
+
+const storeWriter =
+  (useStore: (typeof serializingStoreHooks)[number]) =>
+  (stateFile: StateFile) =>
+    useStore().serialize(stateFile);
+
+export const appSerializeDependencies = (): SerializeDependencies => ({
+  writers: serializingStoreHooks.map(storeWriter),
+  addWarning: (title, options) => useMessageStore().addWarning(title, options),
+});
+
+async function serializeToStateFile(
+  dependencies: SerializeDependencies,
+  opts?: SerializeOptions
+): Promise<{ blob: Blob; manifest: Manifest }> {
   const zip = new JSZip();
   const manifest: Manifest = {
     version: MANIFEST_VERSION,
@@ -325,35 +348,46 @@ export async function serialize(opts?: {
     manifest,
   };
 
-  if (
+  // Writers run in order: later ones read manifest entries the earlier ones
+  // wrote.
+  // PMT-ONLY: when PMTaro passes stateIDToStoreID, the dataset writer (always
+  // first in appSerializeDependencies) is replaced by that mapping.
+  const hasStateIDMap =
     typeof opts?.stateIDToStoreID === 'object' &&
-    Object.keys(opts.stateIDToStoreID).length > 0
-  ) {
-    manifest.stateIDToStoreID = opts.stateIDToStoreID;
-  } else {
-    await datasetStore.serialize(stateFile);
+    Object.keys(opts.stateIDToStoreID).length > 0;
+  if (hasStateIDMap) {
+    manifest.stateIDToStoreID = opts!.stateIDToStoreID;
   }
-  viewStore.serialize(stateFile);
-  await useViewConfigStore().serialize(stateFile);
-  await labelStore.serialize(stateFile);
-  toolStore.serialize(stateFile);
-  await layersStore.serialize(stateFile);
+  for (const write of hasStateIDMap
+    ? dependencies.writers.slice(1)
+    : dependencies.writers) {
+    await write(stateFile);
+  }
   const repaired = normalizeManifest(manifest, zip);
   if (repaired.omitted.length > 0) {
-    useMessageStore().addWarning('Some session content could not be saved', {
+    dependencies.addWarning('Some session content could not be saved', {
       details: `Invalid entries were omitted: ${repaired.omitted.join(', ')}`,
       persist: true,
     });
   }
   zip.file(MANIFEST, JSON.stringify(repaired.manifest));
 
-  if (opts?.returnWithManifest) {
-    return [await zip.generateAsync({ type: 'blob' }), manifest] as [
-      Blob,
-      Manifest,
-    ];
-  }
-  return zip.generateAsync({ type: 'blob' });
+  return { blob: await zip.generateAsync({ type: 'blob' }), manifest };
+}
+
+export async function serialize(
+  dependencies: SerializeDependencies = appSerializeDependencies()
+): Promise<Blob> {
+  return (await serializeToStateFile(dependencies)).blob;
+}
+
+// PMT-ONLY: used by PMTaro's SaveSession (see the comment on SerializeOptions).
+export async function serializeWithManifest(
+  opts: SerializeOptions = {},
+  dependencies: SerializeDependencies = appSerializeDependencies()
+): Promise<[Blob, Manifest]> {
+  const { blob, manifest } = await serializeToStateFile(dependencies, opts);
+  return [blob, manifest];
 }
 
 export async function isStateFile(file: File) {

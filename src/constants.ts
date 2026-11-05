@@ -94,6 +94,10 @@ export const ACTIONS = {
     readable: 'Activate next label',
   },
 
+  deleteSelectedAnnotations: {
+    readable: 'Delete selected annotations',
+  },
+
   deleteCurrentImage: {
     readable: 'Remove current active image',
   },
@@ -113,6 +117,12 @@ export const ACTIONS = {
 } as const;
 
 export type Action = keyof typeof ACTIONS;
+
+/**
+ * What an action is bound to: one key chord, or several when the same action
+ * is reached by more than one key.
+ */
+export type Binding = string | string[];
 
 export const WLAutoRanges = {
   FullRange: 0,

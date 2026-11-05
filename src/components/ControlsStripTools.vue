@@ -202,7 +202,7 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watch, onMounted } from 'vue';
 import { useDisplay } from 'vuetify';
-import { onKeyDown, useMagicKeys } from '@vueuse/core';
+import { onKeyDown } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -218,7 +218,11 @@ import RectangleControls from '@/src/components/RectangleControls.vue';
 import CircleControls from '@/src/components/CircleControls.vue';
 import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
-import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import {
+  actionToKey,
+  readableBinding,
+  useActionHeld,
+} from '@/src/composables/useKeyboardShortcuts';
 import {
   useCurrentImage,
   getImageMetadata,
@@ -390,11 +394,9 @@ export default defineComponent({
           const store = useAnnotationToolStore(type);
           const tool = store.toolByID[id] as any;
           if (!tool) return null;
-          const {
-            id: _id,
-            placing: _placing,
-            ...data
-          } = JSON.parse(JSON.stringify(tool)); // eslint-disable-line @typescript-eslint/no-unused-vars
+          const data = JSON.parse(JSON.stringify(tool));
+          delete data.id;
+          delete data.placing;
 
           // Determine source view orientation from the tool's frameOfReference
           const srcMeta = getImageMetadata(data.imageID);
@@ -538,10 +540,7 @@ export default defineComponent({
       });
     });
 
-    const keys = useMagicKeys();
-    const enableTempCrosshairs = computed(
-      () => keys[actionToKey.value.temporaryCrosshairs].value
-    );
+    const enableTempCrosshairs = useActionHeld('temporaryCrosshairs');
     watch(enableTempCrosshairs, (enable) => {
       if (enable) toolStore.activateTemporaryCrosshairs();
       else toolStore.deactivateTemporaryCrosshairs();
@@ -551,17 +550,17 @@ export default defineComponent({
     const nameToShortcut = computed(() => {
       const keyMap = actionToKey.value;
       return {
-        'Window & Level': keyMap.windowLevel,
-        Pan: keyMap.pan,
-        Zoom: keyMap.zoom,
-        Crosshairs: keyMap.crosshairs,
-        Select: keyMap.select,
-        Paint: keyMap.paint,
-        Rectangle: keyMap.rectangle,
-        Circle: keyMap.circle,
-        Polygon: keyMap.polygon,
-        Ruler: keyMap.ruler,
-        Crop: keyMap.crop,
+        'Window & Level': readableBinding(keyMap.windowLevel),
+        Pan: readableBinding(keyMap.pan),
+        Zoom: readableBinding(keyMap.zoom),
+        Crosshairs: readableBinding(keyMap.crosshairs),
+        Select: readableBinding(keyMap.select),
+        Paint: readableBinding(keyMap.paint),
+        Rectangle: readableBinding(keyMap.rectangle),
+        Circle: readableBinding(keyMap.circle),
+        Polygon: readableBinding(keyMap.polygon),
+        Ruler: readableBinding(keyMap.ruler),
+        Crop: readableBinding(keyMap.crop),
       };
     });
 
