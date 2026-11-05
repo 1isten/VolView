@@ -1,45 +1,50 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { z } from 'zod';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import JSZip from 'jszip';
-import {
-  DATASET_CACHE,
-  TEMP_DIR,
-  linkCachedDataset,
-} from '../../wdio.shared.conf';
+import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
-import { RemoteResource } from '../../src/io/manifest';
+import type { TestDataset } from '../datasets';
 
-// Cached across runs, and not automatically deleted
-export const downloadFile = async (url: string, fileName: string) => {
-  const savePath = path.join(DATASET_CACHE, fileName);
-  if (!fs.existsSync(savePath)) {
-    // Download to a temporary file first to avoid race conditions
-    const tempPath = `${savePath}.${process.pid}.${Date.now()}.tmp`;
-    const response = await fetch(url);
-    const data = await response.arrayBuffer();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(tempPath, buffer);
+export function writeMetaImage(
+  fileName: string,
+  { spacing = '1 1 1', size = 16, step = 1 } = {}
+) {
+  const filePath = path.join(TEMP_DIR, fileName);
+  const header = [
+    'ObjectType = Image',
+    'NDims = 3',
+    `DimSize = ${size} ${size} ${size}`,
+    `ElementSpacing = ${spacing}`,
+    'ElementType = MET_UCHAR',
+    'ElementDataFile = LOCAL',
+    '',
+  ].join('\n');
+  const voxels = Uint8Array.from(
+    { length: size ** 3 },
+    (_, i) => (i * step) % 256
+  );
+  fs.writeFileSync(filePath, Buffer.concat([Buffer.from(header), voxels]));
 
-    // Atomic rename - if another process already created the file, this will fail safely
-    try {
-      fs.renameSync(tempPath, savePath);
-    } catch (err) {
-      // Another process beat us to it, clean up our temp file
-      try {
-        fs.unlinkSync(tempPath);
-      } catch {
-        // ignore
-      }
-      // Check if the final file exists and is complete
-      if (!fs.existsSync(savePath)) {
-        throw new Error(`Failed to download ${fileName}: ${err}`);
-      }
-    }
-  }
-  return linkCachedDataset(fileName);
-};
+  cleanuptotal.addCleanup(async () => {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  });
+
+  return fileName;
+}
+
+/**
+ * A directory under TEMP_DIR for one spec's generated files, removed with
+ * everything in it once the run finishes.
+ */
+export function makeTempDir(dirName: string) {
+  const dir = path.join(TEMP_DIR, dirName);
+  fs.mkdirSync(dir, { recursive: true });
+  cleanuptotal.addCleanup(async () => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  return dir;
+}
 
 export async function writeManifestToFile(manifest: unknown, fileName: string) {
   const filePath = path.join(TEMP_DIR, fileName);
@@ -80,51 +85,72 @@ export async function openVolViewPage(fileName: string) {
   expect(notifications).toEqual(0);
 }
 
-type RemoteResourceType = z.infer<typeof RemoteResource> & { name: string };
-
 export const SESSION_SAVE_TIMEOUT = 40_000;
 
-export const waitForFileExists = (filePath: string, timeout: number) =>
+const waitForFile = (
+  filePath: string,
+  timeout: number,
+  ready: (stats: fs.Stats) => boolean
+) =>
   new Promise<void>((resolve, reject) => {
     const dir = path.dirname(filePath);
     const basename = path.basename(filePath);
-
-    const watcher = fs.watch(dir, (eventType, filename) => {
-      if (eventType === 'rename' && filename === basename) {
+    const check = () => {
+      try {
+        if (!ready(fs.statSync(filePath))) return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
         clearTimeout(timerId);
         watcher.close();
-        resolve();
+        reject(error);
+        return;
       }
+      clearTimeout(timerId);
+      watcher.close();
+      resolve();
+    };
+    const watcher = fs.watch(dir, (_, filename) => {
+      if (filename === null || filename === basename) check();
     });
-
     const timerId = setTimeout(() => {
       watcher.close();
-      reject(
-        new Error(`File ${filePath} not created within ${timeout}ms timeout`)
-      );
+      reject(new Error(`File ${filePath} was not ready within ${timeout}ms`));
     }, timeout);
-
-    fs.access(filePath, fs.constants.R_OK, (err) => {
-      if (!err) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
+    watcher.on('error', (error) => {
+      clearTimeout(timerId);
+      watcher.close();
+      reject(error);
     });
+    check();
   });
 
-export async function openUrls(urlsAndNames: Array<RemoteResourceType>) {
-  await Promise.all(
-    urlsAndNames.map((resource) => downloadFile(resource.url, resource.name))
-  );
+export const waitForFileExists = (filePath: string, timeout: number) =>
+  waitForFile(filePath, timeout, () => true);
 
-  const resources = urlsAndNames.map(({ name }) => ({ url: `/tmp/${name}` }));
+// Download creation and its first bytes share the caller's existing wait budget.
+export const waitForDownload = (filePath: string, timeout: number) =>
+  waitForFile(filePath, timeout, (stats) => stats.size > 0);
+
+export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   const manifest = {
-    resources,
+    resources: datasets.map(({ name }) => ({ url: `/tmp/${name}` })),
   };
   const fileName = `openUrlsManifest_${Date.now()}_${Math.random()
     .toString(36)
     .substring(7)}.json`;
   await writeManifestToFile(manifest, fileName);
   await openVolViewPage(fileName);
+}
+
+/** Loads a file into the page already open, through the Open files dialog. */
+export async function openThroughDialog(filePath: string) {
+  await browser.sessionSubscribe({ events: ['input.fileDialogOpened'] });
+  const opened = new Promise<{
+    context: string;
+    element?: { sharedId: string };
+  }>((resolve) => browser.once('input.fileDialogOpened', resolve));
+  await $('[data-testid="control-button-Open files"]').click();
+  const { context, element } = await opened;
+  if (!element) throw new Error('The file dialog opened for no input');
+  await browser.inputSetFiles({ context, element, files: [filePath] });
 }

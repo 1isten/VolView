@@ -1,25 +1,39 @@
-import { describe, it, beforeEach, expect, vi } from 'vitest';
-import { shallowMount, flushPromises } from '@vue/test-utils';
+import * as segmentationComposition from '@/src/segmentation/io/composition';
+import {
+  describe,
+  it,
+  afterEach,
+  beforeEach,
+  expect,
+  onTestFinished,
+  vi,
+} from 'vitest';
+import {
+  enableAutoUnmount,
+  shallowMount,
+  flushPromises,
+} from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createApp } from 'vue';
 
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { defer, type Deferred } from '@/src/utils';
 import type {
-  ProcessingProvider,
   ProcessingProviderConfig,
   TaskSummary,
 } from '@/src/processing/types';
 import type { TaskSpecEnvelope } from '@/src/processing/engine/taskSpec';
 import {
   makeFakeProvider,
+  registerFake,
   type FakeProvider,
 } from '@/src/processing/__tests__/fakeProvider';
 
-// `writeSegmentation` spawns a real Worker; keep the IO module out of the test.
 const ioMocks = vi.hoisted(() => ({
   readImage: vi.fn(),
-  writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  writeSegmentation: vi.fn<
+    typeof import('@/src/io/readWriteImage').writeSegmentation
+  >(async () => new Uint8Array([1, 2, 3])),
 }));
 // eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
 vi.mock('@/src/io/readWriteImage', () => ({
@@ -33,10 +47,17 @@ import TaskForm from '@/src/processing/components/TaskForm.vue';
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useMessageStore } from '@/src/store/messages';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import {
+  seedVoxel,
+  mintSegment,
+  selectSegment,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import { useViewStore } from '@/src/store/views';
+import { seatStagingScene } from '@/src/processing/engine/__tests__/stagingScene';
+
+enableAutoUnmount(afterEach);
 
 const cfg = (id: string): ProcessingProviderConfig => ({
   id,
@@ -56,7 +77,20 @@ const makeProvider = (id: string): FakeProvider =>
     listJobHistory: vi.fn(),
   });
 
-// No parameters, so submit is never gated on a required input.
+const finishRuler = () =>
+  useRulerStore().addRuler({
+    imageID: 'image-1',
+    name: 'Ruler',
+    firstPoint: [0, 0, 0],
+    secondPoint: [1, 1, 0],
+    frameOfReference: {
+      planeNormal: [0, 0, 1],
+      planeOrigin: [0, 0, 0],
+    },
+    slice: 0,
+    placing: false,
+  });
+
 const envelope = (id: string, title: string): TaskSpecEnvelope => ({
   specVersion: 1,
   id,
@@ -65,32 +99,22 @@ const envelope = (id: string, title: string): TaskSpecEnvelope => ({
   outputs: [],
 });
 
-const registerFake = (
-  store: ReturnType<typeof useProcessingJobsStore>,
-  provider: FakeProvider
-) => {
-  store.registerProviderConfig(provider.config);
-  // Seating the instance is what a transport load would have produced.
-  store.instances.set(
-    provider.config.id,
-    provider as unknown as ProcessingProvider
-  );
-};
-
 // Auto-stubs drop slot content, hiding the panel children.
 const slotStub = { template: '<div><slot /></div>' };
 
 const mountJobsModule = (pinia: ReturnType<typeof createPinia>) =>
   shallowMount(JobsModule, {
-    // v-select's auto-stub warns on getter-only props.
     global: {
       plugins: [pinia],
       stubs: {
         'v-select': true,
+        TaskForm: false,
+        FileWidget: false,
         'v-expansion-panels': slotStub,
         'v-expansion-panel': slotStub,
         'v-expansion-panel-title': slotStub,
         'v-expansion-panel-text': slotStub,
+        'v-alert': slotStub,
       },
     },
   });
@@ -110,7 +134,6 @@ describe('JobsModule — race-free provider/task selection', () => {
 
   beforeEach(() => {
     pinia = createPinia().use(CorePiniaProviderPlugin());
-    // Core stores read injected tool singletons, which need an app to install onto.
     createApp({}).use(pinia);
     setActivePinia(pinia);
   });
@@ -346,6 +369,10 @@ describe('JobsModule — race-free provider/task selection', () => {
   });
 
   it('rebinds an annotations input after the first ruler is finished', async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const p = makeProvider('P');
     p.listTasks = vi
       .fn()
@@ -397,20 +424,9 @@ describe('JobsModule — race-free provider/task selection', () => {
       }),
     ]);
 
-    useRulerStore().addRuler({
-      imageID: 'image-1',
-      name: 'Ruler',
-      firstPoint: [0, 0, 0],
-      secondPoint: [1, 1, 0],
-      frameOfReference: {
-        planeNormal: [0, 0, 1],
-        planeOrigin: [0, 0, 0],
-      },
-      slice: 0,
-      placing: false,
-    });
+    finishRuler();
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await vi.advanceTimersByTimeAsync(200);
     await flushPromises();
 
     const form = wrapper.findComponent(TaskForm);
@@ -422,14 +438,18 @@ describe('JobsModule — race-free provider/task selection', () => {
   });
 });
 
-describe('JobsModule — segment group staging', () => {
+describe('JobsModule segmentation staging', () => {
   let pinia: ReturnType<typeof createPinia>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
     ioMocks.writeSegmentation.mockClear();
-    pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    pinia = await seatStagingScene();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   const mount = () => mountJobsModule(pinia);
@@ -456,34 +476,31 @@ describe('JobsModule — segment group staging', () => {
     outputs: [],
   });
 
-  const seedActiveImage = () => {
-    useDatasetStore().addDataSources([
-      {
-        dataID: 'image-1',
-        dataSource: {
-          type: 'uri',
-          uri: 'girder://file/image-1',
-          name: 'image.nrrd',
-        },
-      },
-    ]);
-    useViewStore().setDataForAllViews('image-1');
+  const seedSegmentation = (name: string) => {
+    const store = useSegmentationStore();
+    const segmentation = store.ensureSegmentationForImage('image-1');
+    segmentation.name = name;
+    const segment = store.createMask(
+      segmentation.id,
+      mintSegment({ name: 'Tumor' })
+    );
+    // A segmentation with no voxel is no input, so it holds one.
+    seedVoxel(segment.id, [1, 1, 1]);
+    selectSegment(segment.id);
+    return { segmentationId: segmentation.id, maskId: segment.id };
   };
 
-  // Painted groups, in the order the store hands them back.
-  const seedGroups = (names: [string, string][]) => {
-    const store = useSegmentGroupStore();
-    names.forEach(([id, name]) => {
-      store.dataIndex[id] = {
-        setSegments: () => {},
-      } as unknown as (typeof store.dataIndex)[string];
-      store.metadataByID[id] = {
-        name,
-        parentImage: 'image-1',
-        segments: { order: [], byValue: {} },
-      };
-      (store.orderByParent['image-1'] ??= []).push(id);
-    });
+  const seedOverlappingSegments = () => {
+    const { segmentationId, maskId } = seedSegmentation('Overlap');
+    const second = useSegmentationStore().createMask(
+      segmentationId,
+      mintSegment({
+        name: 'Node',
+      })
+    );
+    seedVoxel(maskId, [1, 1, 1]);
+    seedVoxel(second.id, [1, 1, 1]);
+    selectSegment(second.id);
   };
 
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {
@@ -513,56 +530,24 @@ describe('JobsModule — segment group staging', () => {
     return { provider: p, submitSpy };
   };
 
-  it('stages every group of a multiple param in store order', async () => {
-    seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Liver'],
-    ]);
+  it('stages the image’s segmentation for a multiple param', async () => {
+    seedSegmentation('Tumor');
 
     const { provider, submitSpy } = await submit(labelmapSpec(true));
 
-    expect(provider.stageInput).toHaveBeenCalledTimes(2);
+    expect(provider.stageInput).toHaveBeenCalledTimes(1);
+    expect(provider.stageInput.mock.calls[0][0].descriptor.name).toBe(
+      'Tumor.seg.nrrd'
+    );
     expect(submitSpy).toHaveBeenCalledTimes(1);
     expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
       type: 'labelmap',
-      uris: [
-        'girder://staged/Tumor-1.seg.nrrd',
-        'girder://staged/Liver-2.seg.nrrd',
-      ],
+      uris: ['girder://staged/Tumor.seg.nrrd'],
     });
   });
 
-  it('keeps staged file names unique for identically named groups', async () => {
-    seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Tumor'],
-    ]);
-
-    const { provider, submitSpy } = await submit(labelmapSpec(true));
-
-    const names = provider.stageInput.mock.calls.map(
-      (call) => call[0].descriptor.name
-    );
-    expect(new Set(names).size).toBe(2);
-    expect(names).toEqual(['Tumor-1.seg.nrrd', 'Tumor-2.seg.nrrd']);
-    expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
-      type: 'labelmap',
-      uris: [
-        'girder://staged/Tumor-1.seg.nrrd',
-        'girder://staged/Tumor-2.seg.nrrd',
-      ],
-    });
-  });
-
-  it('stages only the active group of a singular param', async () => {
-    seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Liver'],
-    ]);
-    usePaintToolStore().setActiveSegmentGroup('group-2');
+  it('stages the active image’s segmentation for a singular param', async () => {
+    seedSegmentation('Liver');
 
     const { provider, submitSpy } = await submit(labelmapSpec(false));
 
@@ -573,18 +558,184 @@ describe('JobsModule — segment group staging', () => {
     });
   });
 
-  it('reports a staging failure and submits nothing', async () => {
-    seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Liver'],
+  it('stages the labelmap under the image name without its extension', async () => {
+    seedSegmentation('scan.nii.gz');
+
+    const { provider } = await submit(labelmapSpec(false));
+
+    expect(provider.stageInput.mock.calls[0][0].descriptor.name).toBe(
+      'scan.seg.nrrd'
+    );
+  });
+
+  const mountWithSpec = async (spec: TaskSpecEnvelope) => {
+    registerFake(useProcessingJobsStore(), stagingProvider(spec));
+    const wrapper = mount();
+    await flushPromises();
+    return wrapper;
+  };
+
+  const overlapNotice = (wrapper: Awaited<ReturnType<typeof mountWithSpec>>) =>
+    wrapper.find('[data-testid="staging-omission-notice"]');
+
+  it.each([false, true])(
+    'packs overlaps according to input multiplicity (multiple=%s)',
+    async (multiple) => {
+      seedOverlappingSegments();
+      const { provider, submitSpy } = await submit(labelmapSpec(multiple));
+      const [, labelmap, segments] = ioMocks.writeSegmentation.mock.calls[0];
+      const value = labelmap.getPointData().getScalars().getData()[7];
+      expect(segments.find((segment) => segment.value === value)?.name).toBe(
+        multiple ? 'Tumor' : 'Node'
+      );
+      expect(provider.stageInput).toHaveBeenCalledTimes(multiple ? 2 : 1);
+      expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
+        type: 'labelmap',
+        uris: (multiple ? ['Overlap', 'Overlap_layer1'] : ['Overlap']).map(
+          (name) => `girder://staged/${name}.seg.nrrd`
+        ),
+      });
+      expect(
+        ioMocks.writeSegmentation.mock.calls.flatMap(([, , descriptors]) =>
+          descriptors.map(({ name }) => name)
+        )
+      ).toEqual(multiple ? ['Tumor', 'Node'] : ['Node']);
+      expect(
+        provider.stageInput.mock.calls[0][0].descriptor.referenceImage?.uris
+      ).toEqual(['girder://file/image-1']);
+    }
+  );
+
+  it('names omitted whole segments beside a single-file input', async () => {
+    seedOverlappingSegments();
+
+    const notice = overlapNotice(await mountWithSpec(labelmapSpec(false)));
+
+    expect(notice.exists()).toBe(true);
+    // A tab stop, so keyboard users reach the tooltip naming what is dropped.
+    expect(notice.attributes('tabindex')).toBe('0');
+    expect(notice.get('[role="img"]').attributes('aria-label')).toContain(
+      'Omitted whole segments: Tumor'
+    );
+  });
+
+  it('says nothing about overlap when the segments hold no voxel in common', async () => {
+    seedSegmentation('Tumor');
+
+    expect(
+      overlapNotice(await mountWithSpec(labelmapSpec(false))).exists()
+    ).toBe(false);
+  });
+
+  const seedDisjointPair = async (
+    reach?: [number, number, number, number, number, number]
+  ) => {
+    const segmentStore = useSegmentationStore();
+    const segmentation = segmentStore.ensureSegmentationForImage('image-1');
+    const first = segmentStore.createMask(
+      segmentation.id,
+      mintSegment({ name: 'A' })
+    );
+    const second = segmentStore.createMask(
+      segmentation.id,
+      mintSegment({ name: 'B' })
+    );
+    seedVoxel(first.id, [0, 0, 0]);
+    seedVoxel(second.id, [1, 1, 1]);
+    selectSegment(second.id);
+    if (reach) segmentStore.maskVoxels(second.id).ensureContains(reach);
+    selectSegment(first.id);
+
+    const wrapper = await mountWithSpec(labelmapSpec(false));
+    expect(overlapNotice(wrapper).exists()).toBe(false);
+    return { segmentStore, second, wrapper };
+  };
+
+  // The overlap sweep is debounced by 150 ms; fake timers let the cases step
+  // past it without a real wait.
+  const afterDebounce = async () => {
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+  };
+
+  it('does not rescan the masks when a stroke grows one', async () => {
+    const { second, wrapper } = await seedDisjointPair();
+
+    const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
+    seedVoxel(second.id, [0, 0, 0]);
+    await flushPromises();
+
+    expect(scans).not.toHaveBeenCalled();
+
+    await afterDebounce();
+
+    expect(scans).toHaveBeenCalledTimes(1);
+    expect(overlapNotice(wrapper).exists()).toBe(true);
+  });
+
+  it('sweeps the masks once when the selection changes', async () => {
+    const { second, wrapper } = await seedDisjointPair();
+
+    const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
+    selectSegment(second.id);
+    await flushPromises();
+
+    expect(scans).not.toHaveBeenCalled();
+
+    await afterDebounce();
+
+    expect(scans).toHaveBeenCalledTimes(1);
+    expect(overlapNotice(wrapper).exists()).toBe(false);
+  });
+
+  it('rescans when a stroke overlaps inside a box it already had', async () => {
+    const { segmentStore, second, wrapper } = await seedDisjointPair([
+      0, 1, 0, 1, 0, 1,
     ]);
 
+    const extentBefore = [...segmentStore.findMaskBinding(second.id)!.extent];
+    seedVoxel(second.id, [0, 0, 0]);
+    expect([...segmentStore.findMaskBinding(second.id)!.extent]).toEqual(
+      extentBefore
+    );
+
+    await afterDebounce();
+
+    expect(overlapNotice(wrapper).exists()).toBe(true);
+  });
+
+  it('drops the omission notice when a union input moves to annotations', async () => {
+    seedOverlappingSegments();
+    const unionSpec = labelmapSpec(false);
+    unionSpec.parameters[1] = {
+      kind: 'sourceRef',
+      id: 'inputSeg',
+      accepts: ['annotations', 'labelmap'],
+      required: true,
+    };
+    const wrapper = await mountWithSpec(unionSpec);
+    expect(overlapNotice(wrapper).exists()).toBe(true);
+
+    finishRuler();
+    await afterDebounce();
+
+    expect(overlapNotice(wrapper).exists()).toBe(false);
+  });
+
+  it('says nothing about overlap when no segmentation is staged', async () => {
+    seedOverlappingSegments();
+
+    const wrapper = await mountWithSpec(envelope('plain', 'No inputs'));
+
+    expect(overlapNotice(wrapper).exists()).toBe(false);
+  });
+
+  it('reports a staging failure and submits nothing', async () => {
+    seedSegmentation('Tumor');
+
     const p = stagingProvider(labelmapSpec(true));
-    p.stageInput = vi.fn(async (request) => {
-      if (request.descriptor.name === 'Liver-2.seg.nrrd')
-        throw new Error('upload rejected');
-      return ['girder://staged/Tumor-1.seg.nrrd'];
+    p.stageInput = vi.fn(async () => {
+      throw new Error('upload rejected');
     });
     const store = useProcessingJobsStore();
     registerFake(store, p);
@@ -597,12 +748,7 @@ describe('JobsModule — segment group staging', () => {
     await flushPromises();
 
     expect(submitSpy).not.toHaveBeenCalled();
-    expect(useMessageStore().messages).toEqual([
-      expect.objectContaining({
-        title: 'Failed to stage segment group input',
-      }),
-    ]);
-    // The form is usable again rather than stuck mid-submission.
+    expect(messageTitles()).toEqual(['Failed to stage segmentation input']);
     expect(form.props('submitting')).toBe(false);
   });
 });

@@ -13,7 +13,15 @@ vi.mock('@/src/io/resample/resample', () => ({ ensureSameSpace }));
 
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useMessageStore } from '@/src/store/messages';
+import {
+  messageTitles,
+  mountMessageCenter,
+} from '@/src/components/__tests__/messageDisplay';
+import {
+  ParentToLayers,
+  type Manifest,
+  type StateFile,
+} from '@/src/io/state-file/schema';
 
 // A unit-spacing cube at `origin`, so its bounds are the numbers the overlap
 // check reads: an n-wide cube at o spans [o, o + n - 1] on every axis.
@@ -71,9 +79,38 @@ describe('useLayersStore.addLayer return contract', () => {
     expect(id).toBeUndefined();
     expect(store.getLayers('parent')).toHaveLength(0);
     expect(cached('parent::source')).toBe(false);
-    expect(useMessageStore().messages[0].options.details).toContain(
+    expect(mountMessageCenter().get('.details').text()).toContain(
       'no overlap in physical space'
     );
+  });
+
+  it('settles and removes the provisional layer when the source is absent', async () => {
+    seatImage('parent', 0);
+    const store = useLayersStore();
+
+    const id = await store.addLayer('parent', 'missing-source');
+
+    expect(id).toBeUndefined();
+    expect(store.getLayers('parent')).toHaveLength(0);
+    expect(mountMessageCenter().get('.details').text()).toContain(
+      'Image did not load'
+    );
+  });
+  it('caches no layer image when the layer is deleted while it resamples', async () => {
+    seatOverlappingPair();
+    const store = useLayersStore();
+    ensureSameSpace.mockImplementation(
+      async (_parent: unknown, source: unknown) => {
+        store.deleteLayer('parent', 'source');
+        return source;
+      }
+    );
+
+    const id = await store.addLayer('parent', 'source');
+
+    expect(id).toBeUndefined();
+    expect(cached('parent::source')).toBe(false);
+    expect(messageTitles()).toHaveLength(0);
   });
 });
 
@@ -102,5 +139,84 @@ describe('useLayersStore.remove', () => {
 
     expect(store.getLayers('parent')).toHaveLength(0);
     expect(cached('parent::source')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: the same unguarded dataIDMap lookup de729cfa fixed for
+// annotations. A dataset that could not be loaded is absent from the restore
+// map, so a saved layer relationship naming it used to reach `addLayer` with a
+// missing id. That only fails once the build is already under way, after the
+// relationship has been written into `parentToLayers`, keyed by, or pointing
+// at, an id no image has.
+// ---------------------------------------------------------------------------
+
+const savedLayers = (
+  selectionKey: string,
+  sourceSelectionKeys: string[]
+): Manifest => ({
+  version: '1.0.0',
+  dataSources: [],
+  parentToLayers: [{ selectionKey, sourceSelectionKeys }],
+});
+
+/** Serialize the store the way `serialize` does, into a bare manifest. */
+const resave = () => {
+  const stateFile = { manifest: {} } as unknown as StateFile;
+  useLayersStore().serialize(stateFile);
+  return stateFile.manifest.parentToLayers;
+};
+
+/** Lets every pending layer build settle, successfully or not. */
+const settle = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve);
+  });
+
+describe('useLayersStore.deserialize with an image that did not load', () => {
+  it('restores nothing when the layer parent did not load', async () => {
+    seatImage('source', 0);
+    const store = useLayersStore();
+
+    store.deserialize(savedLayers('parent', ['source']), {
+      source: 'source',
+    });
+    await settle();
+
+    expect(Object.keys(store.parentToLayers)).toEqual([]);
+    expect(messageTitles()).toHaveLength(0);
+    // Before the guard this threw: the failed build left `parentToLayers` with
+    // a key whose value was `undefined`, and serialize mapped over it.
+    expect(resave()).toEqual([]);
+  });
+
+  it('restores nothing when the layer source did not load', async () => {
+    seatImage('parent', 0);
+    const store = useLayersStore();
+
+    store.deserialize(savedLayers('parent', ['source']), {
+      parent: 'parent',
+    });
+    await settle();
+
+    expect(store.getLayers('parent')).toHaveLength(0);
+    expect(messageTitles()).toHaveLength(0);
+    // Before the guard the parent's whole relationship was saved with an
+    // `undefined` source key, which the save-time schema rejects outright.
+    expect(ParentToLayers.safeParse(resave()).success).toBe(true);
+  });
+
+  it('still builds a relationship whose images both came back', () => {
+    seatOverlappingPair();
+    const store = useLayersStore();
+
+    store.deserialize(savedLayers('saved-parent', ['saved-source']), {
+      'saved-parent': 'parent',
+      'saved-source': 'source',
+    });
+
+    expect(store.getLayers('parent').map(({ id }) => id)).toEqual([
+      'parent::source',
+    ]);
   });
 });

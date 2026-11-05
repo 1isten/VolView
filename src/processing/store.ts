@@ -5,11 +5,6 @@ import { computed, reactive, ref } from 'vue';
 import deepEqual from 'fast-deep-equal';
 
 import type { JobHistoryDetail, JobHistorySummary } from '@/backend-contract';
-import {
-  inputValueSchema,
-  TYPE_TAG_ANNOTATIONS,
-  TYPE_TAG_LABELMAP,
-} from '@/backend-contract';
 import { collectProvenanceUris } from '@/src/processing/engine/mintInput';
 import type {
   ProcessingJobStatus,
@@ -26,7 +21,10 @@ import {
   missingJobErrorDetails,
 } from '@/src/processing/types';
 import type { TrackedJobHistorySummary } from '@/src/processing/engine/jobHistory';
-import { selectJobHistoryRows } from '@/src/processing/engine/jobHistory';
+import {
+  selectJobHistoryRows,
+  selectParentImageUris,
+} from '@/src/processing/engine/jobHistory';
 import { autoLoadProcessingResults } from '@/src/processing/applyResults';
 import { useMessageStore } from '@/src/store/messages';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -36,14 +34,6 @@ export const POLL_INTERVAL_MS = 2000;
 export const MAX_POLL_RETRIES = 4;
 export const MAX_POLL_BACKOFF_MS = 30000;
 export const MAX_JOB_HISTORY_PAGES = 1000;
-
-// Staged inputs derive FROM the scene rather than naming a dataset, so they are
-// never parent-image candidates. Excluding them by tag keeps the open image
-// vocabulary open: anything else that carries provenance URIs counts.
-const STAGED_INPUT_TYPES: ReadonlySet<string> = new Set([
-  TYPE_TAG_LABELMAP,
-  TYPE_TAG_ANNOTATIONS,
-]);
 
 const completionReady = (status: ProcessingJobStatus): boolean =>
   isTerminalJobState(status.state);
@@ -109,6 +99,10 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   const jobs = reactive(new Map<string, ProcessingJobStatus>());
   const jobHistory = reactive(new Map<string, TrackedJobHistorySummary>());
   const jobHistoryDetails = reactive(new Map<string, JobHistoryDetail>());
+  // Latest detail request per job. `terminal` records whether the job had
+  // finished when the request was issued: a detail fetched earlier holds a
+  // partial log and is refetched once the job finishes.
+  const jobHistoryDetailRequests = new Map<string, { terminal: boolean }>();
   const jobHistoryCursors = new Map<string, string | null>();
   const jobHistoryLoading = ref(false);
   const jobHistoryComplete = ref(false);
@@ -196,6 +190,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     jobs,
     jobHistory,
     jobHistoryDetails,
+    jobHistoryDetailRequests,
     submittedContexts,
     jobResults,
     jobResultMissing,
@@ -460,15 +455,6 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       : context;
   }
 
-  // An adopted job's persisted image input carries the parent's provenance URIs,
-  // so the parent can be re-identified among the loaded datasets.
-  function isImageInputValue(
-    v: unknown
-  ): v is { type: string; uris: string[] } {
-    const parsed = inputValueSchema.safeParse(v);
-    return parsed.success && !STAGED_INPUT_TYPES.has(parsed.data.type);
-  }
-
   // Order-insensitive: a re-loaded dataset's provenance walk need not enumerate
   // in submit order.
   function sameUriSet(a: string[], b: ReadonlySet<string>): boolean {
@@ -495,17 +481,12 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } catch {
       return undefined; // best-effort: the open-as-dataset fallback still works
     }
-    const imageInputs = Object.values(detail?.parameters ?? {}).filter(
-      isImageInputValue
-    );
-    // Anything but exactly one image input is ambiguous; never guess a parent to
-    // attach results to.
-    if (imageInputs.length !== 1) return undefined;
-    return datasetIdForUris(imageInputs[0].uris);
+    const uris = selectParentImageUris(detail?.parameters);
+    return uris === undefined ? undefined : datasetIdForUris(uris);
   }
 
   // Rebuild an adopted job's missing parent id so a labelmap result attaches
-  // as a segment group instead of opening as a top-level dataset.
+  // as a segmentation instead of opening as a top-level dataset.
   async function ensureAdoptedParentId(
     provider: ProcessingProvider,
     key: string,
@@ -550,6 +531,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const { jobId } = status;
     const jobRef: TrackedJobRef = { providerId: provider.config.id, jobId };
     const key = jobKey(jobRef);
+    refreshProvisionalDetail(jobRef);
     if (
       inFlightCompletions.has(key) ||
       terminalCompletions.has(key) ||
@@ -740,7 +722,6 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   // path, so its results are not in `jobResults`.
   async function loadJobResults(jobRef: TrackedJobRef) {
     const key = jobKey(jobRef);
-    if (jobResults.has(key)) return;
     const context = submittedContexts.get(key);
     if (!context) return;
     // A delete landing while this fetch is in flight must not commit results or
@@ -748,6 +729,15 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const gen = jobGenerations.get(key);
     try {
       const provider = await getProvider(jobRef.providerId);
+      if (jobResults.has(key)) {
+        await ensureAdoptedParentId(
+          provider,
+          key,
+          gen,
+          contextForAutoLoad(context)
+        );
+        return;
+      }
       await fetchAndRecordResults(provider, jobRef.jobId, key, gen, context);
     } catch (err) {
       if (expireSessionIf(err)) return;
@@ -822,23 +812,49 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     return application;
   }
 
-  async function loadJobHistoryDetail(jobRef: TrackedJobRef) {
+  // Same precedence as the rows: live status over the durable summary.
+  const isJobFinished = (key: string): boolean => {
+    const state = jobs.get(key)?.state ?? jobHistory.get(key)?.state;
+    return state !== undefined && isTerminalJobState(state);
+  };
+
+  async function fetchJobHistoryDetail(jobRef: TrackedJobRef) {
     const key = jobKey(jobRef);
-    if (jobHistoryDetails.has(key)) return;
-    const context = submittedContexts.get(key);
-    if (!context) return;
-    const gen = jobGenerations.get(key);
+    const request = { terminal: isJobFinished(key) };
+    jobHistoryDetailRequests.set(key, request);
+    // Only the latest request's response lands. The requests map is a per-job
+    // collection, so a delete or clear also drops a late response.
+    const accepted = () => jobHistoryDetailRequests.get(key) === request;
     try {
       const provider = await getProvider(jobRef.providerId);
       const detail = await provider.getJobHistoryDetail(jobRef.jobId);
-      if (!isCurrent(key, gen)) return;
+      if (!accepted()) return;
       jobHistoryDetails.set(key, detail);
     } catch (err) {
-      if (!isCurrent(key, gen)) return;
+      if (!accepted()) return;
       useMessageStore().addError('Failed to load job details', {
         error: ensureError(err),
       });
     }
+  }
+
+  async function loadJobHistoryDetail(jobRef: TrackedJobRef) {
+    const key = jobKey(jobRef);
+    if (jobHistoryDetails.has(key)) return;
+    if (!submittedContexts.has(key)) return;
+    await fetchJobHistoryDetail(jobRef);
+  }
+
+  // The provider flushes a job's log before reporting it terminal, so a detail
+  // fetched once the job completes is final. Only jobs whose details were
+  // requested are refetched, and synthesized failures never reach completion.
+  // Dropping the partial detail shows the status's errorTail until the final
+  // one arrives.
+  function refreshProvisionalDetail(jobRef: TrackedJobRef) {
+    const key = jobKey(jobRef);
+    if (jobHistoryDetailRequests.get(key)?.terminal !== false) return;
+    jobHistoryDetails.delete(key);
+    void fetchJobHistoryDetail(jobRef);
   }
 
   // Terminal summaries are observability rows only; non-terminal ones join the
@@ -898,10 +914,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     try {
       provider = await getProvider(providerId);
     } catch (err) {
-      jobHistoryErrors.set(
-        providerId,
-        getErrorDetail(err, 'Failed to load job history')
-      );
+      const detail = getErrorDetail(err, 'Failed to load job history');
+      jobHistoryErrors.set(providerId, detail);
       return;
     }
     const cursor = jobHistoryCursors.get(providerId) ?? undefined;
@@ -924,16 +938,16 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         );
       }
     } catch (err) {
+      // A 401 is the session, not this page, so it is reported as one.
+      if (expireSessionIf(err)) return;
       console.error('Job re-discovery failed', err);
-      jobHistoryErrors.set(
-        providerId,
-        getErrorDetail(err, 'Failed to load job history')
-      );
+      const detail = getErrorDetail(err, 'Failed to load job history');
+      jobHistoryErrors.set(providerId, detail);
     }
   }
 
   async function loadMoreJobHistory() {
-    if (jobHistoryComplete.value) return;
+    if (sessionExpired.value || jobHistoryComplete.value) return;
     if (jobHistoryRequest) return jobHistoryRequest;
     jobHistoryRequest = (async () => {
       jobHistoryLoading.value = true;
@@ -962,7 +976,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } while (
       pageCount < MAX_JOB_HISTORY_PAGES &&
       !jobHistoryComplete.value &&
-      jobHistoryError.value == null
+      jobHistoryError.value == null &&
+      !sessionExpired.value
     );
 
     if (

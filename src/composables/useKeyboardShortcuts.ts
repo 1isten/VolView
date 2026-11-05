@@ -3,6 +3,7 @@ import {
   DefaultMagicKeysAliasMap,
   onKeyStroke,
   useMagicKeys,
+  useActiveElement,
 } from '@vueuse/core';
 
 import { getEntries, wrapInArray } from '../utils';
@@ -44,8 +45,13 @@ export const isDispatchable = (binding: string) =>
  */
 export const useActionHeld = (action: Action) => {
   const keys = useMagicKeys();
+  const activeElement = useActiveElement();
   return computed(() =>
-    bindingsOf(actionToKey.value[action]).some((binding) => keys[binding].value)
+    bindingsOf(actionToKey.value[action]).some(
+      (binding) =>
+        keys[binding].value &&
+        !shouldIgnoreKeyboardShortcuts(binding, activeElement.value)
+    )
   );
 };
 
@@ -130,7 +136,7 @@ const matchesBinding = (
 const NON_TEXT_INPUT_TYPES = new Set(
   'button checkbox color file image radio range reset submit'.split(' ')
 );
-const TEXT_ENTRY_SELECTOR = 'input, textarea, [role="textbox"]';
+const TEXT_ENTRY_SELECTOR = 'input, textarea, select, [role="textbox"]';
 
 const ARROW_KEYS = ['up', 'down', 'left', 'right'].map(
   (direction) => `arrow${direction}`
@@ -138,11 +144,8 @@ const ARROW_KEYS = ['up', 'down', 'left', 'right'].map(
 
 // The keys a control acts on natively, paired with the controls that claim them.
 const NATIVE_KEY_CLAIMS = [
-  { keys: ['enter', ' '], selector: 'input, select, button, [role="button"]' },
-  {
-    keys: ARROW_KEYS,
-    selector: 'input[type="radio"], input[type="range"], select',
-  },
+  { keys: ['enter', ' '], selector: 'input, button, [role="button"]' },
+  { keys: ARROW_KEYS, selector: 'input[type="radio"], input[type="range"]' },
 ].map(({ keys, selector }) => ({ keys: new Set(keys), selector }));
 
 const isTextEntry = (element: HTMLElement) => {

@@ -169,9 +169,10 @@ async function importDataSourcesWithPolicy(
       ),
   };
 
+  // State files first: a manifest's top-level `segments` is also a config key.
   const applicationHandlers =
     policy === 'application'
-      ? [handleConfig, restore.restoreStateFile, handleRemoteManifest]
+      ? [restore.restoreStateFile, handleConfig, handleRemoteManifest]
       : [];
 
   const handlers = [
@@ -255,8 +256,6 @@ async function importDataSourcesWithPolicy(
 
   cleanup();
 
-  results.push(...applyConfigsPostState(configResults));
-
   const dicomChunkSources = chunkSources.filter(
     (src): src is ChunkSource =>
       src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
@@ -328,6 +327,8 @@ async function importDataSourcesWithPolicy(
       );
     }
   }
+
+  results.push(...applyConfigsPostState(configResults));
 
   // A failed state-file leaf is already counted in the restore's consolidated
   // missing-content notice, so this layer owns its reporting: it returns as an

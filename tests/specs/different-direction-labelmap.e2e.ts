@@ -1,30 +1,25 @@
-import {
-  PROSTATEX_DATASET,
-  PROSTATE_SEGMENT_GROUP,
-  PROSTATE_610_LABELMAP_MANIFEST,
-} from './configTestUtils';
-import { downloadFile, writeManifestToFile } from './utils';
+import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
+import { writeManifestToFile } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
-import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
-import * as path from 'path';
-import * as fs from 'fs';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
+import {
+  openAnnotationSegments,
+  segmentNames,
+  waitForNamedSegments,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
 
 /**
  * Regression test for labelmap with different direction matrix than parent image.
  *
  * The prostate DICOM and TotalSegmenter segment group have different direction matrices:
  *   Base image:     [1, 0, 0,  0,  0.97, -0.24,  0, 0.24, 0.97]
- *   Segment group:  [1, 0, 0,  0, -0.97,  0.24,  0, 0.24, 0.97]
+ *   Labelmap:       [1, 0, 0,  0, -0.97,  0.24,  0, 0.24, 0.97]
  *
  * This caused bugs where paint tool painted at wrong location and
  * coronal slice didn't show segment overlay.
  */
 describe('Labelmap with different direction matrix', () => {
   it('paint tool works on coronal view', async () => {
-    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
-    await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
-
     const config = {
       layouts: {
         'Coronal Only': [['coronal']],
@@ -35,11 +30,7 @@ describe('Labelmap with different direction matrix', () => {
     await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, manifestFileName);
 
     const configFileName = 'different-direction-labelmap-config.json';
-    const configFilePath = path.join(TEMP_DIR, configFileName);
-    await fs.promises.writeFile(configFilePath, JSON.stringify(config));
-    cleanuptotal.addCleanup(async () => {
-      fs.unlinkSync(configFilePath);
-    });
+    await writeManifestToFile(config, configFileName);
 
     const urlParams = `?urls=[tmp/${manifestFileName},tmp/${configFileName}]`;
     await volViewPage.open(urlParams);
@@ -47,25 +38,11 @@ describe('Labelmap with different direction matrix', () => {
     const notifications = await volViewPage.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await browser.waitUntil(
-      async () => {
-        const segmentGroups = await $$('.segment-group-list .v-list-item');
-        return (await segmentGroups.length) >= 1;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Segment group not found in segment groups list',
-      }
-    );
+    await openAnnotationSegments();
+    await waitForNamedSegments();
+    await waitForSegmentContent('Right hip');
+    // The manifest describes one of the labelmap's values; the rest keep a row.
+    expect((await segmentNames()).length).toBeGreaterThan(1);
 
     await volViewPage.openLayoutMenu(1);
     await volViewPage.selectLayoutOption('Coronal Only');

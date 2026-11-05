@@ -30,8 +30,10 @@ import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 import { ToolID } from '@/src/types/annotation-tool';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useCineFrame } from '@/src/composables/useCineFrame';
 import { Maybe } from '@/src/types';
 import { whenever } from '@vueuse/core';
+import { toolRenderSlice } from '@/src/core/annotations/locator';
 
 const useStore = useCircleStore;
 const vtkWidgetFactory = vtkCircleWidget;
@@ -40,28 +42,38 @@ const SVG2DComponent = CircleSVG2D;
 
 export default defineComponent({
   name: 'CircleWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placing', 'placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
       required: true,
     },
-    viewId: { type: String, required: true },
+    viewId: {
+      type: String,
+      required: true,
+    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    isPlacing: { type: Boolean, default: false },
+    isPlacing: {
+      type: Boolean,
+      default: false,
+    },
     imageId: String as PropType<Maybe<string>>,
   },
-  components: { SVG2DComponent },
+  components: {
+    SVG2DComponent,
+  },
   setup(props, { emit }) {
     const { toolId, viewId, viewDirection, imageId, isPlacing } = toRefs(props);
+
     const view = inject(VtkViewContext);
     if (!view) throw new Error('No VtkView');
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice);
+    const { frame: cineFrame } = useCineFrame(viewId, imageId);
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
@@ -87,7 +99,9 @@ export default defineComponent({
       { immediate: true }
     );
 
-    watch([slice, imageId], () => {
+    // Reset unfinished placement when the view's cursor moves: slice for
+    // volume views, frame for cine.
+    watch([slice, cineFrame, imageId], () => {
       const isPlaced = widget.getWidgetState().getIsPlaced();
       if (!isPlaced) {
         widget.resetInteractions();
@@ -95,26 +109,43 @@ export default defineComponent({
       }
     });
 
+    // While placing, the widget only starts an interaction when the first
+    // point lands: the states that would drag a handle are not reachable yet.
+    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+      if (isPlacing.value) emit('placing');
+    });
+
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
+
     useHoverEvent(emit, widget);
+
+    // --- right click handling --- //
+
     useRightClickContextMenu(emit, widget);
+
+    // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
     widget.setManipulator(manipulator);
+    onUnmounted(() => manipulator.delete());
 
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        tool.value?.slice ?? slice.value,
+        toolRenderSlice(tool.value, slice.value),
         imageMetadata.value
       );
     });
 
+    // --- visibility --- //
+
     const isVisible = computed(() => tool.value?.slice === slice.value);
     useWidgetVisibility(widget, isVisible, view);
+
+    // --- handle pick visibility --- //
 
     const visibleStates = reactive({
       firstPoint: false,
@@ -135,12 +166,13 @@ export default defineComponent({
     return {
       tool,
       slice,
-      firstPoint: computed(() =>
-        visibleStates.firstPoint ? tool.value?.firstPoint : undefined
-      ),
-      secondPoint: computed(() =>
-        visibleStates.secondPoint ? tool.value?.secondPoint : undefined
-      ),
+      appearance: computed(() => toolStore.appearanceOfTool(toolId.value)),
+      firstPoint: computed(() => {
+        return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
+      }),
+      secondPoint: computed(() => {
+        return visibleStates.secondPoint ? tool.value?.secondPoint : undefined;
+      }),
     };
   },
 });
@@ -152,10 +184,10 @@ export default defineComponent({
     :view-id="viewId"
     :point1="firstPoint"
     :point2="secondPoint"
-    :color="tool.color"
-    :stroke-width="tool.strokeWidth"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :fill-color="tool.fillColor"
-    :fill-opacity="tool.fillOpacity"
+    :fill-opacity="appearance.fillOpacity"
     :image-id="imageId"
   />
 </template>

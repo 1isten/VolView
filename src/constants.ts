@@ -27,6 +27,24 @@ export const PICKABLE_ANNOTATION_TOOL_HANDLE_RADIUS =
 
 export const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
 
+export const SEGMENT_SHORTCUT_ACTIONS = [
+  'selectSegment1',
+  'selectSegment2',
+  'selectSegment3',
+  'selectSegment4',
+  'selectSegment5',
+  'selectSegment6',
+  'selectSegment7',
+  'selectSegment8',
+  'selectSegment9',
+  'selectSegment10',
+] as const;
+
+export const perSegmentShortcut = <V>(value: (index: number) => V) =>
+  Object.fromEntries(
+    SEGMENT_SHORTCUT_ACTIONS.map((action, index) => [action, value(index)])
+  ) as Record<(typeof SEGMENT_SHORTCUT_ACTIONS)[number], V>;
+
 export const ACTIONS = {
   windowLevel: {
     readable: 'Activate Window/Level tool',
@@ -45,6 +63,9 @@ export const ACTIONS = {
   },
   paintEraser: {
     readable: 'Activate Paint tool with eraser',
+  },
+  paintEyedropper: {
+    readable: 'Temporarily pick a segment while holding key in Paint',
   },
   brushSizeModifier: {
     readable: 'Change brush size by holding key and scrolling',
@@ -88,11 +109,15 @@ export const ACTIONS = {
   },
 
   decrementLabel: {
-    readable: 'Activate previous label',
+    readable: 'Select previous segment',
   },
   incrementLabel: {
-    readable: 'Activate next label',
+    readable: 'Select next segment',
   },
+
+  ...perSegmentShortcut((index) => ({
+    readable: `Select segment ${index + 1}`,
+  })),
 
   deleteSelectedAnnotations: {
     readable: 'Delete selected annotations',

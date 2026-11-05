@@ -54,6 +54,7 @@ function updateView(newViewName: string) {
     hide-details
     variant="outlined"
     class="pointer-events-all view-type-select"
+    aria-label="View type"
   >
     <template v-slot:selection="{ item }">
       {{ item.title === 'Volume' ? '3D' : item.value }}
@@ -75,6 +76,9 @@ function updateView(newViewName: string) {
   max-width: fit-content;
   font-size: 0.8125rem;
   margin-left: auto;
+  color: rgb(var(--v-theme-on-surface));
+  text-shadow: none;
+  letter-spacing: normal;
 }
 
 .view-type-select :deep(.v-field__input) {

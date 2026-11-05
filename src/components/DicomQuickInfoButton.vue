@@ -57,15 +57,15 @@ const dicomInfo = computed(() => {
     <template v-slot:activator="{ props }">
       <v-icon
         v-bind="props"
-        dark
+        color="white"
         size="medium"
-        class="pointer-events-all"
+        class="pointer-events-all dicom-info-trigger"
         @click.stop
       >
         mdi-information
       </v-icon>
     </template>
-    <v-list class="bg-neutral-darken-3">
+    <v-list class="dicom-info-menu bg-neutral-darken-3">
       <v-list-item>
         <v-list-item-title class="font-weight-bold">
           PATIENT / CASE
@@ -96,3 +96,13 @@ const dicomInfo = computed(() => {
 </template>
 
 <style scoped src="@/src/components/styles/utils.css"></style>
+<style scoped>
+.dicom-info-menu {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.3);
+}
+
+.dicom-info-trigger {
+  text-shadow: none;
+  letter-spacing: normal;
+}
+</style>

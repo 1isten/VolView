@@ -9,14 +9,16 @@
   >
     <div class="vtk-gutter">
       <v-btn
-        dark
+        color="white"
         icon
         size="medium"
         variant="text"
         @click="resetCamera"
         @dblclick.stop
       >
-        <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
+        <v-icon size="medium" class="py-1 view-control-icon"
+          >mdi-camera-flip-outline</v-icon
+        >
         <v-tooltip
           location="right"
           activator="parent"
@@ -167,12 +169,11 @@
             :axis="viewAxis"
           ></vtk-base-slice-representation>
           <vtk-segmentation-slice-representation
-            v-for="segId in segmentations"
-            :key="`seg-${segId}`"
+            v-for="maskId in segmentMaskIds"
+            :key="`seg-${maskId}`"
             :view-id="viewId"
-            :segmentation-id="segId"
+            :mask-id="maskId"
             :axis="viewAxis"
-            ref="segSliceReps"
           ></vtk-segmentation-slice-representation>
           <template v-if="currentImageID">
             <vtk-layer-slice-representation
@@ -229,18 +230,7 @@
           <scalar-probe
             :base-rep="baseSliceRep"
             :layer-reps="layerSliceReps"
-            :segment-groups-reps="segSliceReps"
           ></scalar-probe>
-          <segment-plot
-            :view-id="viewId"
-            :image-id="currentImageID"
-            :base-rep="baseSliceRep"
-            :layer-reps="layerSliceReps"
-            :segment-groups-reps="segSliceReps"
-            :slicing-mode="currentSlicingMode"
-            :slice="currentSlice"
-            :hover="hover"
-          ></segment-plot>
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -257,8 +247,8 @@ import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
-import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import VtkSegmentationSliceRepresentation from '@/src/segmentation/rendering/VtkSegmentationSliceRepresentation.vue';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
@@ -271,7 +261,6 @@ import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import CircleTool from '@/src/components/tools/circle/CircleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
-import SegmentPlot from '@/src/components/SegmentPlot.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
@@ -279,7 +268,10 @@ import { useViewStore } from '@/src/store/views';
 import { useLoadDataStore } from '@/src/store/load-data';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
-import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
+import {
+  doesToolFrameMatchViewAxis,
+  isToolVisible,
+} from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
@@ -304,7 +296,6 @@ type Props = {
 const vtkView = ref<VtkViewApi>();
 const baseSliceRep = ref();
 const layerSliceReps = ref([]);
-const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
 const { viewId } = toRefs(props);
@@ -382,10 +373,10 @@ onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
 
-const segmentations = computed(() => {
+// One representation per mask with storage on this image.
+const segmentMaskIds = computed(() => {
   if (!currentImageID.value) return [];
-  const store = useSegmentGroupStore();
-  return store.orderByParent[currentImageID.value];
+  return useSegmentationStore().boundMaskIds(currentImageID.value);
 });
 
 // --- selection points --- //
@@ -400,7 +391,7 @@ const selectionPoints = computed(() => {
     .filter(
       ({ tool }) =>
         tool.slice === currentSlice.value &&
-        !tool.hidden &&
+        isToolVisible(tool) &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata)
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));

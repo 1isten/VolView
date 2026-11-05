@@ -62,8 +62,6 @@ const vuetify = createVuetify({
         colors: {
           'selection-bg-color': '#b3e5fc',
           'selection-border-color': '#b3e5fc',
-          surface: '#f0f0f0',
-          'on-surface-variant': '#d0d0d0',
         },
       },
     },
@@ -85,7 +83,6 @@ const theme = useLocalStorage(ThemeStorageKey, DefaultTheme);
 if (theme.value !== DarkTheme && theme.value !== LightTheme) {
   theme.value = DefaultTheme;
 }
-// vuetify.theme.global.name.value = theme.value;
 vuetify.theme.change(theme.value);
 
 export default vuetify;

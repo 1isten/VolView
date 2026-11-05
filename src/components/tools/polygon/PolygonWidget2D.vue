@@ -36,7 +36,7 @@ import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
   name: 'PolygonWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placing', 'placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
@@ -92,6 +92,12 @@ export default defineComponent({
       }
     });
 
+    // Fires on every handle dropped into the polygon being placed; only the
+    // first has a segment to resolve.
+    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+      if (isPlacing.value) emit('placing');
+    });
+
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
@@ -135,6 +141,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
     widget.setManipulator(manipulator);
+    onUnmounted(() => manipulator.delete());
 
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
@@ -166,6 +173,7 @@ export default defineComponent({
     return {
       slice,
       tool,
+      appearance: computed(() => toolStore.appearanceOfTool(toolId.value)),
       editState,
       showHandles,
     };
@@ -177,10 +185,8 @@ export default defineComponent({
   <SVG2DComponent
     v-show="slice === tool.slice"
     :points="tool.points"
-    :color="tool.color"
-    :stroke-width="tool.strokeWidth"
-    :fill-color="tool.fillColor"
-    :fill-opacity="tool.fillOpacity"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :move-point="editState.movePoint"
     :placing="tool.placing"
     :finishable="editState.finishable"

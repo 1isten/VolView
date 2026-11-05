@@ -10,6 +10,7 @@
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(tool.id, $event)"
+        @placing="onPlacementStarted"
         @placed="onToolPlaced"
         @widgetHover="onHover(tool.id, $event)"
       />
@@ -20,8 +21,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onUnmounted, PropType, toRefs, watch } from 'vue';
-import { storeToRefs } from 'pinia';
+import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -37,9 +37,9 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import { Maybe } from '@/src/types';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useViewLocator } from '@/src/composables/useViewLocator';
+import { locatorPatch } from '@/src/core/annotations/locator';
 import { ToolID } from '@/src/types/annotation-tool';
 import { watchImmediate } from '@vueuse/core';
 import CircleWidget2D from './CircleWidget2D.vue';
@@ -50,28 +50,33 @@ const toolType = Tools.Circle;
 export default defineComponent({
   name: 'CircleTool',
   props: {
-    viewId: { type: String, required: true },
-    viewDirection: { type: String as PropType<LPSAxisDir>, required: true },
+    viewId: {
+      type: String,
+      required: true,
+    },
+    viewDirection: {
+      type: String as PropType<LPSAxisDir>,
+      required: true,
+    },
     imageId: String as PropType<Maybe<string>>,
   },
-  components: { CircleWidget2D, AnnotationContextMenu, AnnotationInfo },
+  components: {
+    CircleWidget2D,
+    AnnotationContextMenu,
+    AnnotationInfo,
+  },
   setup(props) {
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
 
-    const sliceInfo = useSliceInfo(viewId, imageId);
-    const slice = computed(() => sliceInfo.value?.slice ?? 0);
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const { locator, frame, slice } = useViewLocator(viewId, imageId);
+
+    const { currentImageID } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const frameOfReference = useFrameOfReference(
-      viewDirection,
-      slice,
-      currentImageMetadata
-    );
+    // --- active tool management --- //
 
     const placingTool = usePlacingAnnotationTool(
       activeToolStore,
@@ -79,11 +84,7 @@ export default defineComponent({
         if (!currentImageID.value) return {};
         return {
           imageID: currentImageID.value,
-          frameOfReference: frameOfReference.value,
-          slice: slice.value,
-          label: activeLabel.value,
-          ...(activeLabel.value &&
-            activeToolStore.labels[activeLabel.value]),
+          ...locatorPatch(locator.value),
         };
       })
     );
@@ -92,16 +93,7 @@ export default defineComponent({
       [isToolActive, currentImageID] as const,
       ([active, imageID]) => {
         placingTool.remove();
-        if (active && imageID) placingTool.add();
-      }
-    );
-
-    // Cancel in-progress drawing on Escape
-    watch(
-      () => activeToolStore.cancelPlacingSignal,
-      () => {
-        if (isToolActive.value && imageId.value && placingTool.id.value) {
-          placingTool.remove();
+        if (active && imageID) {
           placingTool.add();
         }
       }
@@ -118,24 +110,25 @@ export default defineComponent({
       }
     };
 
+    // --- //
+
     const { contextMenu, openContextMenu: baseOpenContextMenu } =
       useContextMenu();
 
     const currentTools = useCurrentTools(
       activeToolStore,
       viewAxis,
+      // only show this view's placing tool
       computed(() => {
         if (placingTool.id.value) return [placingTool.id.value];
         return [];
-      })
+      }),
+      frame
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(
-      currentTools,
-      slice,
-      activeToolStore
-    );
+    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
 
+    // Check if any polygon is actively being placed (has points)
     const polygonStore = usePolygonStore();
     const isAnyPolygonPlacing = () => {
       return polygonStore.tools.some(
@@ -143,6 +136,7 @@ export default defineComponent({
       );
     };
 
+    // Suppress hover/context menu when a polygon is actively being placed
     const onHover = (id: ToolID, event: any) => {
       if (isAnyPolygonPlacing()) {
         baseOnHover(id, { ...event, hovering: false });
@@ -152,13 +146,16 @@ export default defineComponent({
     };
 
     const openContextMenu = (id: ToolID, event: any) => {
-      if (isAnyPolygonPlacing()) return;
+      if (isAnyPolygonPlacing()) {
+        return;
+      }
       baseOpenContextMenu(id, event);
     };
 
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
+      onPlacementStarted: placingTool.beginPlacement,
       onToolPlaced,
       contextMenu,
       openContextMenu,

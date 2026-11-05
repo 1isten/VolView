@@ -103,7 +103,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <template>
   <div
     id="tools-strip"
-    class="bg-neutral-darken-4 flex-column align-center hide-scrollbar"
+    class="bg-surface flex-column align-center hide-scrollbar"
     :class="liteMode ? 'd-none' : 'd-flex'"
   >
     <control-button
@@ -207,7 +207,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <style src="@/src/components/styles/utils.css"></style>
 <style scoped>
 #tools-strip {
-  border-left: 1px solid #212121;
+  border-left: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   flex: 0 0 40px;
   order: 1;
   overflow: auto;
@@ -217,6 +217,6 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
   width: 75%;
   height: 1px;
   border: none;
-  border-top: 1px solid rgb(112, 112, 112);
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
 }
 </style>

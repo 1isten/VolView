@@ -91,29 +91,26 @@ const mountLabelmap = (
     global,
   });
 
-describe('FileWidget plural segment groups', () => {
-  it('names the whole group set for a multiple param', () => {
-    const wrapper = mountLabelmap(labelmapParam({ multiple: true }));
+describe('FileWidget segmentation inputs', () => {
+  it.each([false, true])(
+    'names the segmentation for multiple=%s',
+    (multiple) => {
+      const wrapper = mountLabelmap(labelmapParam({ multiple }));
 
-    expect(wrapper.get('.key-text').text()).toBe(
-      'Segment groups on active dataset'
-    );
-  });
+      expect(wrapper.get('.key-text').text()).toBe(
+        'Segmentation on active dataset'
+      );
+    }
+  );
 
-  it('names only the active group for a singular param', () => {
-    const wrapper = mountLabelmap(labelmapParam());
-
-    expect(wrapper.get('.key-text').text()).toBe('Active segment group');
-  });
-
-  it('keeps the plural caption once the binder resolves a union param', () => {
+  it('keeps the segmentation caption once the binder resolves a union param', () => {
     const wrapper = mountLabelmap(
       labelmapParam({ accepts: ['image', 'labelmap'], multiple: true }),
       { boundType: 'labelmap' }
     );
 
     expect(wrapper.get('.key-text').text()).toBe(
-      'Segment groups on active dataset'
+      'Segmentation on active dataset'
     );
   });
 
@@ -125,23 +122,16 @@ describe('FileWidget plural segment groups', () => {
     expect(wrapper.get('.key-text').text()).toBe('Active dataset');
   });
 
-  it('drops the select remedy from the unbound message', () => {
-    const wrapper = mountLabelmap(labelmapParam({ multiple: true }), {
-      binding: 'no-segment-group',
-    });
+  it.each([false, true])(
+    'offers the painting remedy for multiple=%s',
+    (multiple) => {
+      const wrapper = mountLabelmap(labelmapParam({ multiple }), {
+        binding: 'no-segmentation',
+      });
 
-    expect(wrapper.get('.input-value').text()).toBe(
-      'Paint a segment group on the active dataset first.'
-    );
-  });
-
-  it('offers the select remedy for a singular param', () => {
-    const wrapper = mountLabelmap(labelmapParam(), {
-      binding: 'no-segment-group',
-    });
-
-    expect(wrapper.get('.input-value').text()).toBe(
-      'Paint or select a segment group first.'
-    );
-  });
+      expect(wrapper.get('.input-value').text()).toBe(
+        'Paint a segment on the current image first.'
+      );
+    }
+  );
 });

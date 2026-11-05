@@ -34,7 +34,6 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import { LPSAxisDir } from '@/src/types/lps';
-import { storeToRefs } from 'pinia';
 import {
   useContextMenu,
   useCurrentTools,
@@ -70,7 +69,6 @@ export default defineComponent({
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
-    const { activeLabel } = storeToRefs(rulerStore);
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
@@ -86,8 +84,6 @@ export default defineComponent({
         return {
           imageID: imageId.value,
           ...locatorPatch(locator.value),
-          label: activeLabel.value,
-          ...(activeLabel.value && rulerStore.labels[activeLabel.value]),
         };
       })
     );

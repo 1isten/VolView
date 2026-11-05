@@ -1,16 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { computed, effectScope, nextTick, ref, type EffectScope } from 'vue';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
 
-// The camera store pulls in the view store, whose module-level config builds
-// canvas colors that happy-dom does not support. The camera tests do not need
-// any layout configuration.
-vi.mock('@/src/config', () => ({
-  DefaultNamedLayouts: { 'Axial Only': [['axial']] },
-  getAvailableViews: () => ({ list: [], byName: {} }),
-}));
 import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfig';
 
 // vtkFieldRef bubbles camera changes through a `setTimeout(0)` batch.

@@ -213,14 +213,14 @@ export async function readVolumeSlice(
   return result.outputs[0].data as Image;
 }
 
-export type Segment = {
+type DicomSegmentAttributes = {
   SegmentLabel: string;
   labelID: number;
   recommendedDisplayRGBValue: [number, number, number];
 };
 
 export type ReadOverlappingSegmentationMeta = {
-  segmentAttributes: Segment[][];
+  segmentAttributes: DicomSegmentAttributes[][];
 };
 
 type ReadOverlappingSegmentationResultWithRealMeta =
@@ -228,7 +228,7 @@ type ReadOverlappingSegmentationResultWithRealMeta =
     metaInfo: ReadOverlappingSegmentationMeta;
   };
 
-export async function buildSegmentGroups(file: File) {
+export async function readDicomSegmentation(file: File) {
   const inputImage = sanitizeFile(file);
   const result = (await readOverlappingSegmentation(inputImage, {
     webWorker: getWorker(),
