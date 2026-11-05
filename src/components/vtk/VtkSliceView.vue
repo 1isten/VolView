@@ -57,7 +57,7 @@ const vtkContainerRef = ref<HTMLElement>();
 const viewCameraStore = useViewCameraStore();
 const { disableCameraAutoReset } = storeToRefs(viewCameraStore);
 
-const { metadata: imageMetadata } = useImage(imageID);
+const { metadata: imageMetadata, imageData } = useImage(imageID);
 
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
@@ -114,10 +114,16 @@ function resetCamera() {
 }
 
 watchImmediate(
-  [viewID, imageID, disableCameraAutoReset],
-  ([viewID_, imageID_, noAutoReset]) => {
+  // PMT-ONLY: `imageData` is null until the image has renderable pixels
+  // (progressive DICOM chunks are registered before their data arrives).
+  // Waiting for it avoids fitting the camera to the placeholder 1x1x1
+  // metadata, which would leave the slice outside the view and render black.
+  // Keep `imageData` in the dependency list when merging upstream.
+  [viewID, imageID, disableCameraAutoReset, imageData],
+  ([viewID_, imageID_, noAutoReset, data]) => {
     if (
       imageID_ &&
+      data &&
       !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
       !noAutoReset
     ) {
@@ -129,9 +135,18 @@ watchImmediate(
 
 // Must run before the clipping-range watcher below: resetCameraClippingRange
 // computes near/far from the camera's current position, so on remount the
-// saved position must be syncRef'd back first or the slice falls outside
-// the clip volume and the canvas goes black.
-usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
+// saved position must be restored first or the slice falls outside the clip
+// volume and the canvas goes black.
+//
+// PMT-ONLY: persistence is gated on the camera being initialized for this
+// image. Before that the camera still holds the VTK default (or a placeholder
+// fit), and saving it would make a remount restore a camera looking at the
+// origin. Keep the `enabled` option when merging upstream.
+usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera(), {
+  enabled: computed(() =>
+    viewCameraStore.isCameraInitialized(viewID.value, imageID.value)
+  ),
+});
 
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
   if (!imageMetadata.value) return;

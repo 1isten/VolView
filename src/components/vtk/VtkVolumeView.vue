@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   ref,
+  computed,
   toRefs,
   provide,
   watchEffect,
@@ -47,7 +48,7 @@ const vtkContainerRef = ref<HTMLElement>();
 const viewCameraStore = useViewCameraStore();
 const { disableCameraAutoReset } = storeToRefs(viewCameraStore);
 
-const { metadata: imageMetadata } = useImage(imageID);
+const { metadata: imageMetadata, imageData } = useImage(imageID);
 
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
@@ -101,21 +102,33 @@ function resetCamera() {
   );
 }
 
-watchImmediate([imageMetadata, disableCameraAutoReset], () => {
-  if (!imageMetadata.value) return;
-  if (
-    viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
-    disableCameraAutoReset.value
-  ) {
-    view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
-    return;
+watchImmediate(
+  // PMT-ONLY: skip until the image has renderable pixels. The placeholder
+  // metadata would fit the camera to a 1x1x1 box and mark it initialized for
+  // the real image. Keep `imageData` in the dependency list when merging.
+  [imageMetadata, imageData, disableCameraAutoReset],
+  () => {
+    if (!imageMetadata.value || !imageData.value) return;
+    if (
+      viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
+      disableCameraAutoReset.value
+    ) {
+      view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
+      return;
+    }
+    resetCamera();
+    viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
   }
-  resetCamera();
-  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
-});
+);
 
-// persistent camera config
-usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
+// PMT-ONLY: persistent camera config, only once the camera has been
+// initialized for this image, so a remount never restores the pre-fit default
+// camera. Keep the `enabled` option when merging upstream.
+usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera(), {
+  enabled: computed(() =>
+    viewCameraStore.isCameraInitialized(viewID.value, imageID.value)
+  ),
+});
 
 // exposed API
 const api: VtkViewApi = markRaw({

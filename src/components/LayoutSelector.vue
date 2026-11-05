@@ -38,28 +38,29 @@ const selectNamedLayout = (name: string) => {
     if (dataID) {
       const loadDataStore = useLoadDataStore();
       const volumeKeySuffix = loadDataStore.dataIDToVolumeKeyUID[dataID];
-      const vol = volumeKeySuffix && loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
+      const vol =
+        volumeKeySuffix &&
+        loadDataStore.loadedByBus[volumeKeySuffix].volumes[dataID];
       if (vol && vol.layoutName) {
-        const viewID = viewStore.getViewsForData(dataID).find((v) => v.name === vol.layoutName?.replace(' Only', ''))?.id;
+        const viewID = viewStore
+          .getViewsForData(dataID)
+          .find((v) => v.name === vol.layoutName?.replace(' Only', ''))?.id;
         if (viewID) {
           viewStore.setActiveView(viewID);
         }
       }
     }
-    document.querySelectorAll('button.slice-viewer-reset-camera').forEach(el => {
-      const button = el as HTMLButtonElement;
-      requestAnimationFrame(() => {
-        button?.click();
-      });
-    });
   });
 };
 
 onBeforeMount(() => {
-  if (props.defaultLayoutName && namedLayoutsList.value.includes(props.defaultLayoutName)) {
+  if (
+    props.defaultLayoutName &&
+    namedLayoutsList.value.includes(props.defaultLayoutName)
+  ) {
     viewStore.switchToNamedLayout(props.defaultLayoutName);
   }
-})
+});
 </script>
 
 <template>

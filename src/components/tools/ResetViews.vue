@@ -27,7 +27,6 @@ export default defineComponent({
     size="40"
     icon="mdi-camera-flip-outline"
     name="Reset Views"
-    class="reset-views-reset-all-cameras"
     @click="onClick"
   />
 </template>

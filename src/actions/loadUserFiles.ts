@@ -559,16 +559,6 @@ function loadDataSourcesWithOutcome(
                 );
               }
             });
-            setTimeout(() => {
-              if (defaultLayoutName) {
-                const button = document.querySelector(
-                  'button.reset-views-reset-all-cameras'
-                ) as HTMLButtonElement | null;
-                if (button) {
-                  button.click();
-                }
-              }
-            }, 1);
           });
         } else {
           requestAnimationFrame(() => {
@@ -596,7 +586,16 @@ function loadDataSourcesWithOutcome(
             }
           });
         }
-        if (isAxialPrimary) {
+        // PMT-ONLY: a requested multi-view named layout (e.g. the
+        // `layoutName=Axial Primary` launch used for NIfTI) creates all of its
+        // slots before the image is bound. Binding only the active view leaves
+        // the other slots with no image (the "image off" placeholder). Route
+        // the image to every view once a multi-view layout was requested.
+        const requestedLayoutName = useUrlSearchParams().layoutName;
+        const bindToAllViews =
+          !!isAxialPrimary ||
+          (!!requestedLayoutName && viewStore.visibleViews.length > 1);
+        if (bindToAllViews) {
           viewStore.setDataForAllViews(selection);
         } else {
           viewStore.setDataForActiveView(selection);

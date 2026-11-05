@@ -13,7 +13,6 @@
         icon
         size="medium"
         variant="text"
-        class="slice-viewer-reset-camera"
         @click="resetCamera"
         @dblclick.stop
       >
