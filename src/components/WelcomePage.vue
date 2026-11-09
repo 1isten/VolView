@@ -22,7 +22,11 @@ const dataSecurityDialog = ref(false);
 </script>
 
 <template>
-  <v-container v-bind="$attrs" class="page-container bg-black" :data-allow-dnd="allowDrop">
+  <v-container
+    v-bind="$attrs"
+    class="page-container bg-black"
+    :data-allow-dnd="allowDrop"
+  >
     <v-col>
       <v-row justify="center">
         <v-card
@@ -69,7 +73,7 @@ const dataSecurityDialog = ref(false);
               <v-icon size="64">mdi-folder-plus</v-icon>
             </div>
             <div class="dnd-prompt-text">
-              Add your local DICOM files.
+              Add your local clinical data files.
             </div>
           </template>
         </v-card>
@@ -89,7 +93,7 @@ const dataSecurityDialog = ref(false);
   align-items: center;
   max-width: 100%;
 }
-.page-container[data-allow-dnd="false"] {
+.page-container[data-allow-dnd='false'] {
   pointer-events: none;
 }
 
@@ -99,8 +103,8 @@ const dataSecurityDialog = ref(false);
   opacity: 60%;
   transition: opacity 300ms;
 }
-.page-container[data-allow-dnd="true"]:hover .dnd-prompt-icon,
-.page-container[data-allow-dnd="true"]:hover .dnd-prompt-text {
+.page-container[data-allow-dnd='true']:hover .dnd-prompt-icon,
+.page-container[data-allow-dnd='true']:hover .dnd-prompt-text {
   opacity: 100%;
 }
 
