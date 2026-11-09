@@ -154,6 +154,37 @@ watchImmediate(
   }
 );
 
+// PMT-ONLY: restore the persisted camera when the view remounts (layout
+// change, maximize). The persistence composable below only writes; without
+// restoring, a remounted view keeps VTK's default camera and renders black
+// (and the persisted autoFit=false suppresses the resize fit that used to
+// hide it).
+watchImmediate([viewID, imageID], () => {
+  if (!imageID.value) return;
+  if (!viewCameraStore.isCameraInitialized(viewID.value, imageID.value)) {
+    return;
+  }
+  const config = viewCameraStore.getConfig(viewID.value, imageID.value);
+  if (!config) return;
+  const camera = view.renderer.getActiveCamera();
+  if (config.position) {
+    camera.setPosition(...(config.position as [number, number, number]));
+  }
+  if (config.focalPoint) {
+    camera.setFocalPoint(...(config.focalPoint as [number, number, number]));
+  }
+  if (config.viewUp) {
+    camera.setViewUp(...(config.viewUp as [number, number, number]));
+  }
+  if (typeof config.parallelScale === 'number') {
+    camera.setParallelScale(config.parallelScale);
+  }
+  if (imageMetadata.value?.worldBounds) {
+    view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
+  }
+  view.renderWindow.render();
+});
+
 // Must run before the clipping-range watcher below: resetCameraClippingRange
 // computes near/far from the camera's current position, so on remount the
 // saved position must be restored first or the slice falls outside the clip

@@ -153,6 +153,10 @@ export function useVtkView(
 
   // render API
   const deferredRender = batchForNextTask(() => {
+    // A batch can be scheduled while the scope is being torn down (render
+    // events fire from GL cleanup and from removing the child window). Do not
+    // touch the scene graph once disposal has deleted its nodes.
+    if (disposed) return;
     // don't need to re-render during animation
     if (interactor.isAnimating()) return;
     widgetManager.renderWidgets();
@@ -160,6 +164,7 @@ export function useVtkView(
   });
 
   const immediateRender = () => {
+    if (disposed) return;
     if (interactor.isAnimating()) return;
     parent?.renderWindow.render();
     renderWindow.render();
@@ -186,6 +191,7 @@ export function useVtkView(
 
   // set size
   const setSize = (width: number, height: number) => {
+    if (disposed) return;
     // ensure we have a non-zero size, otherwise
     // the framebuffers might not be populated correctly
     const scaledWidth = Math.max(1, width * globalThis.devicePixelRatio);
