@@ -12,19 +12,31 @@ index ba92841..a59d269 100644
  			gl.clearColor(background[0], background[1], background[2], background[3]);
  			clearMask |= gl.COLOR_BUFFER_BIT;
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
-index b83862b..88609eb 100644
+index b83862b..68748b0 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
-@@ -182,7 +182,7 @@ function vtkOpenGLTexture(publicAPI, model) {
+@@ -182,11 +182,15 @@ function vtkOpenGLTexture(publicAPI, model) {
  	publicAPI.deactivate = () => {
  		if (model._openGLRenderWindow) model._openGLRenderWindow.deactivateTexture(publicAPI);
  	};
 -	publicAPI.releaseGraphicsResources = (rwin) => {
+-		if (rwin && model.handle) {
+-			rwin.activateTexture(publicAPI);
+-			rwin.deactivateTexture(publicAPI);
+-			model.context.deleteTexture(model.handle);
 +	publicAPI.releaseGraphicsResources = (rwin = model._openGLRenderWindow) => {
- 		if (rwin && model.handle) {
- 			rwin.activateTexture(publicAPI);
- 			rwin.deactivateTexture(publicAPI);
-@@ -862,6 +862,7 @@ function vtkOpenGLTexture(publicAPI, model) {
++		if (rwin && !rwin.isDeleted?.() && model.handle) {
++			try {
++				rwin.activateTexture(publicAPI);
++				rwin.deactivateTexture(publicAPI);
++			} catch (e) {
++				// The render window is already torn down; drop the handle below.
++			}
++			if (model.context) model.context.deleteTexture(model.handle);
+ 			model._prevTexParams = null;
+ 			model.handle = 0;
+ 			model.numberOfDimensions = 0;
+@@ -862,6 +866,7 @@ function vtkOpenGLTexture(publicAPI, model) {
  	publicAPI.enableUseHalfFloat = (use) => {
  		model.enableUseHalfFloat = use;
  	};

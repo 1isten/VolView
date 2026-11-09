@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  computed,
   ref,
+  computed,
   toRefs,
   provide,
   markRaw,
@@ -62,13 +62,7 @@ const { metadata: imageMetadata, imageData } = useImage(imageID);
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
 const scope = effectScope(true);
-const view = scope.run(() =>
-  useVtkView(vtkContainerRef, {
-    separateImageLayer: true,
-    clippingBounds: computed(() => imageMetadata.value.worldBounds),
-  })
-)!;
-
+const view = scope.run(() => useVtkView(vtkContainerRef))!;
 onUnmounted(() => {
   scope.stop();
 });
@@ -81,25 +75,10 @@ const { interactorStyle } = useVtkInteractorStyle(
   vtkInteractorStyleManipulator,
   view
 );
-// Camera manipulators fit clipping to image bounds; widgets pick the upper layer.
-interactorStyle.setFocusedRenderer(view.imageRenderer);
 
 // bind slice and window configs
 // resizeToFit camera controls
-const autoFitEnabled = computed({
-  get: () =>
-    viewCameraStore.getConfig(viewID.value, imageID.value)?.autoFit ?? true,
-  set: (autoFit) => {
-    if (imageID.value) {
-      viewCameraStore.updateConfig(viewID.value, imageID.value, { autoFit });
-    }
-  },
-});
-
-const autoFit = useAutoFitState(
-  view.renderer.getActiveCamera(),
-  autoFitEnabled
-);
+const autoFit = useAutoFitState(view.renderer.getActiveCamera());
 
 function autoFitImage() {
   if (!autoFit.autoFit.value) return;
@@ -134,38 +113,7 @@ function resetCamera() {
   });
 }
 
-watchImmediate(
-  // PMT-ONLY: `imageData` is null until the image has renderable pixels
-  // (progressive DICOM chunks are registered before their data arrives).
-  // Waiting for it avoids fitting the camera to the placeholder 1x1x1
-  // metadata, which would leave the slice outside the view and render black.
-  // Keep `imageData` in the dependency list when merging upstream.
-  [viewID, imageID, disableCameraAutoReset, imageData],
-  ([viewID_, imageID_, noAutoReset, data]) => {
-    if (
-      imageID_ &&
-      data &&
-      !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
-      !noAutoReset
-    ) {
-      resetCamera();
-      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
-    }
-  }
-);
-
-// PMT-ONLY: restore the persisted camera when the view remounts (layout
-// change, maximize). The persistence composable below only writes; without
-// restoring, a remounted view keeps VTK's default camera and renders black
-// (and the persisted autoFit=false suppresses the resize fit that used to
-// hide it).
-watchImmediate([viewID, imageID], () => {
-  if (!imageID.value) return;
-  if (!viewCameraStore.isCameraInitialized(viewID.value, imageID.value)) {
-    return;
-  }
-  const config = viewCameraStore.getConfig(viewID.value, imageID.value);
-  if (!config) return;
+function applyCameraConfig(config: NonNullable<ReturnType<typeof viewCameraStore.getConfig>>) {
   const camera = view.renderer.getActiveCamera();
   if (config.position) {
     camera.setPosition(...(config.position as [number, number, number]));
@@ -183,7 +131,35 @@ watchImmediate([viewID, imageID], () => {
     view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
   }
   view.renderWindow.render();
-});
+}
+
+watchImmediate(
+  // PMT-ONLY: `imageData` is null until the image has renderable pixels
+  // (progressive DICOM chunks are registered before their data arrives).
+  // Waiting for it avoids fitting the camera to the placeholder 1x1x1
+  // metadata, which would leave the slice outside the view and render black.
+  // Keep `imageData` in the dependency list when merging upstream.
+  [viewID, imageID, disableCameraAutoReset, imageData],
+  ([viewID_, imageID_, noAutoReset, data]) => {
+    if (!imageID_ || !data) return;
+
+    // PMT-ONLY: a remount (layout change / maximize) gets a fresh VTK
+    // camera. Restore the persisted one if there is one; otherwise fit the
+    // image. Relying on `isCameraInitialized` alone left the new camera at
+    // the default and rendered the slice black until "Reset Camera".
+    const config = viewCameraStore.getConfig(viewID_, imageID_);
+    if (config?.position || config?.focalPoint) {
+      applyCameraConfig(config);
+      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
+      return;
+    }
+
+    if (!noAutoReset) {
+      resetCamera();
+      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
+    }
+  }
+);
 
 // Must run before the clipping-range watcher below: resetCameraClippingRange
 // computes near/far from the camera's current position, so on remount the
@@ -201,6 +177,7 @@ usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera(), {
 });
 
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
+  if (!imageMetadata.value) return;
   if (
     viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
     disableCameraAutoReset.value

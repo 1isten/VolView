@@ -197,7 +197,7 @@ export function useVtkView(
     const scaledWidth = Math.max(1, width * globalThis.devicePixelRatio);
     const scaledHeight = Math.max(1, height * globalThis.devicePixelRatio);
     renderWindowView.setSize(scaledWidth, scaledHeight);
-    imageRenderer.resetCameraClippingRange(unref(clippingBounds));
+    renderer.resetCameraClippingRange();
 
     parent?.renderWindowView.resizeFromChildRenderWindows();
     parent?.renderWindow.render();

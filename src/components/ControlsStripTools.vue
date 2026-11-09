@@ -89,7 +89,7 @@
 
     <groupable-item
       v-slot:default="{ active, toggle }"
-      :value="Tools.Measurements"
+      :value="Tools.Rectangle"
     >
       <control-button
         icon="mdi-vector-square"

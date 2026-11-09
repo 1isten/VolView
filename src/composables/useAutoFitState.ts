@@ -1,10 +1,10 @@
 import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
-import { MaybeRef, Ref } from 'vue';
+import { MaybeRef, Ref, ref } from 'vue';
 
 export function useAutoFitState(
   camera: MaybeRef<vtkCamera>,
-  autoFit: Ref<boolean>
+  autoFit: Ref<boolean> = ref(true)
 ) {
   const { withPaused, pause, resume } = onPausableVTKEvent(
     camera,
