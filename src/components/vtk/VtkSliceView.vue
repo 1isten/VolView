@@ -113,7 +113,9 @@ function resetCamera() {
   });
 }
 
-function applyCameraConfig(config: NonNullable<ReturnType<typeof viewCameraStore.getConfig>>) {
+function applyCameraConfig(
+  config: NonNullable<ReturnType<typeof viewCameraStore.getConfig>>
+) {
   const camera = view.renderer.getActiveCamera();
   if (config.position) {
     camera.setPosition(...(config.position as [number, number, number]));
@@ -221,5 +223,7 @@ function onPointerUp() {
 .view {
   width: 100%;
   height: 100%;
+  /* PMT-ONLY */
+  outline: none !important;
 }
 </style>
