@@ -124,7 +124,8 @@ function previewExtent(target: ProcessTarget, result: ProcessResult) {
 
 export const usePaintProcessStore = defineStore('paintProcess', () => {
   const processState = ref<ProcessState>({ step: 'start' });
-  const activeProcessType = ref<ProcessType>(ProcessType.FillHoles);
+  // PMT-ONLY: keep Smooth (first in the menu) as the default process.
+  const activeProcessType = ref<ProcessType>(ProcessType.GaussianSmooth);
   let activeProcessRunId = 0;
 
   const processStep = computed(() => processState.value.step);

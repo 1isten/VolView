@@ -83,12 +83,6 @@ const GroupedPresets = [
       'US-Fetal',
     ],
   },
-  {
-    group: 'Others',
-    presets: [
-      heatmap.Name,
-    ],
-  }
 ];
 
 export const PresetNameList = GroupedPresets.flatMap((group) => group.presets);

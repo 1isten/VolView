@@ -6,6 +6,8 @@ export const DEFAULT_LAYER_PRESET = 'DICOM Hot Iron';
 export const LAYER_PRESET_OPTIONS = [
   { title: 'Grayscale', value: 'Grayscale' },
   { title: 'Inverted grayscale', value: 'Inverted-Grayscale' },
+  // PMT-ONLY: the 2D heatmap originally in the Color Presets panel.
+  { title: 'Heatmap', value: 'Heatmap' },
   { title: 'DICOM Hot Iron', value: 'DICOM Hot Iron' },
   { title: 'DICOM PET', value: 'DICOM PET' },
   { title: 'DICOM Hot Metal Blue', value: 'DICOM Hot Metal Blue' },

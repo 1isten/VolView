@@ -39,7 +39,7 @@ export default defineComponent({
 
     // Show 3D controls only if we have both an image AND a 3D view somewhere
     const canShow3DControls = computed(
-      () => hasCurrentImage.value // && !!view3DId.value
+      () => hasCurrentImage.value && !!view3DId.value
     );
 
     const panels = ref<string[]>(['volume', 'layers']);

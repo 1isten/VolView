@@ -29,12 +29,15 @@ export const InitViewIDs: Record<string, string> = {
 
 export const getAvailableViews = () => {
   const list: ViewInfoInit[] = [
+    // PMT-ONLY: PMTaro does not expose the Oblique view type.
+    /*
     {
       name: 'Oblique',
       type: 'Oblique',
       dataID: null,
       options: {},
     },
+    */
     {
       name: 'Volume',
       type: '3D',
@@ -106,7 +109,8 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
   },
   'Axial Only': [['axial']],
   '3D Only': [['volume']],
-  Oblique: [['oblique']],
+  // PMT-ONLY: no Oblique view type.
+  // Oblique: [['oblique']],
   '3D Primary': {
     direction: 'row',
     items: [

@@ -89,42 +89,66 @@
 
     <groupable-item
       v-slot:default="{ active, toggle }"
-      :value="Tools.Rectangle"
+      :value="Tools.Measurements"
     >
-      <control-button
-        icon="mdi-vector-square"
-        :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+      <menu-control-button
+        icon="mdi-tape-measure"
+        :name="'Measurement Tools'"
+        :active="active || currentToolIsMeasurement"
         :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
-    </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Circle">
-      <control-button
-        icon="mdi-circle-outline"
-        :name="`Circle [${nameToShortcut['Circle']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
-    </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
-      <control-button
-        icon="mdi-pentagon-outline"
-        :name="`Polygon [${nameToShortcut['Polygon']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
-    </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <control-button
-        icon="mdi-ruler"
-        :name="`Ruler [${nameToShortcut['Ruler']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+        @click="currentToolIsMeasurement ? () => {} : toggle($event)"
+      >
+        <v-list
+          density="comfortable"
+          :rounded="true"
+          active-class="tool-list-item-selected"
+        >
+          <v-list-item
+            append-icon="mdi-ruler"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Ruler"
+            :data-testid="`control-button-Ruler [${nameToShortcut['Ruler']}]`"
+            @click.stop="setCurrentTool(Tools.Ruler)"
+          >
+            <v-list-item-title>
+              Ruler [{{ nameToShortcut['Ruler'] }}]
+            </v-list-item-title>
+          </v-list-item>
+          <v-list-item
+            append-icon="mdi-vector-square"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Rectangle"
+            :data-testid="`control-button-Rectangle [${nameToShortcut['Rectangle']}]`"
+            @click.stop="setCurrentTool(Tools.Rectangle)"
+          >
+            <v-list-item-title>
+              Rectangle [{{ nameToShortcut['Rectangle'] }}]
+            </v-list-item-title>
+          </v-list-item>
+          <v-list-item
+            append-icon="mdi-circle-outline"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Circle"
+            :data-testid="`control-button-Circle [${nameToShortcut['Circle']}]`"
+            @click.stop="setCurrentTool(Tools.Circle)"
+          >
+            <v-list-item-title>
+              Circle [{{ nameToShortcut['Circle'] }}]
+            </v-list-item-title>
+          </v-list-item>
+          <v-list-item
+            append-icon="mdi-pentagon-outline"
+            :disabled="noCurrentImage || isObliqueLayout"
+            :active="currentTool === Tools.Polygon"
+            :data-testid="`control-button-Polygon [${nameToShortcut['Polygon']}]`"
+            @click.stop="setCurrentTool(Tools.Polygon)"
+          >
+            <v-list-item-title>
+              Polygon [{{ nameToShortcut['Polygon'] }}]
+            </v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </menu-control-button>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
