@@ -193,7 +193,7 @@ export default defineComponent({
   flex: 0 2;
   /* roughly match vuetify's dark/light transition */
   transition: border-bottom 0.3s;
-  border-bottom: 2px solid rgb(var(--v-theme-on-surface-variant));
+  border-bottom: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 #close-btn {
@@ -207,6 +207,7 @@ export default defineComponent({
   position: relative;
   flex: 2;
   min-height: 0;
+  container-type: size;
   overflow-x: hidden;
   overflow-y: auto;
 }

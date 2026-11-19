@@ -113,6 +113,28 @@ function resetCamera() {
   });
 }
 
+function applyCameraConfig(
+  config: NonNullable<ReturnType<typeof viewCameraStore.getConfig>>
+) {
+  const camera = view.renderer.getActiveCamera();
+  if (config.position) {
+    camera.setPosition(...(config.position as [number, number, number]));
+  }
+  if (config.focalPoint) {
+    camera.setFocalPoint(...(config.focalPoint as [number, number, number]));
+  }
+  if (config.viewUp) {
+    camera.setViewUp(...(config.viewUp as [number, number, number]));
+  }
+  if (typeof config.parallelScale === 'number') {
+    camera.setParallelScale(config.parallelScale);
+  }
+  if (imageMetadata.value?.worldBounds) {
+    view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
+  }
+  view.renderWindow.render();
+}
+
 watchImmediate(
   // PMT-ONLY: `imageData` is null until the image has renderable pixels
   // (progressive DICOM chunks are registered before their data arrives).
@@ -121,12 +143,20 @@ watchImmediate(
   // Keep `imageData` in the dependency list when merging upstream.
   [viewID, imageID, disableCameraAutoReset, imageData],
   ([viewID_, imageID_, noAutoReset, data]) => {
-    if (
-      imageID_ &&
-      data &&
-      !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
-      !noAutoReset
-    ) {
+    if (!imageID_ || !data) return;
+
+    // PMT-ONLY: a remount (layout change / maximize) gets a fresh VTK
+    // camera. Restore the persisted one if there is one; otherwise fit the
+    // image. Relying on `isCameraInitialized` alone left the new camera at
+    // the default and rendered the slice black until "Reset Camera".
+    const config = viewCameraStore.getConfig(viewID_, imageID_);
+    if (config?.position || config?.focalPoint) {
+      applyCameraConfig(config);
+      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
+      return;
+    }
+
+    if (!noAutoReset) {
       resetCamera();
       viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
     }
@@ -193,5 +223,7 @@ function onPointerUp() {
 .view {
   width: 100%;
   height: 100%;
+  /* PMT-ONLY */
+  outline: none !important;
 }
 </style>

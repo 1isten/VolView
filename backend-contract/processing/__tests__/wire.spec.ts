@@ -4,6 +4,7 @@ import {
   JOB_STATES,
   RESULT_INTENTS,
   INTENT_VOCABULARY_VERSION,
+  STAGEABLE_TYPES,
   inputValueSchema,
   stageInputDescriptorSchema,
   neutralJobStatusSchema,
@@ -14,6 +15,7 @@ import {
   jobHistoryDetailSchema,
   jobResultsSchema,
   jobResultsErrorSchema,
+  currentResultIntentName,
 } from '../wire';
 import { loadFixture, loadFixtureDir } from './loadFixtures';
 
@@ -65,6 +67,46 @@ describe('staged resource descriptor fixtures', () => {
     expect(descriptor.type).toBe('labelmap');
     expect(descriptor.referenceImage.type).toBe('image');
     expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('binds staged annotations bytes to a durable reference image', () => {
+    const descriptor = stageInputDescriptorSchema.parse(
+      wire['stage-input.annotations']
+    );
+    expect(descriptor.type).toBe('annotations');
+    expect(descriptor.name).toBe('chest-ct.annotations.json');
+    expect(descriptor.referenceImage.type).toBe('image');
+    expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('pins the stageable types and their identical key set', () => {
+    // A new stageable type adds a union member and nothing else: the descriptor
+    // key set is the same for every type, so the backend runs ONE code path.
+    expect([...STAGEABLE_TYPES]).toEqual(['labelmap', 'annotations']);
+    const keys = (name: string) =>
+      Object.keys(
+        stageInputDescriptorSchema.parse(wire[name]) as Record<string, unknown>
+      ).sort();
+    expect(keys('stage-input.annotations')).toEqual(
+      keys('stage-input.labelmap')
+    );
+  });
+
+  it('rejects an unknown staged resource type (staging is fail-closed)', () => {
+    const unknownType = loadFixture('negative/stage-input-unknown-type.json');
+    expect(stageInputDescriptorSchema.safeParse(unknownType).success).toBe(
+      false
+    );
+  });
+
+  it('rejects an annotations descriptor without reference provenance', () => {
+    expect(
+      stageInputDescriptorSchema.safeParse({
+        type: 'annotations',
+        name: 'rois.annotations.json',
+        referenceImage: { type: 'image', uris: [] },
+      }).success
+    ).toBe(false);
   });
 
   it('rejects a labelmap descriptor without reference provenance', () => {
@@ -152,13 +194,29 @@ describe('neutral job status fixtures', () => {
 // Result intents
 // ---------------------------------------------------------------------------
 
+describe('currentResultIntentName', () => {
+  it('reads the earlier segmentation import name as the current one', () => {
+    expect(currentResultIntentName('add-segment-group')).toBe(
+      'import-segmentation'
+    );
+  });
+
+  it.each(['toString', 'constructor', '__proto__', 'add-mesh'])(
+    'passes %s through unchanged',
+    (intent) => {
+      expect(currentResultIntentName(intent)).toBe(intent);
+    }
+  );
+});
+
 describe('result intent fixtures', () => {
-  it('exports vocabulary version 1 and the exactly-three state intents', () => {
-    expect(INTENT_VOCABULARY_VERSION).toBe(1);
+  it('exports vocabulary version 3 and the exactly-four state intents', () => {
+    expect(INTENT_VOCABULARY_VERSION).toBe(3);
     expect([...RESULT_INTENTS]).toEqual([
       'add-base-image',
       'add-layer',
-      'add-segment-group',
+      'import-segmentation',
+      'add-annotations',
     ]);
     expect(wire).not.toHaveProperty('intent.download');
   });
@@ -166,18 +224,56 @@ describe('result intent fixtures', () => {
   it.each([
     'intent.add-base-image',
     'intent.add-layer',
-    'intent.add-segment-group.with-segments',
-    'intent.add-segment-group.embedded',
+    'intent.import-segmentation.with-segments',
+    'intent.import-segmentation.embedded',
+    'intent.add-annotations',
     'intent.unknown',
   ])('validates %s', (name) => {
     expect(() => resultIntentSchema.parse(wire[name])).not.toThrow();
   });
 
-  it('parses add-segment-group WITH segments and a source provenance tag', () => {
+  it('parses add-annotations as a KNOWN intent carrying a source tag', () => {
+    const fixture = wire['intent.add-annotations'];
+    expect(knownResultIntentSchema.safeParse(fixture).success).toBe(true);
+    const parsed = resultIntentSchema.parse(fixture) as Record<string, unknown>;
+    expect(parsed.intent).toBe('add-annotations');
+    expect(parsed.source).toEqual({
+      providerId: 'analysis-provider',
+      jobId: 'job-abc123',
+      outputId: 'outputAnnotations',
+    });
+    // Labels ride inside the annotations file, so there is no `segments` peer.
+    expect(parsed).not.toHaveProperty('segments');
+  });
+
+  it('accepts add-annotations without a source (source is optional)', () => {
+    expect(
+      knownResultIntentSchema.safeParse({
+        id: 'r1',
+        intent: 'add-annotations',
+        url: '/rois.annotations.json',
+        name: 'rois.annotations.json',
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects an add-annotations source missing provider identity', () => {
+    expect(
+      knownResultIntentSchema.safeParse({
+        id: 'r1',
+        intent: 'add-annotations',
+        url: '/rois.annotations.json',
+        name: 'rois.annotations.json',
+        source: { jobId: 'job-abc123', outputId: 'outputAnnotations' },
+      }).success
+    ).toBe(false);
+  });
+
+  it('parses import-segmentation WITH segments and a source provenance tag', () => {
     const parsed = resultIntentSchema.parse(
-      wire['intent.add-segment-group.with-segments']
+      wire['intent.import-segmentation.with-segments']
     ) as Record<string, unknown>;
-    expect(parsed.intent).toBe('add-segment-group');
+    expect(parsed.intent).toBe('import-segmentation');
     expect(Array.isArray(parsed.segments)).toBe(true);
     expect(parsed.source).toEqual({
       providerId: 'analysis-provider',
@@ -186,18 +282,18 @@ describe('result intent fixtures', () => {
     });
   });
 
-  it('parses add-segment-group WITHOUT segments (embedded metadata) but with source', () => {
+  it('parses import-segmentation WITHOUT segments (embedded metadata) but with source', () => {
     const parsed = resultIntentSchema.parse(
-      wire['intent.add-segment-group.embedded']
+      wire['intent.import-segmentation.embedded']
     ) as Record<string, unknown>;
-    expect(parsed.intent).toBe('add-segment-group');
+    expect(parsed.intent).toBe('import-segmentation');
     expect(parsed.segments).toBeUndefined();
     expect(parsed.source).toMatchObject({ outputId: 'outputLabelmap' });
   });
 
-  it('rejects a segment-group source without provider identity', () => {
+  it('rejects a segmentation source without provider identity', () => {
     const value = structuredClone(
-      wire['intent.add-segment-group.with-segments']
+      wire['intent.import-segmentation.with-segments']
     ) as { source: { providerId?: string } };
     delete value.source.providerId;
     expect(knownResultIntentSchema.safeParse(value).success).toBe(false);
@@ -214,6 +310,17 @@ describe('result intent fixtures', () => {
     ).toBe(false);
     expect(parsed.url).toBeTruthy();
     expect(parsed.name).toBeTruthy();
+  });
+
+  it('keeps the unknown-intent fixture unknown after the vocabulary grew', () => {
+    // `add-polygon` is deliberately NOT a member of the vocabulary: it is the
+    // pinned fail-open example, and growing the vocabulary must not quietly
+    // adopt it. Adding an intent is exactly the kind of change that could.
+    const fixture = wire['intent.unknown'] as { intent: string };
+    expect(fixture.intent).toBe('add-polygon');
+    expect(RESULT_INTENTS).not.toContain(fixture.intent);
+    expect(knownResultIntentSchema.safeParse(fixture).success).toBe(false);
+    expect(resultIntentSchema.safeParse(fixture).success).toBe(true);
   });
 
   it.each([
@@ -273,16 +380,14 @@ describe('result intent fixtures', () => {
   });
 
   it('rejects a wrong-length segment color (the tuple-length parity pin)', () => {
-    // The negative fixture carries a 3-element color. The STRICT union must
-    // reject it — and the generated JSON Schema must agree (backend side:
-    // test_contract_fixtures.py), so both validators close fixed-length
-    // tuples identically. The full union still accepts the row, demoted to an
-    // ordinary result with no state action (the designed fail-open).
+    // Only the strict known-intent union rejects the 3-element color; the
+    // published result-intent schema accepts the row and demotes it to an
+    // ordinary result with no state action.
     const short = loadFixture('negative/wrong-length-color.json');
     expect(knownResultIntentSchema.safeParse(short).success).toBe(false);
     expect(resultIntentSchema.safeParse(short).success).toBe(true);
 
-    const good = wire['intent.add-segment-group.with-segments'] as {
+    const good = wire['intent.import-segmentation.with-segments'] as {
       segments: { color: number[] }[];
     };
     const long = structuredClone(good);

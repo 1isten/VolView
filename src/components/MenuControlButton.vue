@@ -24,15 +24,6 @@ export default defineComponent({
 
     const menuOn = ref(false);
 
-    const enableMenu = computed(
-      () => !props.mobileOnlyMenu || display.mobile.value
-    );
-
-    // Disable menu if mobile only
-    watch(menuOn, (on) => {
-      menuOn.value = on && enableMenu.value;
-    });
-
     // Turn off menu if tool deselected
     const active = computed(() => props.active);
     watch(active, (on) => {
@@ -41,7 +32,7 @@ export default defineComponent({
       }
     });
 
-    return { showLeft, menuOn, enableMenu };
+    return { showLeft, menuOn };
   },
 });
 </script>
@@ -66,7 +57,7 @@ export default defineComponent({
         v-bind="props"
       >
         <v-icon
-          v-if="active && enableMenu"
+          v-if="active"
           :class="[showLeft ? 'menu-more-left' : 'menu-more-right']"
           size="18"
         >

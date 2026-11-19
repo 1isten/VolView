@@ -9,17 +9,29 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
     >
-      <menu-control-button
-        icon="mdi-circle-half-full"
-        :name="
-          'Window & Level' + '' || ` [${nameToShortcut['Window & Level']}]`
-        "
-        :active="active"
-        :disabled="noCurrentImage"
-        @click="toggle"
+      <v-tooltip
+        :text="windowingUnavailableReason"
+        :disabled="!windowingUnavailableReason"
+        location="right"
       >
-        <window-level-controls />
-      </menu-control-button>
+        <template #activator="{ props: tooltipProps }">
+          <span
+            v-bind="tooltipProps"
+            :tabindex="windowingUnavailableReason ? 0 : undefined"
+            data-testid="windowing-tool"
+          >
+            <menu-control-button
+              icon="mdi-circle-half-full"
+              :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
+              :active="active"
+              :disabled="!!windowingUnavailableReason"
+              @click="toggle"
+            >
+              <window-level-controls />
+            </menu-control-button>
+          </span>
+        </template>
+      </v-tooltip>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
       <control-button
@@ -70,9 +82,7 @@
         icon="mdi-brush"
         :name="'Paint' + '' || ` [${nameToShortcut['Paint']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="
-          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Paint)
-        "
+        :disabled="!!paintUnavailableReason"
         @click="toggle"
       ></control-button>
     </groupable-item>
@@ -97,89 +107,50 @@
             append-icon="mdi-ruler"
             :disabled="noCurrentImage || isObliqueLayout"
             :active="currentTool === Tools.Ruler"
+            :data-testid="`control-button-Ruler [${nameToShortcut['Ruler']}]`"
             @click.stop="setCurrentTool(Tools.Ruler)"
           >
             <v-list-item-title>
-              {{ 'Ruler' + '' || ` [${nameToShortcut['Ruler']}]` }}
+              Ruler [{{ nameToShortcut['Ruler'] }}]
             </v-list-item-title>
-            <v-menu
-              activator="parent"
-              no-click-animation
-              :close-on-content-click="false"
-              :location="'left'"
-              :disabled="!isMobile"
-            >
-              <div class="menu-content elevation-24">
-                <ruler-controls />
-              </div>
-            </v-menu>
           </v-list-item>
           <v-list-item
             append-icon="mdi-vector-square"
             :disabled="noCurrentImage || isObliqueLayout"
             :active="currentTool === Tools.Rectangle"
+            :data-testid="`control-button-Rectangle [${nameToShortcut['Rectangle']}]`"
             @click.stop="setCurrentTool(Tools.Rectangle)"
           >
             <v-list-item-title>
-              {{ 'Rectangle' + '' || ` [${nameToShortcut['Rectangle']}]` }}
+              Rectangle [{{ nameToShortcut['Rectangle'] }}]
             </v-list-item-title>
-            <v-menu
-              activator="parent"
-              no-click-animation
-              :close-on-content-click="false"
-              :location="'left'"
-              :disabled="!isMobile"
-            >
-              <div class="menu-content elevation-24">
-                <rectangle-controls />
-              </div>
-            </v-menu>
           </v-list-item>
           <v-list-item
             append-icon="mdi-circle-outline"
             :disabled="noCurrentImage || isObliqueLayout"
             :active="currentTool === Tools.Circle"
+            :data-testid="`control-button-Circle [${nameToShortcut['Circle']}]`"
             @click.stop="setCurrentTool(Tools.Circle)"
           >
             <v-list-item-title>
-              {{ 'Circle' + '' || ` [${nameToShortcut['Circle']}]` }}
+              Circle [{{ nameToShortcut['Circle'] }}]
             </v-list-item-title>
-            <v-menu
-              activator="parent"
-              no-click-animation
-              :close-on-content-click="false"
-              :location="'left'"
-              :disabled="!isMobile"
-            >
-              <div class="menu-content elevation-24">
-                <circle-controls />
-              </div>
-            </v-menu>
           </v-list-item>
           <v-list-item
             append-icon="mdi-pentagon-outline"
             :disabled="noCurrentImage || isObliqueLayout"
             :active="currentTool === Tools.Polygon"
+            :data-testid="`control-button-Polygon [${nameToShortcut['Polygon']}]`"
             @click.stop="setCurrentTool(Tools.Polygon)"
           >
             <v-list-item-title>
-              {{ 'Polygon' + '' || ` [${nameToShortcut['Polygon']}]` }}
+              Polygon [{{ nameToShortcut['Polygon'] }}]
             </v-list-item-title>
-            <v-menu
-              activator="parent"
-              no-click-animation
-              :close-on-content-click="false"
-              :location="'left'"
-              :disabled="!isMobile"
-            >
-              <div class="menu-content elevation-24">
-                <polygon-controls />
-              </div>
-            </v-menu>
           </v-list-item>
         </v-list>
       </menu-control-button>
     </groupable-item>
+
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
       <menu-control-button
@@ -202,7 +173,8 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watch, onMounted } from 'vue';
 import { useDisplay } from 'vuetify';
-import { onKeyDown, useMagicKeys } from '@vueuse/core';
+import { onKeyDown } from '@vueuse/core';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -213,12 +185,12 @@ import { toRef } from 'vue';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
 import CropControls from '@/src/components/tools/crop/CropControls.vue';
 import ResetViews from '@/src/components/tools/ResetViews.vue';
-import RulerControls from '@/src/components/RulerControls.vue';
-import RectangleControls from '@/src/components/RectangleControls.vue';
-import CircleControls from '@/src/components/CircleControls.vue';
-import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
-import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import {
+  actionToKey,
+  readableBinding,
+  useActionHeld,
+} from '@/src/composables/useKeyboardShortcuts';
 import {
   useCurrentImage,
   getImageMetadata,
@@ -272,10 +244,6 @@ export default defineComponent({
     GroupableItem,
     CropControls,
     ResetViews,
-    RulerControls,
-    RectangleControls,
-    CircleControls,
-    PolygonControls,
     WindowLevelControls,
   },
   props: {
@@ -288,23 +256,42 @@ export default defineComponent({
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const { currentImageID, currentImageData, currentImageMetadata } =
+      useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
+
+    const windowingUnavailableReason = computed(() => {
+      if (!currentImageID.value) return 'Load an image to adjust window/level.';
+      const scalars = currentImageData.value?.getPointData().getScalars();
+      if (!scalars) return 'The image must finish loading first.';
+      if (isCineImage(currentImageID.value))
+        return 'Cine images already contain display-encoded pixels.';
+      const components = scalars.getNumberOfComponents();
+      if (components === 3 || components === 4)
+        return 'RGB and RGBA images use their original colors.';
+      return '';
+    });
 
     const activeViewRef = toRef(viewStore, 'activeView');
     const activeEffective = useEffectiveView(
       computed(() => activeViewRef.value ?? '')
     );
+
     // The rendered viewer is decided by effective kind, not stored slot type:
     // a cine clip dropped into an Oblique slot still renders as cine, so the
     // toolbar should treat it as cine, not Oblique.
     const isObliqueLayout = computed(
       () => activeEffective.value?.kind === 'oblique'
     );
+
     const isCineActive = computed(() => activeEffective.value?.kind === 'cine');
     const isDisallowedOnCine = (tool: Tools) =>
       isCineActive.value && !isToolAllowedFor(tool, activeEffective.value);
+
+    const paintUnavailableReason = computed(
+      () => toolStore.paintUnavailableReason
+    );
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -390,11 +377,9 @@ export default defineComponent({
           const store = useAnnotationToolStore(type);
           const tool = store.toolByID[id] as any;
           if (!tool) return null;
-          const {
-            id: _id,
-            placing: _placing,
-            ...data
-          } = JSON.parse(JSON.stringify(tool)); // eslint-disable-line @typescript-eslint/no-unused-vars
+          const data = JSON.parse(JSON.stringify(tool));
+          delete data.id;
+          delete data.placing;
 
           // Determine source view orientation from the tool's frameOfReference
           const srcMeta = getImageMetadata(data.imageID);
@@ -538,10 +523,8 @@ export default defineComponent({
       });
     });
 
-    const keys = useMagicKeys();
-    const enableTempCrosshairs = computed(
-      () => keys[actionToKey.value.temporaryCrosshairs].value
-    );
+    const enableTempCrosshairs = useActionHeld('temporaryCrosshairs');
+
     watch(enableTempCrosshairs, (enable) => {
       if (enable) toolStore.activateTemporaryCrosshairs();
       else toolStore.deactivateTemporaryCrosshairs();
@@ -551,17 +534,17 @@ export default defineComponent({
     const nameToShortcut = computed(() => {
       const keyMap = actionToKey.value;
       return {
-        'Window & Level': keyMap.windowLevel,
-        Pan: keyMap.pan,
-        Zoom: keyMap.zoom,
-        Crosshairs: keyMap.crosshairs,
-        Select: keyMap.select,
-        Paint: keyMap.paint,
-        Rectangle: keyMap.rectangle,
-        Circle: keyMap.circle,
-        Polygon: keyMap.polygon,
-        Ruler: keyMap.ruler,
-        Crop: keyMap.crop,
+        'Window & Level': readableBinding(keyMap.windowLevel),
+        Pan: readableBinding(keyMap.pan),
+        Zoom: readableBinding(keyMap.zoom),
+        Crosshairs: readableBinding(keyMap.crosshairs),
+        Select: readableBinding(keyMap.select),
+        Paint: readableBinding(keyMap.paint),
+        Rectangle: readableBinding(keyMap.rectangle),
+        Circle: readableBinding(keyMap.circle),
+        Polygon: readableBinding(keyMap.polygon),
+        Ruler: readableBinding(keyMap.ruler),
+        Crop: readableBinding(keyMap.crop),
       };
     });
 
@@ -589,12 +572,11 @@ export default defineComponent({
       ),
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
+      windowingUnavailableReason,
       isObliqueLayout,
       isDisallowedOnCine,
+      paintUnavailableReason,
       Tools,
-      paintMenu,
-      cropMenu,
-      windowingMenu,
       nameToShortcut,
     };
   },
@@ -603,7 +585,8 @@ export default defineComponent({
 
 <style>
 .tool-btn-selected {
-  background-color: rgb(var(--v-theme-selection-bg-color));
+  background-color: rgb(var(--v-theme-primary-darken-1));
+  color: rgb(var(--v-theme-on-primary-darken-1));
 }
 
 .v-list-item--variant-text:not(.tool-list-item-selected) .v-list-item__overlay {
@@ -623,19 +606,10 @@ export default defineComponent({
 </style>
 
 <style scoped>
-.menu-more {
-  position: absolute;
-  right: -10%;
-}
-
 .tool-separator {
   width: 75%;
   height: 1px;
   border: none;
-  border-top: 1px solid rgb(112, 112, 112);
-}
-
-.popup-menu {
-  max-width: 400px; /* a little less than v-navigation-drawer in App.vue */
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
 }
 </style>

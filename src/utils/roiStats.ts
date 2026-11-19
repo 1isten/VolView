@@ -104,7 +104,7 @@ function collectRectValues(
 ): number[] {
   const dims = image.getDimensions() as [number, number, number];
   const scalars = image.getPointData().getScalars();
-  const rawData = scalars.getData() as number[];
+  const rawData = scalars.getData() as unknown as number[];
   const numComp = scalars.getNumberOfComponents();
 
   const ijk1 = worldPointToIndex(image, p1 as vec3);
@@ -148,7 +148,7 @@ function collectEllipseValues(
 ): number[] {
   const dims = image.getDimensions() as [number, number, number];
   const scalars = image.getPointData().getScalars();
-  const rawData = scalars.getData() as number[];
+  const rawData = scalars.getData() as unknown as number[];
   const numComp = scalars.getNumberOfComponents();
 
   const ijk1 = worldPointToIndex(image, p1 as vec3);
@@ -313,7 +313,7 @@ function collectPolygonValues(
 
   const dims = image.getDimensions() as [number, number, number];
   const scalars = image.getPointData().getScalars();
-  const rawData = scalars.getData() as number[];
+  const rawData = scalars.getData() as unknown as number[];
   const numComp = scalars.getNumberOfComponents();
 
   // Convert all polygon vertices to IJK space

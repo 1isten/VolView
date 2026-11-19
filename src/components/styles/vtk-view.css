@@ -32,6 +32,8 @@
   z-index: 0;
   width: 100%;
   height: 100%;
+  /* PMT-ONLY */
+  outline: none !important;
 }
 
 .vtk-view > canvas {
@@ -41,6 +43,7 @@
 .vtk-gutter {
   display: flex;
   flex-flow: column;
+  padding-top: 4px;
   background: black;
   padding: 4px 2px;
   padding-bottom: 0;
@@ -92,6 +95,11 @@
   max-width: 90%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.view-control-icon {
+  text-shadow: none;
+  letter-spacing: normal;
 }
 
 .loading-indicator {

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { OverlayInfo } from '@/src/composables/annotationTool';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 const TOOLTIP_PADDING_X = 30;
 const TOOLTIP_PADDING_Y = 16;
@@ -11,6 +12,8 @@ const props = defineProps<{
   info: OverlayInfo;
   toolStore: AnnotationToolStore;
 }>();
+
+const { segments } = useSegmentStore();
 
 const visible = computed(() => {
   return props.info.visible;
@@ -30,7 +33,8 @@ const metadata = computed(() => {
 
 const label = computed(() => {
   if (!props.info.visible) return '';
-  return props.toolStore.toolByID[props.info.toolID].labelName;
+  const { segmentId } = props.toolStore.toolByID[props.info.toolID];
+  return segments.appearanceOf(segmentId).displayName;
 });
 
 const tooltip = ref();
@@ -43,8 +47,8 @@ const offset = computed(() => {
   return {
     // Tooltip location is above cursor and centered
     // Don't know how to get ref to parent v-tooltip element, so adding fudge padding.
-    x: (width.value + TOOLTIP_PADDING_X) / 8,
-    y: (height.value + TOOLTIP_PADDING_Y) / 4,
+    x: (width.value + TOOLTIP_PADDING_X) / 2,
+    y: height.value + TOOLTIP_PADDING_Y,
   };
 });
 </script>
@@ -52,12 +56,14 @@ const offset = computed(() => {
 <template>
   <v-tooltip
     ref="tooltip"
-    v-if="info.visible && !!label"
+    v-if="info.visible"
     v-model="visible"
-    location="bottom start"
-    :target="[info.displayXY[0] + offset.x, info.displayXY[1] - offset.y]"
-    :z-index="500"
-    class="better-contrast"
+    :style="{
+      left: `${info.displayXY[0] - offset.x}px`,
+      top: `${info.displayXY[1] - offset.y}px`,
+      zIndex: 500, // stay under context menu
+    }"
+    class="annotation-tooltip"
   >
     <div class="tooltip-text font-weight-bold">{{ label }}</div>
     <div v-if="metadata.length > 0">
@@ -70,9 +76,7 @@ const offset = computed(() => {
 </template>
 
 <style scoped>
-.better-contrast :deep(.v-overlay__content) {
-  opacity: 1 !important;
-  background: rgba(255, 255, 255, 0.9) !important;
+.annotation-tooltip :deep(.v-overlay__content) {
   padding-left: 0;
   padding-right: 0;
   pointer-events: none;

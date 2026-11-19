@@ -1,28 +1,36 @@
-import { TYPE_TAG_IMAGE, TYPE_TAG_LABELMAP } from '@/backend-contract';
+import {
+  TYPE_TAG_ANNOTATIONS,
+  TYPE_TAG_IMAGE,
+  TYPE_TAG_LABELMAP,
+} from '@/backend-contract';
 import type { DataSource } from '@/src/io/import/dataSource';
-import type { TaskFormModel } from './formModel';
+import type { TaskFormModel } from '@/src/processing/engine/formModel';
 import {
   bindMintedImageInputs,
   mintInputValue,
   type ImageBindingResult,
   type SourceRefBindingState,
   type SourceRefField,
-} from './mintInput';
+  type ImageLayerInput,
+} from '@/src/processing/engine/mintInput';
 import {
-  bindResolvedLabelmapInputs,
-  mintLabelmapReferenceImage,
-  resolveLabelmapGroup,
+  bindLabelmapInputs,
   type LabelmapBindingResult,
-  type SegmentGroupView,
-} from './mintLabelmap';
+} from '@/src/processing/engine/mintLabelmap';
+import {
+  bindAnnotationsInputs,
+  type AnnotationsBindingResult,
+} from '@/src/processing/engine/mintAnnotations';
 
 export type BoundSourceRefType =
   | typeof TYPE_TAG_IMAGE
-  | typeof TYPE_TAG_LABELMAP;
+  | typeof TYPE_TAG_LABELMAP
+  | typeof TYPE_TAG_ANNOTATIONS;
 
 export type SourceRefBindings = {
   image: ImageBindingResult;
   labelmap: LabelmapBindingResult;
+  annotations: AnnotationsBindingResult;
   types: Record<string, BoundSourceRefType>;
   states: Record<string, SourceRefBindingState>;
   issues: ImageBindingResult['issues'];
@@ -30,18 +38,25 @@ export type SourceRefBindings = {
 
 export type SourceRefBindingContext = {
   activeDataSource: DataSource | undefined;
-  backgroundImageId: string | undefined;
-  activeSegmentGroupId: string | null | undefined;
-  segmentGroups: SegmentGroupView;
-  getDataSource: (imageId: string) => DataSource | undefined;
+  activeImageName?: string;
+  // The current image's segmentation, when it holds a mask.
+  segmentationId: string | undefined;
+  // Whether the active image carries at least one finished annotation tool.
+  hasFinishedAnnotations: boolean;
+  imageLayers?: readonly ImageLayerInput[];
 };
+
+const BOUND_TYPES = new Set<string>([
+  TYPE_TAG_IMAGE,
+  TYPE_TAG_LABELMAP,
+  TYPE_TAG_ANNOTATIONS,
+]);
 
 const acceptedTypes = (field: SourceRefField): BoundSourceRefType[] =>
   Array.from(
     new Set(
-      field.accepts.filter(
-        (type): type is BoundSourceRefType =>
-          type === TYPE_TAG_IMAGE || type === TYPE_TAG_LABELMAP
+      field.accepts.filter((type): type is BoundSourceRefType =>
+        BOUND_TYPES.has(type)
       )
     )
   );
@@ -64,88 +79,71 @@ export const bindSourceRefs = (
   const fields = model.fields.filter(
     (field): field is SourceRefField => field.kind === 'sourceRef'
   );
-  const acceptsImage = fields.some((field) =>
-    acceptedTypes(field).includes(TYPE_TAG_IMAGE)
-  );
-  const acceptsLabelmap = fields.some((field) =>
-    acceptedTypes(field).includes(TYPE_TAG_LABELMAP)
-  );
-  const imageValue = acceptsImage
+  // Segmentations and annotations share the current image's provenance.
+  const imageValue = fields.some((field) => acceptedTypes(field).length > 0)
     ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
     : null;
-  const labelmapResolution = acceptsLabelmap
-    ? resolveLabelmapGroup(
-        context.backgroundImageId,
-        context.activeSegmentGroupId,
-        context.segmentGroups
-      )
-    : { kind: 'unresolved' as const };
-  const labelmapReference =
-    labelmapResolution.kind === 'resolved'
-      ? mintLabelmapReferenceImage(
-          labelmapResolution.groupId,
-          context.segmentGroups,
-          context.getDataSource
-        )
-      : null;
-  const available = new Set<BoundSourceRefType>();
-  if (imageValue) {
-    available.add(TYPE_TAG_IMAGE);
-  }
-  if (labelmapResolution.kind === 'resolved' && labelmapReference) {
-    available.add(TYPE_TAG_LABELMAP);
-  }
+  const { segmentationId } = context;
+  const available = new Set<BoundSourceRefType>(
+    imageValue
+      ? [
+          TYPE_TAG_IMAGE,
+          ...(segmentationId ? ([TYPE_TAG_LABELMAP] as const) : []),
+          ...(context.hasFinishedAnnotations
+            ? ([TYPE_TAG_ANNOTATIONS] as const)
+            : []),
+        ]
+      : []
+  );
 
   const types: Record<string, BoundSourceRefType> = {};
   const dedicated = new Set<BoundSourceRefType>();
   fields.forEach((field) => {
-    const accepted = acceptedTypes(field);
-    if (accepted.length !== 1) return;
-    types[field.id] = accepted[0];
-    dedicated.add(accepted[0]);
+    const accepts = acceptedTypes(field);
+    if (accepts.length !== 1) return;
+    types[field.id] = accepts[0];
+    dedicated.add(accepts[0]);
   });
   fields.forEach((field) => {
-    const accepted = acceptedTypes(field);
-    if (accepted.length <= 1) return;
-    const availableTypes = accepted.filter((type) => available.has(type));
+    const accepts = acceptedTypes(field);
+    if (accepts.length <= 1) return;
+    const availableTypes = accepts.filter((type) => available.has(type));
     const selected =
       availableTypes.find((type) => !dedicated.has(type)) ??
       availableTypes[0] ??
-      accepted.find((type) => !dedicated.has(type)) ??
-      accepted[0];
+      accepts.find((type) => !dedicated.has(type)) ??
+      accepts[0];
     if (selected) types[field.id] = selected;
   });
 
   const image = bindMintedImageInputs(
     modelForType(model, types, TYPE_TAG_IMAGE),
     context.activeDataSource,
-    imageValue
+    imageValue,
+    { activeName: context.activeImageName, layers: context.imageLayers }
   );
-  const labelmap = bindResolvedLabelmapInputs(
+  // The segmentation's reference image is the active image.
+  const labelmap = bindLabelmapInputs(
     modelForType(model, types, TYPE_TAG_LABELMAP),
-    labelmapResolution
+    segmentationId,
+    Boolean(imageValue)
   );
-  const labelmapIssues = [...labelmap.issues];
-  Object.entries(labelmap.groups).forEach(([parameterId, groupId]) => {
-    const reference =
-      labelmapResolution.kind === 'resolved' &&
-      labelmapResolution.groupId === groupId
-        ? labelmapReference
-        : null;
-    if (reference) return;
-    labelmap.states[parameterId] = 'no-provenance';
-    labelmapIssues.push({
-      parameter: parameterId,
-      message:
-        'The segment group reference image was not loaded from the server, so it cannot be used as an input.',
-    });
-  });
+
+  const annotations = bindAnnotationsInputs(
+    modelForType(model, types, TYPE_TAG_ANNOTATIONS),
+    context.hasFinishedAnnotations,
+    Boolean(imageValue),
+    // The persisted IMAGE input is what re-identifies the parent after a
+    // reload; staged types (labelmap, annotations) are excluded there.
+    Object.values(types).includes(TYPE_TAG_IMAGE)
+  );
 
   return {
     image,
     labelmap,
+    annotations,
     types,
-    states: { ...image.states, ...labelmap.states },
-    issues: [...image.issues, ...labelmapIssues],
+    states: { ...image.states, ...labelmap.states, ...annotations.states },
+    issues: [...image.issues, ...labelmap.issues, ...annotations.issues],
   };
 };

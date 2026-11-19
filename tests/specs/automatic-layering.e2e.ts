@@ -1,6 +1,6 @@
 import { DOWNLOAD_TIMEOUT } from '@/wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
-import { FETUS_DATASET } from './configTestUtils';
+import { FETUS_DATASET } from '../datasets';
 import { writeManifestToFile } from './utils';
 
 describe('Automatic Layering by File Name', () => {
@@ -15,7 +15,7 @@ describe('Automatic Layering by File Name', () => {
     await writeManifestToFile(config, configFileName);
 
     await volViewPage.open(
-      `?config=[tmp/${configFileName}]&urls=[${FETUS_DATASET.url},${FETUS_DATASET.url}]&names=[base-image.mha,base-image.layer.mha]`
+      `?urls=[tmp/${FETUS_DATASET.name},tmp/${FETUS_DATASET.name},tmp/${configFileName}]&names=[base-image.mha,base-image.layer.mha,${configFileName}]`
     );
     await volViewPage.waitForViews();
 

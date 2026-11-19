@@ -1,10 +1,7 @@
 import { Key } from 'webdriverio';
 import { volViewPage } from '../pageobjects/volview.page';
-import {
-  CINE_US_DATASET,
-  COLOR3D_JPEG_BASELINE_DICOM,
-} from './configTestUtils';
-import { downloadFile, openUrls, writeManifestToFile } from './utils';
+import { CINE_US_DATASET, COLOR3D_JPEG_BASELINE_DICOM } from '../datasets';
+import { openUrls, writeManifestToFile } from './utils';
 
 const PLAY_CONTROLS = '.play-controls';
 const FRAME_LABEL = '.view-annotations .frame-label';
@@ -57,11 +54,10 @@ async function waitForCineFrameChange(index: number, previousText: string) {
 }
 
 async function openCineDatasetWithConfig(config: unknown, configName: string) {
-  await downloadFile(CINE_US_DATASET.url, CINE_US_DATASET.name);
   const configFileName = `${configName}-${Date.now()}.json`;
   await writeManifestToFile(config, configFileName);
   await volViewPage.open(
-    `?config=[tmp/${configFileName}]&urls=[tmp/${CINE_US_DATASET.name}]`
+    `?urls=[tmp/${CINE_US_DATASET.name},tmp/${configFileName}]`
   );
   await volViewPage.waitForViews();
   const notifications = await volViewPage.getNotificationsCount();

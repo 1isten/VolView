@@ -88,9 +88,15 @@ function useServerConnection() {
 
 const query = useUrlSearchParams();
 const liteMode = computed(() => query.uiMode === 'lite');
-const closeable = computed(() => query.closeable === 'true' || query.closeable === '1');
-const defaultLayoutName = computed(() => query.layoutName ? query.layoutName.toString() : '');
-const defaultTool = computed(() => query.defaultTool ? query.defaultTool.toString() : '');
+const closeable = computed(
+  () => query.closeable === 'true' || query.closeable === '1'
+);
+const defaultLayoutName = computed(() =>
+  query.layoutName ? query.layoutName.toString() : ''
+);
+const defaultTool = computed(() =>
+  query.defaultTool ? query.defaultTool.toString() : ''
+);
 
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
@@ -207,6 +213,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <style src="@/src/components/styles/utils.css"></style>
 <style scoped>
 #tools-strip {
+  /* border-left: 1px solid rgba(var(--v-theme-on-surface), 0.12); */
+  /* PMT-ONLY: PMTaro keeps the darker pre-sync strip border. */
   border-left: 1px solid #212121;
   flex: 0 0 40px;
   order: 1;
@@ -217,6 +225,6 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
   width: 75%;
   height: 1px;
   border: none;
-  border-top: 1px solid rgb(112, 112, 112);
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
 }
 </style>

@@ -32,14 +32,14 @@
           <div class="annotation-cell d-flex align-center">
             <v-btn
               class="pointer-events-all"
-              dark
+              color="white"
               icon
               size="medium"
               variant="text"
               @click="resetCamera"
               @dblclick.stop
             >
-              <v-icon size="medium" class="py-1">
+              <v-icon size="medium" class="py-1 view-control-icon">
                 mdi-camera-flip-outline
               </v-icon>
               <v-tooltip

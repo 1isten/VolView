@@ -8,7 +8,7 @@ import {
 import { useLoadDataStore, type LoadEventOptions } from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename, normalize as normalizePath } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -98,7 +98,7 @@ function sortByDataSourceName(a: LoadableResult, b: LoadableResult) {
 // does not pick segmentation or layer images
 function findBaseImage(
   loadableDataSources: Array<LoadableResult>,
-  segmentGroupExtension: string,
+  segmentationExtension: string,
   layerExtension: string
 ) {
   const baseImages = loadableDataSources
@@ -107,7 +107,7 @@ function findBaseImage(
       const name = getDataSourceName(importResult.dataSource);
       if (!name) return false;
       return (
-        !isSegmentation(segmentGroupExtension, name) &&
+        !isSegmentation(segmentationExtension, name) &&
         !isSegmentation(layerExtension, name)
       );
     });
@@ -157,7 +157,7 @@ function getStudyUID(volumeID: string) {
 
 function findBaseDataSource(
   succeeded: Array<ImportResult>,
-  segmentGroupExtension: string,
+  segmentationExtension: string,
   layerExtension: string
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
@@ -166,7 +166,7 @@ function findBaseDataSource(
 
   const baseImage = findBaseImage(
     loadableDataSources,
-    segmentGroupExtension,
+    segmentationExtension,
     layerExtension
   );
   if (baseImage) return baseImage;
@@ -236,18 +236,18 @@ function autoLayerByName(
   });
 }
 
-// Loads other DataSources as Segment Groups:
+// Converts other DataSources into segments on the primary image:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>,
-  segmentGroupExtension: string
+  segmentationExtension: string
 ) {
   const matchingNames = filterMatchingNames(
     primaryDataSource,
     succeeded,
-    segmentGroupExtension
+    segmentationExtension
   )
     .filter(
       isVolumeResult // filter out models
@@ -264,20 +264,41 @@ function loadSegmentations(
     return modality.trim() === 'SEG';
   });
 
-  const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
   [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
     const loadable = toDataSelection(ds);
-    segmentGroupStore.convertImageToLabelmap(
+    segmentationStore.startLabelmapConversion(
       loadable,
       toDataSelection(primaryDataSource)
     );
   });
 }
 
-type DataSourceImporter = (
+export type DataSourceImporter = (
   sources: DataSource[],
+  // PMT-ONLY: PMTaro's bus volume key suffix.
   volumeKeySuffix?: string
 ) => Promise<ImportDataSourcesResult[]>;
+
+export function showImportedData(results: ImportResult[]) {
+  const loadDataStore = useLoadDataStore();
+
+  const primaryDataSource = findBaseDataSource(
+    results,
+    loadDataStore.segmentationExtension,
+    loadDataStore.layerExtension
+  );
+  if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
+
+  useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
+  autoLayerDicoms(primaryDataSource, results);
+  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
+  loadSegmentations(
+    primaryDataSource,
+    results,
+    loadDataStore.segmentationExtension
+  );
+}
 
 type LoadDataSourcesOutcome = {
   datasetIds: string[];
@@ -323,7 +344,7 @@ function loadDataSourcesWithOutcome(
     if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
-        loadDataStore.segmentGroupExtension,
+        loadDataStore.segmentationExtension,
         loadDataStore.layerExtension
       );
 
@@ -609,7 +630,7 @@ function loadDataSourcesWithOutcome(
         loadSegmentations(
           primaryDataSource,
           succeeded,
-          loadDataStore.segmentGroupExtension
+          loadDataStore.segmentationExtension
         );
       } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
@@ -669,12 +690,22 @@ function loadDataSourcesWithOutcome(
 
 export function loadDataSources(
   sources: DataSource[],
-  volumeKeySuffix?: string,
+  volumeKeySuffixOrImporter?: string | DataSourceImporter,
   isSession?: boolean
 ) {
+  // PMT-ONLY: PMTaro passes the bus volume key suffix; upstream tests inject
+  // an importer. Accept both call shapes.
+  const importer =
+    typeof volumeKeySuffixOrImporter === 'function'
+      ? volumeKeySuffixOrImporter
+      : importDataSources;
+  const volumeKeySuffix =
+    typeof volumeKeySuffixOrImporter === 'string'
+      ? volumeKeySuffixOrImporter
+      : undefined;
   return loadDataSourcesWithOutcome(
     sources,
-    importDataSources,
+    importer,
     volumeKeySuffix,
     isSession
   ).then(({ datasetIds, completed }) => (completed ? datasetIds : undefined));
@@ -686,16 +717,28 @@ export function loadVolumeDataSources(sources: DataSource[]) {
   );
 }
 
+let pendingFileInput: HTMLInputElement | undefined;
+
 export function openFileDialog() {
   return new Promise<File[]>((resolve) => {
+    pendingFileInput?.remove();
     const fileEl = document.createElement('input');
+    pendingFileInput = fileEl;
     fileEl.setAttribute('type', 'file');
     fileEl.setAttribute('multiple', 'multiple');
     fileEl.setAttribute('accept', '*');
-    fileEl.addEventListener('change', () => {
-      const files = [...(fileEl.files ?? [])];
-      resolve(files);
-    });
+    fileEl.hidden = true;
+    fileEl.addEventListener(
+      'change',
+      () => {
+        const files = [...(fileEl.files ?? [])];
+        fileEl.remove();
+        if (pendingFileInput === fileEl) pendingFileInput = undefined;
+        resolve(files);
+      },
+      { once: true }
+    );
+    document.body.appendChild(fileEl);
     fileEl.click();
   });
 }
@@ -714,7 +757,10 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
+export function urlsToDataSources(
+  urls: string[],
+  names: string[] = []
+): DataSource[] {
   return urls.map((url, idx) => {
     const defaultName =
       basename(parseUrl(url, window.location.href).pathname) || url;
@@ -725,7 +771,6 @@ function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
 type LoadUrlsParams = {
   urls?: string[];
   names?: string[];
-  config?: string[];
 };
 
 export async function loadUrls(
@@ -737,17 +782,23 @@ export async function loadUrls(
 
 export async function loadUrlsWithOutcome(
   params: UrlParams | LoadUrlsParams,
-  options?: LoadEventOptions
+  optionsOrImporter?: LoadEventOptions | DataSourceImporter
 ): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
-  const outcomes: LoadDataSourcesOutcome[] = [];
-  if (params.config) {
-    const configUrls = wrapInArray(params.config);
-    const configSources = urlsToDataSources(configUrls, []);
-    outcomes.push(
-      await loadDataSourcesWithOutcome(configSources, importDataSources)
-    );
+  if (!params.urls) {
+    return { datasetIds: [], hadErrors: false };
   }
 
+  // PMT-ONLY: PMTaro passes load options (volumeKeySuffix/openFolder/...);
+  // upstream tests inject an importer. Accept both call shapes.
+  const importer =
+    typeof optionsOrImporter === 'function'
+      ? optionsOrImporter
+      : importDataSources;
+  const options =
+    typeof optionsOrImporter === 'function' ? undefined : optionsOrImporter;
+
+  // PMT-ONLY: pmt keeps its bus/cached-file/openFolder loading pipeline.
+  const outcomes: LoadDataSourcesOutcome[] = [];
   if (params.urls) {
     let urls = wrapInArray(params.urls);
     let names = wrapInArray(params.names ?? []);
@@ -1408,7 +1459,7 @@ export async function loadUrlsWithOutcome(
           outcomes.push(
             await loadDataSourcesWithOutcome(
               dicomWebFiles.map(fileToDataSource),
-              importDataSources,
+              importer,
               volumeKeySuffix
             )
           );
@@ -1417,14 +1468,14 @@ export async function loadUrlsWithOutcome(
         outcomes.push(
           await loadDataSourcesWithOutcome(
             sources,
-            importDataSources,
+            importer,
             volumeKeySuffix
           )
         );
       }
     } else {
       outcomes.push(
-        await loadDataSourcesWithOutcome(sources, importDataSources)
+        await loadDataSourcesWithOutcome(sources, importer)
       );
     }
   }

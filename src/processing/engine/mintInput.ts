@@ -9,8 +9,8 @@ import type {
   FormField,
   FormValidationIssue,
   TaskFormModel,
-} from './formModel';
-import { fieldLabel } from './formModel';
+} from '@/src/processing/engine/formModel';
+import { fieldLabel } from '@/src/processing/engine/formModel';
 
 // A partial uri set would be processed as an incomplete volume.
 export const collectProvenanceUris = (ds: DataSource | undefined): string[] => {
@@ -59,8 +59,15 @@ export type SourceRefBindingState =
   | 'bound'
   | 'unbound'
   | 'no-provenance'
-  | 'no-segment-group'
+  | 'no-segmentation'
+  | 'no-annotations'
+  | 'no-reference-input'
+  | 'no-layer'
   | 'ambiguous';
+
+// What a binder calls the thing it could not bind, in the user-facing
+// sentences below.
+export type SourceRefNoun = 'image' | 'segmentation' | 'annotation' | 'layer';
 
 export type SourceRefField = Extract<FormField, { kind: 'sourceRef' }>;
 
@@ -80,12 +87,20 @@ export const imageInputFields = (model: TaskFormModel): SourceRefField[] =>
 // validation issues and FileWidget renders the same text in the form body.
 export const bindingStateMessage = (
   state: SourceRefBindingState,
-  noun: 'image' | 'segment group'
+  noun: SourceRefNoun
 ): string | undefined => {
   if (state === 'no-provenance')
-    return 'The active volume was not loaded from the server, so it cannot be used as an input.';
-  if (state === 'no-segment-group')
-    return 'Paint or select a segment group first.';
+    return noun === 'layer'
+      ? 'The image layer was not loaded from the server, so it cannot be used as an input.'
+      : 'The active volume was not loaded from the server, so it cannot be used as an input.';
+  if (state === 'no-layer')
+    return 'Attach another image layer to the active dataset first.';
+  if (state === 'no-segmentation')
+    return 'Paint a segment on the current image first.';
+  if (state === 'no-annotations')
+    return 'Place a ruler, rectangle, or polygon on the current image first.';
+  if (state === 'no-reference-input')
+    return 'This task does not declare the reference image as an input, so its results could not be loaded in a later session.';
   if (state === 'ambiguous')
     return `This task needs more than one ${noun} input, which this version cannot bind automatically.`;
   return undefined;
@@ -95,7 +110,7 @@ export const bindingStateMessage = (
 // rather than guess.
 export const ambiguousBinding = (
   fields: SourceRefField[],
-  noun: 'image' | 'segment group'
+  noun: SourceRefNoun
 ): {
   states: Record<string, SourceRefBindingState>;
   issues: FormValidationIssue[];
@@ -109,9 +124,34 @@ export const ambiguousBinding = (
   ],
 });
 
+// The other half of every binder's shape: the field could not bind, so it
+// carries its state and the sentence explaining it. `alwaysBlocks` separates
+// the two reasons — a selected resource that cannot be an input blocks
+// regardless of required-ness, while a missing one only blocks a required
+// field.
+export const unboundBinding = (
+  field: SourceRefField,
+  state: SourceRefBindingState,
+  noun: SourceRefNoun,
+  alwaysBlocks = false
+): {
+  states: Record<string, SourceRefBindingState>;
+  issues: FormValidationIssue[];
+} => {
+  const message = bindingStateMessage(state, noun);
+  return {
+    states: { [field.id]: state },
+    issues:
+      message && (alwaysBlocks || field.required)
+        ? [{ parameter: field.id, message }]
+        : [],
+  };
+};
+
 export type ImageBindingResult = {
   values: Record<string, ProcessingValue>;
   states: Record<string, SourceRefBindingState>;
+  names?: Record<string, string>;
   // Caller suppresses generic duplicates for these param ids.
   issues: FormValidationIssue[];
 };
@@ -122,26 +162,23 @@ const EMPTY_BINDING: ImageBindingResult = {
   issues: [],
 };
 
-const bindImageFields = (
-  fields: SourceRefField[],
-  activeDataSource: DataSource | undefined,
-  value: InputValue | null
+export type ImageLayerInput = {
+  dataSource: DataSource | undefined;
+  name: string | undefined;
+};
+
+const bindImageField = (
+  field: SourceRefField,
+  source: ImageLayerInput | undefined,
+  value: InputValue | null,
+  isLayer: boolean
 ): ImageBindingResult => {
-  if (fields.length === 0) return EMPTY_BINDING;
-
-  // Explicit null, not `{}`: a stale merge could submit the previous image.
-  const nullValues = () =>
-    Object.fromEntries(fields.map((f) => [f.id, null as ProcessingValue]));
-
-  if (fields.length > 1) {
-    return { values: nullValues(), ...ambiguousBinding(fields, 'image') };
-  }
-
-  const [field] = fields;
-
-  if (!activeDataSource) {
+  const values = { [field.id]: null };
+  if (!source) {
+    if (isLayer)
+      return { values, ...unboundBinding(field, 'no-layer', 'layer') };
     return {
-      values: nullValues(),
+      values,
       states: { [field.id]: 'unbound' },
       issues: field.required
         ? [{ parameter: field.id, message: `${fieldLabel(field)} is required` }]
@@ -153,14 +190,13 @@ const bindImageFields = (
   // used as input.
   if (!value) {
     return {
-      values: nullValues(),
-      states: { [field.id]: 'no-provenance' },
-      issues: [
-        {
-          parameter: field.id,
-          message: bindingStateMessage('no-provenance', 'image')!,
-        },
-      ],
+      values,
+      ...unboundBinding(
+        field,
+        'no-provenance',
+        isLayer ? 'layer' : 'image',
+        true
+      ),
     };
   }
 
@@ -174,18 +210,42 @@ const bindImageFields = (
 export const bindMintedImageInputs = (
   model: TaskFormModel,
   activeDataSource: DataSource | undefined,
-  value: InputValue | null
-): ImageBindingResult =>
-  bindImageFields(imageInputFields(model), activeDataSource, value);
-
-export const bindImageInputs = (
-  model: TaskFormModel,
-  activeDataSource: DataSource | undefined
+  activeValue: InputValue | null,
+  sources: { activeName?: string; layers?: readonly ImageLayerInput[] } = {}
 ): ImageBindingResult => {
   const fields = imageInputFields(model);
-  const value =
-    fields.length === 1 && activeDataSource
-      ? mintInputValue(activeDataSource, TYPE_TAG_IMAGE)
-      : null;
-  return bindImageFields(fields, activeDataSource, value);
+  if (fields.length === 0) return EMPTY_BINDING;
+  const images = [
+    activeDataSource
+      ? { dataSource: activeDataSource, name: sources.activeName }
+      : undefined,
+    ...(sources.layers ?? []),
+  ];
+  // A collection is one volume; its complete URI set stays within one field.
+  const bindings = fields.map((field, index) =>
+    bindImageField(
+      field,
+      images[index],
+      index === 0 ? activeValue : mintInputValue(images[index]?.dataSource),
+      index > 0
+    )
+  );
+  return {
+    values: Object.assign({}, ...bindings.map((binding) => binding.values)),
+    states: Object.assign({}, ...bindings.map((binding) => binding.states)),
+    names: Object.fromEntries(
+      fields.flatMap((field, index) => {
+        const image = images[index];
+        if (!image) return [];
+        return [
+          [
+            field.id,
+            image.name ??
+              (index === 0 ? 'Active dataset' : `Image layer ${index}`),
+          ],
+        ];
+      })
+    ),
+    issues: bindings.flatMap((binding) => binding.issues),
+  };
 };

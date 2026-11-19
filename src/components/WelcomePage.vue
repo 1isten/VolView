@@ -73,7 +73,7 @@ const dataSecurityDialog = ref(false);
               <v-icon size="64">mdi-folder-plus</v-icon>
             </div>
             <div class="dnd-prompt-text">
-              Add your local clinical data files.
+              Add your local DICOM <br />or other clinical data files.
             </div>
           </template>
         </v-card>

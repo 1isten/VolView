@@ -1,6 +1,8 @@
 import { inject, onMounted, onUnmounted } from 'vue';
 import { useUrlSearchParams } from '@vueuse/core';
 
+import { useSegmentationHistogram } from '@/src/composables/useSegmentationHistogram';
+
 export function useEventBus(handlers, loadDataStore) {
   const query = useUrlSearchParams();
   const {
@@ -17,6 +19,8 @@ export function useEventBus(handlers, loadDataStore) {
   const ports = Object.create(null);
 
   const emitter = inject('bus');
+  // PMT-ONLY: emit a histogram payload after segment mask edits.
+  useSegmentationHistogram(emitter);
   const bus = { emitter };
 
   const jsonClone = (value) => {
@@ -53,6 +57,7 @@ export function useEventBus(handlers, loadDataStore) {
   let oncurrentsliceroisample;
   let onannotationresult;
   let onsegmentationresult;
+  let onsegmentationhistogram;
   let onvolumeresult;
   let onslicing;
   let onclose;
@@ -201,6 +206,9 @@ export function useEventBus(handlers, loadDataStore) {
     onsegmentationresult = (payload) => {
       emitVolViewEvent('volview:segmentationresult', jsonClone(payload));
     };
+    onsegmentationhistogram = (payload) => {
+      emitVolViewEvent('volview:segmentationhistogram', jsonClone(payload));
+    };
     onvolumeresult = (payload) => {
       emitVolViewEvent('volview:volumeresult', jsonClone(payload));
     };
@@ -238,6 +246,7 @@ export function useEventBus(handlers, loadDataStore) {
     emitter.on('currentsliceroisample', oncurrentsliceroisample);
     emitter.on('annotationresult', onannotationresult);
     emitter.on('segmentationresult', onsegmentationresult);
+    emitter.on('segmentationhistogram', onsegmentationhistogram);
     emitter.on('volumeresult', onvolumeresult);
     emitter.on('slicing', onslicing);
     emitter.on('close', onclose);

@@ -43,6 +43,11 @@ const WIRE_COMPONENTS: Record<GeneratedSchemaName, string> = {
   'job-history-detail': 'JobHistoryDetail',
   'job-results': 'JobResults',
   'job-results-error': 'JobResultsError',
+  // Not a request/response body: the interchange FILE format a staged
+  // `annotations` input carries and an `add-annotations` result points at.
+  // Published as a component so a backend author sees the whole vocabulary,
+  // including the file formats, in one document.
+  'annotations-file': 'AnnotationsFile',
 };
 
 // The generated schemas carry a per-schema `$schema` dialect marker; OpenAPI 3.1
@@ -327,13 +332,15 @@ const paths = (): Record<string, unknown> => ({
       operationId: 'stageInput',
       tags: ['context'],
       summary:
-        'Stage a parent-bound labelmap as a transient input; returns ' +
-        'backend-minted URIs the client round-trips as an InputValue at submit.',
+        'Stage a parent-bound labelmap or annotations file as a transient ' +
+        'input; returns backend-minted URIs the client round-trips as an ' +
+        'InputValue at submit.',
       requestBody: {
         required: true,
         description:
-          'A typed staged resource: the labelmap bytes plus its durable ' +
-          'reference-image relationship.',
+          'A typed staged resource: the bytes plus their durable ' +
+          'reference-image relationship. The descriptor `type` selects which ' +
+          'stageable resource the bytes are; an unknown type is rejected.',
         content: {
           'multipart/form-data': {
             schema: {
@@ -422,11 +429,11 @@ const paths = (): Record<string, unknown> => ({
           description:
             'The resolved results as the { resultState, intents, missing } envelope ' +
             '(JobResults). Each entry of `intents` is a ResultIntent — a result ' +
-            'row carrying a required `id` display key and required `name`/`url`, ' +
-            'plus optional/null `mimeType`/`size` file metadata. `missing` counts ' +
-            'declared outputs that never arrived plus recorded outputs that cannot ' +
-            'be read. Total loss is a valid incomplete response with an empty ' +
-            'intents array.',
+            'row carrying a required `id` display key, unique within the job, and ' +
+            'required `name`/`url`, plus optional/null `mimeType`/`size` file ' +
+            'metadata. `missing` counts declared outputs that never arrived plus ' +
+            'recorded outputs that cannot be read. Total loss is a valid ' +
+            'incomplete response with an empty intents array.',
           content: json(ref('JobResults')),
         },
         '409': resultReadErrorResponse,
@@ -467,7 +474,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> => ({
     // VERSION / specVersion) below. It is deliberately literal, not derived from
     // the shape-version constants — the artifact and the shapes version on
     // separate clocks.
-    version: '0.1.0',
+    version: '0.3.0',
     description:
       'DRAFT 0.x — shapes may change until a second backend passes the ' +
       'conformance kit (the pinned 1.0 criterion). ' +

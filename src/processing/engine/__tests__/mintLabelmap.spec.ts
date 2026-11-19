@@ -1,16 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
 import type { DataSource } from '@/src/io/import/dataSource';
-import {
-  labelmapInputFields,
-  resolveLabelmapGroup,
-  bindLabelmapInputs,
-  mintLabelmapValue,
-  mintLabelmapReferenceImage,
-  type SegmentGroupView,
-} from '../mintLabelmap';
-import { bindImageInputs } from '../mintInput';
+import { labelmapInputFields, mintLabelmapValue } from '../mintLabelmap';
+import { bindSourceRefs } from '../sourceRefs';
 import type { TaskFormModel, FormField } from '../formModel';
+import { createSourceRefBindingContext } from './sourceRefBindingContext';
 
 const labelmapModel = (
   overrides: Partial<Extract<FormField, { kind: 'sourceRef' }>> = {}
@@ -29,33 +23,13 @@ const labelmapModel = (
   hidden: [],
 });
 
-const viewOf = (parentByGroup: Record<string, string>): SegmentGroupView => {
-  const orderByParent: Record<string, string[]> = {};
-  Object.entries(parentByGroup).forEach(([groupId, parentImage]) => {
-    (orderByParent[parentImage] ??= []).push(groupId);
-  });
-  return {
-    orderByParent,
-    metadataByID: Object.fromEntries(
-      Object.entries(parentByGroup).map(([groupId, parentImage]) => [
-        groupId,
-        { parentImage },
-      ])
-    ),
-  };
-};
-
 const localFile = (filename: string): DataSource => ({
   type: 'file',
   file: new File([], filename),
   fileType: '',
 });
 
-const remoteFile = (uri: string): DataSource => ({
-  type: 'uri',
-  uri,
-  name: 'scan.nrrd',
-});
+const context = createSourceRefBindingContext;
 
 describe('labelmapInputFields', () => {
   it('selects sourceRef params that accept a labelmap', () => {
@@ -73,78 +47,7 @@ describe('labelmapInputFields', () => {
   });
 });
 
-describe('resolveLabelmapGroup — fallback chain', () => {
-  it('branch 1: the paint-active group (guard passes)', () => {
-    const view = viewOf({ g1: 'bg' });
-    expect(resolveLabelmapGroup('bg', 'g1', view)).toEqual({
-      kind: 'resolved',
-      groupId: 'g1',
-    });
-  });
-
-  it('branch 1 wins over multiple groups: paint-active disambiguates', () => {
-    const view = viewOf({ g1: 'bg', g2: 'bg' });
-    expect(resolveLabelmapGroup('bg', 'g2', view)).toEqual({
-      kind: 'resolved',
-      groupId: 'g2',
-    });
-  });
-
-  it("branch 2: the background's ONLY segment group when none is paint-active", () => {
-    const view = viewOf({ g1: 'bg' });
-    expect(resolveLabelmapGroup('bg', null, view)).toEqual({
-      kind: 'resolved',
-      groupId: 'g1',
-    });
-  });
-
-  it('branch 3: fail closed when the background has no segment group', () => {
-    const view = viewOf({ gOther: 'other' });
-    expect(resolveLabelmapGroup('bg', null, view)).toEqual({
-      kind: 'unresolved',
-    });
-  });
-
-  it('branch 3: multiple groups, none paint-active → fail closed (no v1 picker)', () => {
-    const view = viewOf({ g1: 'bg', g2: 'bg' });
-    expect(resolveLabelmapGroup('bg', null, view)).toEqual({
-      kind: 'unresolved',
-    });
-  });
-
-  it('fails closed when there is no bound background', () => {
-    const view = viewOf({ g1: 'bg' });
-    expect(resolveLabelmapGroup(undefined, 'g1', view)).toEqual({
-      kind: 'unresolved',
-    });
-  });
-});
-
-describe('resolveLabelmapGroup — parentImage guard', () => {
-  it('rejects a paint-active group whose parentImage is not the background', () => {
-    const view = viewOf({ g1: 'other', g2: 'bg' });
-    expect(resolveLabelmapGroup('bg', 'g1', view)).toEqual({
-      kind: 'resolved',
-      groupId: 'g2',
-    });
-  });
-
-  it('fails closed when the only paint-active group belongs to another image', () => {
-    const view = viewOf({ g1: 'other' });
-    expect(resolveLabelmapGroup('bg', 'g1', view)).toEqual({
-      kind: 'unresolved',
-    });
-  });
-
-  it('branch 2 never crosses images: an only-group on another image is not used', () => {
-    const view = viewOf({ g1: 'other' });
-    expect(resolveLabelmapGroup('bg', null, view)).toEqual({
-      kind: 'unresolved',
-    });
-  });
-});
-
-describe('bindLabelmapInputs', () => {
+describe('labelmap binding through bindSourceRefs', () => {
   it('is a no-op when the task has no labelmap input', () => {
     const model: TaskFormModel = {
       id: 'task',
@@ -152,48 +55,44 @@ describe('bindLabelmapInputs', () => {
       fields: [{ kind: 'int', id: 'radius', default: 1 }],
       hidden: [],
     };
-    expect(bindLabelmapInputs(model, 'bg', 'g1', viewOf({ g1: 'bg' }))).toEqual(
-      {
-        groups: {},
-        states: {},
-        issues: [],
-      }
+    const bindings = bindSourceRefs(model, context({ segmentationId: 'g1' }));
+    expect(bindings.labelmap).toEqual({
+      segmentations: {},
+      states: {},
+      issues: [],
+    });
+  });
+
+  it('fails closed (no-segmentation) + refuses submit when unresolved', () => {
+    const bindings = bindSourceRefs(labelmapModel(), context());
+    expect(bindings.states.inputSeg).toBe('no-segmentation');
+    expect(bindings.labelmap.segmentations).toEqual({});
+    expect(bindings.issues).toHaveLength(1);
+    expect(bindings.issues[0].parameter).toBe('inputSeg');
+    expect(bindings.issues[0].message).toMatch(/paint a segment/i);
+  });
+
+  it('fails closed for a REQUIRED multiple labelmap input with no segmentation', () => {
+    const bindings = bindSourceRefs(
+      labelmapModel({ multiple: true }),
+      context()
+    );
+    expect(bindings.states.inputSeg).toBe('no-segmentation');
+    expect(bindings.labelmap.segmentations).toEqual({});
+    expect(bindings.issues).toHaveLength(1);
+    expect(bindings.issues[0].message).toBe(
+      'Paint a segment on the current image first.'
     );
   });
 
-  it('binds the sole labelmap param to the resolved group', () => {
-    const result = bindLabelmapInputs(
-      labelmapModel(),
-      'bg',
-      'g1',
-      viewOf({ g1: 'bg' })
-    );
-    expect(result.states.inputSeg).toBe('bound');
-    expect(result.groups.inputSeg).toBe('g1');
-    expect(result.issues).toHaveLength(0);
-  });
-
-  it('fails closed (no-segment-group) + refuses submit when unresolved', () => {
-    const result = bindLabelmapInputs(labelmapModel(), 'bg', null, viewOf({}));
-    expect(result.states.inputSeg).toBe('no-segment-group');
-    expect(result.groups).toEqual({});
-    expect(result.issues).toHaveLength(1);
-    expect(result.issues[0].parameter).toBe('inputSeg');
-    expect(result.issues[0].message).toMatch(
-      /paint or select a segment group/i
-    );
-  });
-
-  it('does not block an OPTIONAL labelmap input with no segment group', () => {
-    const result = bindLabelmapInputs(
+  it('does not block an OPTIONAL labelmap input with no segmentation', () => {
+    const bindings = bindSourceRefs(
       labelmapModel({ required: false }),
-      'bg',
-      null,
-      viewOf({})
+      context()
     );
-    expect(result.states.inputSeg).toBe('no-segment-group');
-    expect(result.groups).toEqual({});
-    expect(result.issues).toHaveLength(0);
+    expect(bindings.states.inputSeg).toBe('no-segmentation');
+    expect(bindings.labelmap.segmentations).toEqual({});
+    expect(bindings.issues).toHaveLength(0);
   });
 
   it('fails closed (ambiguous) when more than one labelmap param is present', () => {
@@ -216,11 +115,16 @@ describe('bindLabelmapInputs', () => {
       ],
       hidden: [],
     };
-    const result = bindLabelmapInputs(model, 'bg', 'g1', viewOf({ g1: 'bg' }));
-    expect(result.states.segA).toBe('ambiguous');
-    expect(result.states.segB).toBe('ambiguous');
-    expect(result.groups).toEqual({});
-    expect(result.issues).toHaveLength(1);
+    const bindings = bindSourceRefs(
+      model,
+      context({
+        segmentationId: 'g1',
+      })
+    );
+    expect(bindings.states.segA).toBe('ambiguous');
+    expect(bindings.states.segB).toBe('ambiguous');
+    expect(bindings.labelmap.segmentations).toEqual({});
+    expect(bindings.issues).toHaveLength(1);
   });
 });
 
@@ -236,21 +140,18 @@ describe('no-provenance background blocks the labelmap flow for free', () => {
       hidden: [],
     };
 
-    const image = bindImageInputs(model, localFile('local.nrrd'));
-    const labelmap = bindLabelmapInputs(
+    const bindings = bindSourceRefs(
       model,
-      'bg',
-      'seg',
-      viewOf({ seg: 'bg' })
+      context({
+        activeDataSource: localFile('local.nrrd'),
+        segmentationId: 'seg',
+      })
     );
 
-    expect(labelmap.states.seg).toBe('bound');
-    expect(labelmap.issues).toHaveLength(0);
-
-    const combined = [...image.issues, ...labelmap.issues];
-    expect(combined).toHaveLength(1);
-    expect(combined[0].parameter).toBe('bg');
-    expect(combined[0].message).toMatch(/not loaded from the server/i);
+    expect(bindings.states.seg).toBe('no-provenance');
+    expect(bindings.issues).toHaveLength(2);
+    expect(bindings.issues[0].parameter).toBe('bg');
+    expect(bindings.issues[0].message).toMatch(/not loaded from the server/i);
   });
 });
 
@@ -258,24 +159,5 @@ describe('mintLabelmapValue', () => {
   it('mints { type: "labelmap", uris } from the staging response (no format)', () => {
     const uris = ['/api/v1/file/deadbeef/proxiable/seg.seg.nrrd'];
     expect(mintLabelmapValue(uris)).toEqual({ type: 'labelmap', uris });
-  });
-});
-
-describe('mintLabelmapReferenceImage', () => {
-  it('copies the parent image opaque provenance for a labelmap-only task', () => {
-    const uri = '/api/v1/file/parent/proxiable/scan.nrrd';
-    expect(
-      mintLabelmapReferenceImage('g1', viewOf({ g1: 'image-a' }), (imageId) =>
-        imageId === 'image-a' ? remoteFile(uri) : undefined
-      )
-    ).toEqual({ type: 'image', format: 'nrrd', uris: [uri] });
-  });
-
-  it('fails closed when the parent image has no server provenance', () => {
-    expect(
-      mintLabelmapReferenceImage('g1', viewOf({ g1: 'image-a' }), () =>
-        localFile('local.nrrd')
-      )
-    ).toBeNull();
   });
 });

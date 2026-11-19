@@ -7,7 +7,6 @@ export enum InteractionState {
   PlacingSecond = 'PlacingSecond',
   Select = 'Select',
   Dragging = 'Dragging',
-  Moving = 'Moving',
 }
 
 export function shouldIgnoreEvent(e: any) {
@@ -24,9 +23,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   model.interactionState = InteractionState.Select;
   let draggingState: any = null;
-  let moveStartCoords: Vector3 | null = null;
-  let moveFirstOrigin: Vector3 | null = null;
-  let moveSecondOrigin: Vector3 | null = null;
 
   macro.setGet(publicAPI, model, ['interactionState']);
   // support setting per-view widget manipulators
@@ -66,13 +62,14 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model._interactor.cancelAnimation(publicAPI, true);
   };
 
-  // Check if mouse is over line segment between handles
-  const checkOverSegment = () => {
-    const selections = model._widgetManager.getSelections();
-    const overSegment =
-      selections[0]?.getProperties().prop ===
-      model.representations[1].getActors()[0]; // line representation is second representation
-    return overSegment;
+  // A fresh pick can be pending or empty while the old handle stays active.
+  // Only a resolved pick away from the line permits that handle to drag.
+  const canDragHandle = () => {
+    const selected = model._widgetManager.getSelections()?.[0];
+    return (
+      !!selected &&
+      selected.getProperties().prop !== model.representations[1].getActors()[0]
+    );
   };
 
   // Check if mouse is over fill representation (for hover but not interaction)
@@ -85,13 +82,27 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     );
   };
 
+  const anotherWidgetIsActive = () => {
+    const active = model._widgetManager.getActiveWidget();
+    return active && active !== publicAPI;
+  };
+
   const getWorldCoords = computeWorldCoords(model);
 
   /**
    * Places or drags a point.
    */
   publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
+    if (
+      !model.manipulator ||
+      anotherWidgetHasFocus() ||
+      shouldIgnoreEvent(eventData)
+    ) {
+      return macro.VOID;
+    }
+
+    // Ignore clicks on fill - let them pass through
+    if (checkOverFill()) {
       return macro.VOID;
     }
 
@@ -104,12 +115,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     const intState = publicAPI.getInteractionState();
 
     // If not placing and another widget is active, don't consume event.
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (
-      intState === InteractionState.Select &&
-      activeWidget &&
-      activeWidget !== publicAPI
-    ) {
+    if (intState === InteractionState.Select && anotherWidgetIsActive()) {
       return macro.VOID;
     }
 
@@ -142,34 +148,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    // Move entire annotation when clicking on fill or segment
-    if (
-      intState === InteractionState.Select &&
-      model.pickable &&
-      (checkOverFill() || checkOverSegment())
-    ) {
-      moveStartCoords = worldCoords as Vector3;
-      moveFirstOrigin = model.widgetState
-        .getFirstPoint()
-        .getOrigin()
-        .slice() as Vector3;
-      moveSecondOrigin = model.widgetState
-        .getSecondPoint()
-        .getOrigin()
-        .slice() as Vector3;
-      publicAPI.setInteractionState(InteractionState.Moving);
-      model._apiSpecificRenderWindow.setCursor('grabbing');
-      model._interactor.requestAnimation(publicAPI);
-      publicAPI.invokeStartInteractionEvent();
-      return macro.EVENT_ABORT;
-    }
-
-    // dragging a single handle
+    // dragging
     if (
       model.activeState?.getActive() &&
       model.activeState?.setOrigin &&
       model.pickable &&
-      !checkOverSegment()
+      canDragHandle()
     ) {
       draggingState = model.activeState;
       publicAPI.setInteractionState(InteractionState.Dragging);
@@ -197,24 +181,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.widgetState.getSecondPoint().setOrigin(worldCoords);
       // show second point during placement
       model.widgetState.getSecondPoint().setVisible(true);
-      publicAPI.invokeInteractionEvent();
-      return macro.EVENT_ABORT;
-    }
-
-    if (intState === InteractionState.Moving && moveStartCoords) {
-      const dx = worldCoords[0] - moveStartCoords[0];
-      const dy = worldCoords[1] - moveStartCoords[1];
-      const dz = worldCoords[2] - moveStartCoords[2];
-      model.widgetState.getFirstPoint().setOrigin([
-        moveFirstOrigin![0] + dx,
-        moveFirstOrigin![1] + dy,
-        moveFirstOrigin![2] + dz,
-      ]);
-      model.widgetState.getSecondPoint().setOrigin([
-        moveSecondOrigin![0] + dx,
-        moveSecondOrigin![1] + dy,
-        moveSecondOrigin![2] + dz,
-      ]);
       publicAPI.invokeInteractionEvent();
       return macro.EVENT_ABORT;
     }
@@ -248,37 +214,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Finishes dragging
    */
   publicAPI.handleLeftButtonRelease = (eventData: any) => {
-    // Finish moving entire annotation
-    if (moveStartCoords) {
-      const worldCoords = getWorldCoords(eventData);
-      if (worldCoords?.length) {
-        const dx = worldCoords[0] - moveStartCoords[0];
-        const dy = worldCoords[1] - moveStartCoords[1];
-        const dz = worldCoords[2] - moveStartCoords[2];
-        model.widgetState.getFirstPoint().setOrigin([
-          moveFirstOrigin![0] + dx,
-          moveFirstOrigin![1] + dy,
-          moveFirstOrigin![2] + dz,
-        ]);
-        model.widgetState.getSecondPoint().setOrigin([
-          moveSecondOrigin![0] + dx,
-          moveSecondOrigin![1] + dy,
-          moveSecondOrigin![2] + dz,
-        ]);
-      }
-
-      moveStartCoords = null;
-      moveFirstOrigin = null;
-      moveSecondOrigin = null;
-      publicAPI.setInteractionState(InteractionState.Select);
-      model._apiSpecificRenderWindow.setCursor('pointer');
-      model.widgetState.deactivate();
-      model._interactor.cancelAnimation(publicAPI);
-      publicAPI.invokeEndInteractionEvent();
-      model._widgetManager.enablePicking();
-    }
-
-    // Finish dragging a single handle
     if (draggingState) {
       const worldCoords = getWorldCoords(eventData);
       if (worldCoords?.length) {
