@@ -3076,10 +3076,41 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
     });
   }
 
-  async function cropSnapshot(dataURL: string, viewID: string | null | undefined, maxWidth = 768, maxHeight = 768) {
+  /**
+   * The render window that actually draws the active view.
+   *
+   * `vtkRenderWindowParent.renderWindow` owns only the shared WebGL CONTEXT; every
+   * view registers its own child render window (`addRenderWindow`) whose GL view is
+   * the canvas on screen. Capturing the parent therefore captured an unattached
+   * 1x1 context and returned a 88-byte PNG while the user was looking at a rendered
+   * image. Pick the child whose container sits inside the active view element.
+   */
+  function resolveActiveRenderWindow(viewID: string | null | undefined) {
+    const parentWindow = vtkRenderWindowParent.value?.renderWindow;
+    const parentView = vtkRenderWindowParent.value?.renderWindowView;
+    const children: any[] = parentWindow?.getChildRenderWindows?.() ?? [];
+    const viewEl = viewID
+      ? document.querySelector(`[data-volview-view-id="${CSS.escape(viewID)}"]`) as HTMLElement | null
+      : null;
+    const child = viewEl
+      ? children.find((candidate) => {
+        const container = candidate?.getViews?.()?.[0]?.getContainer?.() as HTMLElement | null;
+        return !!container && (container === viewEl || viewEl.contains(container));
+      })
+      : undefined;
+    const renderWindow = child ?? parentWindow;
+    const renderWindowView = (child?.getViews?.()?.[0] ?? parentView) as { getCanvas?: () => HTMLCanvasElement } | undefined;
+    return {
+      renderWindow,
+      canvas: renderWindowView?.getCanvas?.() as HTMLCanvasElement | undefined,
+      isChild: !!child,
+    };
+  }
+
+  async function cropSnapshot(dataURL: string, viewID: string | null | undefined, maxWidth = 768, maxHeight = 768, sourceCanvas?: HTMLCanvasElement) {
     const source = await loadImage(dataURL);
     const renderWindowView = vtkRenderWindowParent.value?.renderWindowView;
-    const canvas = renderWindowView?.getCanvas?.() as HTMLCanvasElement | undefined;
+    const canvas = sourceCanvas ?? renderWindowView?.getCanvas?.() as HTMLCanvasElement | undefined;
     const viewEl = viewID ? document.querySelector(`[data-volview-view-id="${CSS.escape(viewID)}"]`) as HTMLElement | null : null;
     const canvasRect = canvas?.getBoundingClientRect?.();
     const viewRect = viewEl?.getBoundingClientRect?.();
@@ -3163,13 +3194,90 @@ export function useVolViewFrontendBridge(options: BridgeOptions) {
         capturedAt: Date.now(),
       };
       if (payload.includeImage !== false) {
-        const renderWindow = vtkRenderWindowParent.value?.renderWindow;
-        if (renderWindow?.captureImages) {
+        const maxW = Number(payload.maxWidth) || 768;
+        const maxH = Number(payload.maxHeight) || 768;
+        const viewEl = viewID
+          ? document.querySelector(`[data-volview-view-id="${CSS.escape(viewID)}"]`) as HTMLElement | null
+          : null;
+        // A hidden iframe (`v-show` on the Modules tab) never fires
+        // requestAnimationFrame; race it with a timer so a snapshot cannot hang there.
+        const frame = () => new Promise<void>((resolve) => {
+          let settled = false;
+          const done = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+          requestAnimationFrame(done);
+          setTimeout(done, 32);
+        });
+        const usable = (shot: { sourceWidth: number; sourceHeight: number } | null) => !!shot
+          && shot.sourceWidth >= 8
+          && shot.sourceHeight >= 8;
+        const captureWith = async (renderWindow: any, canvas?: HTMLCanvasElement) => {
+          if (!renderWindow?.captureImages) return null;
           renderWindow.render?.();
           const imageURL = await renderWindow.captureImages()[0];
-          result.image = await cropSnapshot(imageURL, viewID, Number(payload.maxWidth) || 768, Number(payload.maxHeight) || 768);
+          return imageURL ? cropSnapshot(imageURL, viewID, maxW, maxH, canvas) : null;
+        };
+
+        // 1) The active view's OWN render window (each view registers a child window
+        //    whose GL view is the canvas on screen; the parent only holds the context).
+        const target = resolveActiveRenderWindow(viewID);
+        // A view that just became visible needs one frame (or, when the iframe is
+        // hidden and never paints, a short timer) before it has pixels to capture.
+        await frame();
+        let cropped: Awaited<ReturnType<typeof cropSnapshot>> | null = await captureWith(target.renderWindow, target.canvas);
+
+        // 2) Views are sized from a ResizeObserver on their container, which reports
+        //    0x0 while the pane sits behind the Modules tab; a view that was never
+        //    re-measured keeps a 1x1 framebuffer for the whole session (no capture can
+        //    conjure those pixels — the answer below says so instead of inventing one).
+        // 2b) Last resort: the DOM canvas of the active view, rendered first.
+        if (!usable(cropped)) {
+          vtkRenderWindowParent.value?.renderWindow?.render?.();
+          const domCanvas = viewEl?.querySelector('canvas') as HTMLCanvasElement | null;
+          if (domCanvas && domCanvas.width >= 8 && domCanvas.height >= 8) {
+            try {
+              cropped = await cropSnapshot(domCanvas.toDataURL('image/png'), viewID, maxW, maxH, domCanvas);
+            } catch {
+              /* a tainted or cleared canvas leaves the capture unavailable below */
+            }
+          }
+        }
+        // A capture that produced (almost) no pixels is not a picture of a blank
+        // scan: say so, so nobody reads a 1x1 PNG as "the image is empty".
+        if (cropped && cropped.sourceWidth >= 8 && cropped.sourceHeight >= 8) {
+          result.image = cropped;
         } else {
           result.image = null;
+          result.imageUnavailable = `the active view returned no rendered pixels (${cropped ? `${cropped.sourceWidth}x${cropped.sourceHeight}` : 'no canvas'}); the viewer may not have drawn this view yet`;
+          // Why there is no picture: the sizes the viewer believes in, so this does
+          // not stay a mystery ("the app shows an image, the snapshot is 1x1").
+          const viewRect = viewEl?.getBoundingClientRect?.();
+          const child: any = (target.renderWindow?.getChildRenderWindows?.() ?? [])[0];
+          const childView: any = child?.getViews?.()?.[0];
+          result.imageDiagnostics = {
+            viewElementFound: !!viewEl,
+            viewRect: viewRect ? { width: Math.round(viewRect.width), height: Math.round(viewRect.height) } : null,
+            // What vtk itself believes: a view that never received its size renders
+            // nothing, and the canvas stays at its 1x1 default.
+            parentViewSize: target.renderWindow?.getSize?.() ?? null,
+            childRenderWindowSize: child?.getSize?.() ?? null,
+            childViewSize: childView?.getSize?.() ?? null,
+            childCanvasBacking: target.canvas ? { width: target.canvas.width, height: target.canvas.height } : null,
+            devicePixelRatio: window.devicePixelRatio,
+            canvases: Array.from(document.querySelectorAll('canvas')).slice(0, 8).map((node) => {
+              const canvas = node as HTMLCanvasElement;
+              const rect = canvas.getBoundingClientRect();
+              return {
+                inActiveView: !!viewEl && viewEl.contains(canvas),
+                backingSize: { width: canvas.width, height: canvas.height },
+                cssSize: { width: Math.round(rect.width), height: Math.round(rect.height) },
+                display: getComputedStyle(canvas).display,
+              };
+            }),
+          };
         }
       }
       if (payload.includeHistogram !== false) {
